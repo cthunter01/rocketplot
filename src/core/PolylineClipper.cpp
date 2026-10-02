@@ -1,6 +1,5 @@
 #include "core/PolylineClipper.h"
 
-#include <algorithm>
 #include <array>
 #include <cstddef>
 
@@ -9,6 +8,40 @@
 namespace rocketplot::core
 {
 
+namespace
+{
+
+constexpr std::size_t kNoEdge = 4;
+
+// The point at parameter t along start + t * (dx, dy), on @p edge of the box (0 left, 1 right,
+// 2 top, 3 bottom). Its coordinate across that edge is the edge's own, exactly: computed, it could
+// miss by an ulp, more so where the compiler fuses the multiply and add.
+PixelPoint pointOnEdge(PixelPoint start, double dx, double dy, double t, std::size_t edge,
+                       PixelBox box)
+{
+    PixelPoint point{.x = start.x + (t * dx), .y = start.y + (t * dy)};
+    switch (edge)
+    {
+        case 0:
+            point.x = box.left;
+            break;
+        case 1:
+            point.x = box.right;
+            break;
+        case 2:
+            point.y = box.top;
+            break;
+        case 3:
+            point.y = box.bottom;
+            break;
+        default:
+            break;
+    }
+    return point;
+}
+
+}  // namespace
+
 bool clipSegment(PixelPoint& a, PixelPoint& b, PixelBox box) noexcept
 {
     const double dx = b.x - a.x;
@@ -16,8 +49,10 @@ bool clipSegment(PixelPoint& a, PixelPoint& b, PixelBox box) noexcept
     // For each edge: p < 0 means the segment enters through it, p > 0 that it leaves through it.
     const std::array<double, 4> p{-dx, dx, -dy, dy};
     const std::array<double, 4> q{a.x - box.left, box.right - a.x, a.y - box.top, box.bottom - a.y};
-    double                      enter = 0.0;
-    double                      leave = 1.0;
+    double                      enter     = 0.0;
+    double                      leave     = 1.0;
+    std::size_t                 enterEdge = kNoEdge;
+    std::size_t                 leaveEdge = kNoEdge;
     for (std::size_t edge = 0; edge < p.size(); ++edge)
     {
         if (p.at(edge) == 0.0)
@@ -29,13 +64,15 @@ bool clipSegment(PixelPoint& a, PixelPoint& b, PixelBox box) noexcept
             continue;
         }
         const double t = q.at(edge) / p.at(edge);
-        if (p.at(edge) < 0.0)
+        if (p.at(edge) < 0.0 && t > enter)
         {
-            enter = std::max(enter, t);
+            enter     = t;
+            enterEdge = edge;
         }
-        else
+        else if (p.at(edge) > 0.0 && t < leave)
         {
-            leave = std::min(leave, t);
+            leave     = t;
+            leaveEdge = edge;
         }
     }
     if (enter > leave)
@@ -45,11 +82,11 @@ bool clipSegment(PixelPoint& a, PixelPoint& b, PixelBox box) noexcept
     const PixelPoint start = a;
     if (enter > 0.0)
     {
-        a = {.x = start.x + (enter * dx), .y = start.y + (enter * dy)};
+        a = pointOnEdge(start, dx, dy, enter, enterEdge, box);
     }
     if (leave < 1.0)
     {
-        b = {.x = start.x + (leave * dx), .y = start.y + (leave * dy)};
+        b = pointOnEdge(start, dx, dy, leave, leaveEdge, box);
     }
     return true;
 }
