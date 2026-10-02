@@ -713,7 +713,7 @@ void PlotWidget::showEntryMenu(Series* series, QPoint globalPosition)
         menu->addAction(tr("Theme color"), this,
                         onTarget([](Series& current) { current.resetColor(); }));
     }
-    if (auto* line = qobject_cast<LineSeries*>(series))
+    if (const auto* line = qobject_cast<const LineSeries*>(series))
     {
         QMenu*        widths = menu->addMenu(tr("Line width"));
         const QLocale locale;
