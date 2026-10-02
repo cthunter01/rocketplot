@@ -21,6 +21,7 @@ struct ROCKETPLOT_EXPORT Theme
     QColor secondaryText;     ///< Axis labels and tick labels
     QColor axisLine;          ///< Axis lines and ticks
     QColor gridLine;          ///< Grid lines at the major ticks
+    QColor minorGridLine;     ///< Grid lines at the minor ticks (when shown)
     QColor legendBackground;  ///< Fill of the legend box (usually translucent)
     QColor legendBorder;      ///< Hairline around the legend box
 

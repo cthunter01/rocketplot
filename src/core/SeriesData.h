@@ -64,6 +64,13 @@ public:
     /// Bounds of the points whose x and y are both finite; Range::empty() when there are none.
     [[nodiscard]] Range xBounds() const noexcept { return m_xBounds; }
     [[nodiscard]] Range yBounds() const noexcept { return m_yBounds; }
+    /// The same, counting only points whose x (or y) is positive: what a log axis can show.
+    [[nodiscard]] Range xPositiveBounds() const noexcept { return m_xPositive; }
+    [[nodiscard]] Range yPositiveBounds() const noexcept { return m_yPositive; }
+    /// Bounds of the finite y values of the points whose x is in @p xRange (only positive ones
+    /// when @p positiveOnly). Range::empty() when there are none. Fast for sorted series (it reads
+    /// the pyramid); unsorted ones visit every point.
+    [[nodiscard]] Range yBoundsWithin(Range xRange, bool positiveOnly) const;
 
     [[nodiscard]] const MinMaxPyramid& pyramid() const noexcept { return m_pyramid; }
 
@@ -87,6 +94,8 @@ private:
     bool                    m_sorted    = true;
     Range                   m_xBounds   = Range::empty();
     Range                   m_yBounds   = Range::empty();
+    Range                   m_xPositive = Range::empty();
+    Range                   m_yPositive = Range::empty();
     MinMaxPyramid           m_pyramid;
 };
 

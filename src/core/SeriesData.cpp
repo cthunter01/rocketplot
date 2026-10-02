@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/MinMaxPyramid.h"
 #include "rocketplot/Range.h"
 #include "rocketplot/UniformX.h"
 
@@ -185,11 +186,51 @@ std::size_t SeriesData::upperBound(double value) const
     return index;
 }
 
+Range SeriesData::yBoundsWithin(Range xRange, bool positiveOnly) const
+{
+    if (empty() || !(xRange.min <= xRange.max))
+    {
+        return Range::empty();
+    }
+    if (!m_sorted)
+    {
+        Range bounds = Range::empty();
+        for (std::size_t i = 0; i < size(); ++i)
+        {
+            const double yi = m_y[i];
+            if (xRange.contains(x(i)) && (!positiveOnly || yi > 0.0))
+            {
+                bounds = bounds.including(yi);
+            }
+        }
+        return bounds;
+    }
+    const std::size_t first = lowerBound(xRange.min);
+    const std::size_t last  = upperBound(xRange.max);
+    if (first >= last)
+    {
+        return Range::empty();
+    }
+    const MinMax summary = m_pyramid.query(m_y, first, last);
+    if (!summary.hasFinite())
+    {
+        return Range::empty();
+    }
+    if (positiveOnly)
+    {
+        return summary.max > 0.0 ? Range{.min = summary.minPositive, .max = summary.max}
+                                 : Range::empty();
+    }
+    return {.min = summary.min, .max = summary.max};
+}
+
 void SeriesData::resetDerived()
 {
-    m_sorted  = m_isUniform ? isSortedUniform(m_uniform) : true;
-    m_xBounds = Range::empty();
-    m_yBounds = Range::empty();
+    m_sorted    = m_isUniform ? isSortedUniform(m_uniform) : true;
+    m_xBounds   = Range::empty();
+    m_yBounds   = Range::empty();
+    m_xPositive = Range::empty();
+    m_yPositive = Range::empty();
     m_pyramid.clear();
 }
 
@@ -208,6 +249,14 @@ void SeriesData::updateDerived(std::size_t first)
         {
             m_xBounds = m_xBounds.including(xi);
             m_yBounds = m_yBounds.including(yi);
+            if (xi > 0.0)
+            {
+                m_xPositive = m_xPositive.including(xi);
+            }
+            if (yi > 0.0)
+            {
+                m_yPositive = m_yPositive.including(yi);
+            }
         }
     }
     m_pyramid.extend(m_y, first);

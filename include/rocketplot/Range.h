@@ -18,8 +18,10 @@ struct Range
     /// The range that contains nothing: uniting it with another range gives that range.
     [[nodiscard]] static constexpr Range empty() noexcept
     {
-        return {.min = std::numeric_limits<double>::infinity(),
-                .max = -std::numeric_limits<double>::infinity()};
+        return {
+            .min = std::numeric_limits<double>::infinity(),
+            .max = -std::numeric_limits<double>::infinity(),
+        };
     }
 
     [[nodiscard]] bool isValid() const noexcept
@@ -56,8 +58,10 @@ struct Range
     /// Scaled by @p factor about @p anchor, which keeps its relative position: factor < 1 zooms in.
     [[nodiscard]] constexpr Range zoomedAbout(double anchor, double factor) const noexcept
     {
-        return {.min = anchor - ((anchor - min) * factor),
-                .max = anchor + ((max - anchor) * factor)};
+        return {
+            .min = anchor - ((anchor - min) * factor),
+            .max = anchor + ((max - anchor) * factor),
+        };
     }
     /// Widened by @p fraction of the span on each side.
     [[nodiscard]] constexpr Range padded(double fraction) const noexcept

@@ -23,6 +23,11 @@ DemoPage basicLinesPage();
 DemoPage scatterPage();
 DemoPage gapsPage();
 DemoPage uniformSamplingPage();
+DemoPage logScalePage();
+DemoPage dateTimePage();
+DemoPage twoAxesPage();
+DemoPage numberFormatsPage();
+DemoPage linkedPlotsPage();
 DemoPage largeDataPage();
 DemoPage liveAppendPage();
 

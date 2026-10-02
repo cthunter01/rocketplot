@@ -1,6 +1,8 @@
 #include "core/TickGenerator.h"
 
+#include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -116,6 +118,59 @@ TEST(TickGenerator, NegativeRanges)
     const auto                ticks = linearTicks(Range{.min = -50.0, .max = -10.0}, 400.0, 100.0);
     const std::vector<double> expected{-50.0, -40.0, -30.0, -20.0, -10.0};
     EXPECT_EQ(ticks.major, expected);
+}
+
+TEST(TickGenerator, LogTicksAtPowersOfTen)
+{
+    using rocketplot::core::logTicks;
+    // Six decades over 600 px, labels 50 px apart: every power of ten, plus 2x and 5x? A decade is
+    // 100 px; 1 to 2 is 30 px, too close.
+    const auto                ticks = logTicks(Range{.min = 1e-3, .max = 1e3}, 600.0, 50.0, 4.0);
+    const std::vector<double> expected{1e-3, 1e-2, 1e-1, 1.0, 10.0, 100.0, 1000.0};
+    ASSERT_EQ(ticks.major.size(), expected.size());
+    for (std::size_t i = 0; i < expected.size(); ++i)
+    {
+        EXPECT_DOUBLE_EQ(ticks.major[i], expected[i]);
+    }
+    // Minor ticks at 2..9 of each decade: 9 to 10 is 4.6 px apart.
+    EXPECT_EQ(ticks.minor.size(), 6U * 8U);
+}
+
+TEST(TickGenerator, LogTicksSkipDecadesWhenCrowded)
+{
+    using rocketplot::core::logTicks;
+    const auto ticks = logTicks(Range{.min = 1e-10, .max = 1e10}, 200.0, 40.0, 4.0);
+    EXPECT_DOUBLE_EQ(ticks.step, 5.0);  // every 5th decade
+    for (const double value : ticks.major)
+    {
+        const double exponent = std::log10(value);
+        EXPECT_NEAR(std::fmod(std::abs(exponent), 5.0), 0.0, 1e-9) << value;
+    }
+}
+
+TEST(TickGenerator, WideLogDecadesGetTwoAndFive)
+{
+    using rocketplot::core::logTicks;
+    const auto ticks = logTicks(Range{.min = 1.0, .max = 100.0}, 800.0, 60.0, 4.0);
+    EXPECT_NE(std::ranges::find(ticks.major, 2.0), ticks.major.end());
+    EXPECT_NE(std::ranges::find(ticks.major, 50.0), ticks.major.end());
+    EXPECT_TRUE(std::ranges::is_sorted(ticks.major));
+}
+
+TEST(TickGenerator, NarrowLogRangesDontFitDecades)
+{
+    EXPECT_FALSE(rocketplot::core::fitsDecadeTicks(Range{.min = 20.0, .max = 80.0}));
+    EXPECT_FALSE(rocketplot::core::fitsDecadeTicks(Range{.min = 2.0, .max = 50.0}));
+    EXPECT_TRUE(rocketplot::core::fitsDecadeTicks(Range{.min = 0.5, .max = 10.0}));
+    EXPECT_FALSE(rocketplot::core::fitsDecadeTicks(Range{.min = -1.0, .max = 100.0}));
+}
+
+TEST(TickGenerator, AtLeastTwoTicksWhenTheyFitLoosely)
+{
+    // 130 px for -1.5 .. 1.6 with labels 33 px apart: a step of 2 would leave only 0.
+    const auto ticks = linearTicks(Range{.min = -1.5, .max = 1.6}, 130.0, 33.0);
+    EXPECT_GE(ticks.major.size(), 2U);
+    EXPECT_DOUBLE_EQ(ticks.step, 1.0);
 }
 
 }  // namespace

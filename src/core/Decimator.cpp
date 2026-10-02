@@ -38,25 +38,30 @@ public:
 
     void gap() noexcept { m_gap = true; }
 
-    // The point at index, which must be finite.
+    // The point at index; a gap if it has no finite pixel position (NaN or infinite data, or a
+    // value <= 0 on a log axis).
     void addIndex(std::size_t index)
     {
-        addPixel({.x = m_x->toPixel(m_data->x(index)), .y = m_y->toPixel(m_data->y(index))});
+        const PixelPoint point{
+            .x = m_x->toPixel(m_data->x(index)),
+            .y = m_y->toPixel(m_data->y(index)),
+        };
+        if (std::isfinite(point.x) && std::isfinite(point.y))
+        {
+            addPixel(point);
+        }
+        else
+        {
+            gap();
+        }
     }
 
-    // The points in [first, last), with a gap at each one that isn't finite.
+    // The points in [first, last).
     void addRaw(std::size_t first, std::size_t last)
     {
         for (std::size_t i = first; i < last; ++i)
         {
-            if (std::isfinite(m_data->x(i)) && std::isfinite(m_data->y(i)))
-            {
-                addIndex(i);
-            }
-            else
-            {
-                gap();
-            }
+            addIndex(i);
         }
     }
 
@@ -95,8 +100,12 @@ void addColumn(const SeriesData& data, std::size_t first, std::size_t last, Line
     {
         line.gap();
     }
-    std::array<std::size_t, 4> indices{summary.firstFinite, summary.argMin, summary.argMax,
-                                       summary.lastFinite};
+    std::array<std::size_t, 4> indices{
+        summary.firstFinite,
+        summary.argMin,
+        summary.argMax,
+        summary.lastFinite,
+    };
     std::ranges::sort(indices);
     const auto duplicates = std::ranges::unique(indices);
     for (const std::size_t index : std::ranges::subrange(indices.begin(), duplicates.begin()))
@@ -140,17 +149,15 @@ DecimationResult decimateUnsorted(const SeriesData& data, const AxisMapping& x,
     double previousRow  = 0.0;
     for (std::size_t i = 0; i < data.size(); ++i)
     {
-        const double xi = data.x(i);
-        const double yi = data.y(i);
-        if (!std::isfinite(xi) || !std::isfinite(yi))
+        const PixelPoint p{.x = x.toPixel(data.x(i)), .y = y.toPixel(data.y(i))};
+        if (!std::isfinite(p.x) || !std::isfinite(p.y))
         {
-            line.gap();
+            line.gap();  // NaN or infinite data, or a value <= 0 on a log axis
             havePrevious = false;
             continue;
         }
-        const PixelPoint p{.x = x.toPixel(xi), .y = y.toPixel(yi)};
-        const double     col = std::floor(p.x / columnWidth);
-        const double     row = std::floor(p.y / columnWidth);
+        const double col = std::floor(p.x / columnWidth);
+        const double row = std::floor(p.y / columnWidth);
         if (havePrevious && col == previousCol && row == previousRow)
         {
             continue;
@@ -220,18 +227,20 @@ DecimationResult decimateLine(const SeriesData& data, const AxisMapping& x, cons
         return {.mode = DecimationMode::RAW, .visiblePoints = visibleCount};
     }
 
-    // One pixel column at a time: its index range [a, b) by binary search, its extremes from the
-    // pyramid. The last iteration takes everything right of the visible range.
+    // One pixel column at a time: its index range [a, b) by binary search for the data value at its
+    // right edge (through the mapping, so log axes work), its extremes from the pyramid. The last
+    // iteration takes everything right of the visible range.
     const auto   columnCount = static_cast<std::size_t>(columns);
-    const double columnSpan  = visible.span() / columns;
+    const double direction   = x.pixelEnd() >= x.pixelStart() ? 1.0 : -1.0;
     std::size_t  a           = start;
     for (std::size_t column = 0; column <= columnCount && a < stop; ++column)
     {
         std::size_t b = stop;
         if (column < columnCount)
         {
-            const double edge = visible.min + (columnSpan * static_cast<double>(column + 1));
-            b                 = std::clamp(data.lowerBound(edge), a, stop);
+            const double edge = x.toValue(
+                x.pixelStart() + (direction * columnWidth * static_cast<double>(column + 1)));
+            b = std::clamp(data.lowerBound(edge), a, stop);
         }
         // An empty column needs nothing: the line just crosses it.
         if (b - a > kRawPointsPerColumn)
@@ -278,14 +287,8 @@ std::size_t decimateScatter(const SeriesData& data, const AxisMapping& x, const 
 
     for (std::size_t i = first; i < last; ++i)
     {
-        const double xi = data.x(i);
-        const double yi = data.y(i);
-        if (!std::isfinite(xi) || !std::isfinite(yi))
-        {
-            continue;
-        }
-        const PixelPoint p{.x = x.toPixel(xi), .y = y.toPixel(yi)};
-        if (!box.contains(p))
+        const PixelPoint p{.x = x.toPixel(data.x(i)), .y = y.toPixel(data.y(i))};
+        if (!box.contains(p))  // also false for a NaN or infinite position
         {
             continue;
         }

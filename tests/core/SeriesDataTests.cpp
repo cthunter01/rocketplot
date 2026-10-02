@@ -1,5 +1,6 @@
 #include "core/SeriesData.h"
 
+#include <cmath>
 #include <cstddef>
 #include <limits>
 #include <stdexcept>
@@ -203,6 +204,52 @@ TEST(SeriesData, EmptyAndClear)
     data.clear();
     EXPECT_TRUE(data.empty());
     EXPECT_FALSE(data.yBounds().isValid());
+}
+
+TEST(SeriesData, PositiveBoundsForLogAxes)
+{
+    SeriesData data;
+    data.setOwned(std::vector<double>{-1, 0, 2, 3}, std::vector<double>{5, -2, 0.5, 0});
+    EXPECT_EQ(data.xPositiveBounds(), (Range{.min = 2, .max = 3}));
+    EXPECT_EQ(data.yPositiveBounds(), (Range{.min = 0.5, .max = 5}));
+}
+
+TEST(SeriesData, YBoundsWithinAnXRange)
+{
+    SeriesData sorted;
+    sorted.setOwned(UniformX{.start = 0.0, .step = 1.0},
+                    std::vector<double>{5, -1, 7, 3, kNaN, 9, -4});
+    EXPECT_EQ(sorted.yBoundsWithin({.min = 1.0, .max = 3.0}, false), (Range{.min = -1, .max = 7}));
+    EXPECT_EQ(sorted.yBoundsWithin({.min = 1.0, .max = 3.0}, true), (Range{.min = 3, .max = 7}));
+    EXPECT_EQ(sorted.yBoundsWithin({.min = 3.5, .max = 4.5}, false),
+              Range::empty());  // only the NaN
+    EXPECT_EQ(sorted.yBoundsWithin({.min = 10.0, .max = 20.0}, false), Range::empty());
+
+    SeriesData unsorted;
+    unsorted.setOwned(std::vector<double>{3, 1, 2, 0}, std::vector<double>{30, 10, 20, -5});
+    EXPECT_EQ(unsorted.yBoundsWithin({.min = 0.5, .max = 2.5}, false),
+              (Range{.min = 10, .max = 20}));
+}
+
+TEST(SeriesData, WindowBoundsMatchBruteForceOnLargeData)
+{
+    std::vector<double> y(100'000);
+    for (std::size_t i = 0; i < y.size(); ++i)
+    {
+        y[i] = std::sin(static_cast<double>(i) * 0.001) * static_cast<double>(i % 977);
+    }
+    SeriesData data;
+    data.setOwned(UniformX{.start = 0.0, .step = 0.5}, y);
+    const Range window{.min = 1234.25, .max = 31337.0};
+    Range       expected = Range::empty();
+    for (std::size_t i = 0; i < y.size(); ++i)
+    {
+        if (window.contains(data.x(i)))
+        {
+            expected = expected.including(y[i]);
+        }
+    }
+    EXPECT_EQ(data.yBoundsWithin(window, false), expected);
 }
 
 }  // namespace

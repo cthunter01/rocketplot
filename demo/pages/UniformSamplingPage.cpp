@@ -64,7 +64,8 @@ DemoPage uniformSamplingPage()
             "Uniformly sampled channels need no x array: <code>UniformX{start, step}</code> gives "
             "x = start + i·step. Channels with different rates share one time axis."),
         .sourceFile = QStringLiteral("UniformSamplingPage.cpp"),
-        .create     = create};
+        .create     = create,
+    };
 }
 
 }  // namespace rocketplot::demo

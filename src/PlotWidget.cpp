@@ -9,6 +9,7 @@
 #include <QPainter>
 #include <QPalette>
 #include <QPointF>
+#include <QPointer>
 #include <QRectF>
 #include <QSize>
 #include <QString>
@@ -26,10 +27,14 @@
 #include "MarkerPainter.h"
 #include "PlotLayout.h"
 #include "PlotRenderer.h"
+#include "TextPainter.h"
 #include "core/Autoscale.h"
+#include "core/AxisMapping.h"
+#include "core/SeriesData.h"
 #include "rocketplot/Axis.h"
 #include "rocketplot/Legend.h"
 #include "rocketplot/LineSeries.h"
+#include "rocketplot/PlotLink.h"
 #include "rocketplot/Range.h"
 #include "rocketplot/ScatterSeries.h"
 #include "rocketplot/Series.h"
@@ -54,6 +59,7 @@ struct PlotWidget::Private
 {
     Axis*                                  xAxis  = nullptr;
     Axis*                                  yAxis  = nullptr;
+    Axis*                                  yAxis2 = nullptr;
     Legend*                                legend = nullptr;
     QList<Series*>                         series;
     QString                                title;
@@ -62,23 +68,55 @@ struct PlotWidget::Private
     bool                                   debugOverlay = false;
     qsizetype                              colorCounter = 0;
     MarkerPainter                          markers;
+    TextPainter                            text;
+    QPointer<PlotLink>                     link;
     std::unique_ptr<InteractionController> interaction;
+
+    // The current layout (with the link's margins).
+    [[nodiscard]] PlotLayout layout(const PlotWidget& plot)
+    {
+        LayoutConstraints constraints;
+        const PlotLink*   current = link.data();
+        if (current != nullptr && current->alignsMargins())
+        {
+            const auto [left, right] = current->alignedMargins();
+            constraints              = {.minLeft = left, .minRight = right};
+        }
+        return layoutPlot(plot, QRectF(plot.rect()), plot.font(), plot.devicePixelRatioF(), text,
+                          constraints);
+    }
 };
 
 PlotWidget::PlotWidget(QWidget* parent) : QWidget(parent), m_impl(std::make_unique<Private>())
 {
-    m_impl->xAxis        = new Axis(Qt::Horizontal, this);
-    m_impl->yAxis        = new Axis(Qt::Vertical, this);
-    m_impl->legend       = new Legend(this);
-    m_impl->interaction  = std::make_unique<InteractionController>(*this);
+    m_impl->xAxis  = new Axis(Qt::Horizontal, false, this);
+    m_impl->yAxis  = new Axis(Qt::Vertical, false, this);
+    m_impl->yAxis2 = new Axis(Qt::Vertical, true, this);
+    m_impl->legend = new Legend(this);
+    m_impl->interaction =
+        std::make_unique<InteractionController>(*this, [this] { return m_impl->layout(*this); });
     m_impl->debugOverlay = qEnvironmentVariableIntValue("ROCKETPLOT_DEBUG_OVERLAY") == 1;
 
-    for (const Axis* axis : {m_impl->xAxis, m_impl->yAxis})
+    for (const Axis* axis : {m_impl->xAxis, m_impl->yAxis, m_impl->yAxis2})
     {
         connect(axis, &Axis::changed, this, [this] { update(); });
         connect(axis, &Axis::rangeChanged, this, &PlotWidget::viewChanged);
-        connect(axis, &Axis::autoscaleEnabled, this, [this] { applyAutoscale(); });
+        connect(axis, &Axis::fitNeeded, this, [this] { applyAutoscale(); });
     }
+    // The y axes may fit what's visible in x; a linked plot follows this one's x axis.
+    connect(m_impl->xAxis, &Axis::rangeChanged, this, [this] {
+        refitY();
+        if (PlotLink* current = m_impl->link.data(); current != nullptr)
+        {
+            current->syncFrom(this);
+        }
+    });
+    connect(m_impl->xAxis, &Axis::autoscaleChanged, this, [this] {
+        if (PlotLink* current = m_impl->link.data(); current != nullptr)
+        {
+            current->syncFrom(this);
+        }
+    });
     connect(m_impl->legend, &Legend::changed, this, [this] { update(); });
     connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this,
             [this] { updateSystemTheme(); });
@@ -223,9 +261,25 @@ Axis* PlotWidget::yAxis() const noexcept
     return m_impl->yAxis;
 }
 
+Axis* PlotWidget::yAxis2() const noexcept
+{
+    return m_impl->yAxis2;
+}
+
 Legend* PlotWidget::legend() const noexcept
 {
     return m_impl->legend;
+}
+
+PlotLink* PlotWidget::link() const noexcept
+{
+    return m_impl->link;
+}
+
+void PlotWidget::setLink(PlotLink* link)
+{
+    m_impl->link = link;
+    update();
 }
 
 QString PlotWidget::title() const
@@ -246,32 +300,89 @@ void PlotWidget::setTitle(const QString& title)
 
 void PlotWidget::resetView()
 {
-    m_impl->xAxis->m_autoscale = true;
-    m_impl->yAxis->m_autoscale = true;
+    for (Axis* axis : {m_impl->xAxis, m_impl->yAxis, m_impl->yAxis2})
+    {
+        axis->applyAutoscale(true);
+    }
     applyAutoscale();
-    Q_EMIT m_impl->xAxis->changed();
-    Q_EMIT m_impl->yAxis->changed();
 }
 
 void PlotWidget::applyAutoscale()
 {
-    Range xBounds = Range::empty();
-    Range yBounds = Range::empty();
+    refitX();
+    refitY();
+}
+
+Range PlotWidget::xDataBounds(bool positiveOnly) const
+{
+    Range bounds = Range::empty();
     for (const Series* series : std::as_const(m_impl->series))
     {
         if (series->isVisible())
         {
-            xBounds = xBounds.united(series->xBounds());
-            yBounds = yBounds.united(series->yBounds());
+            bounds =
+                bounds.united(positiveOnly ? series->data().xPositiveBounds() : series->xBounds());
         }
     }
-    if (m_impl->xAxis->autoscale())
+    return bounds;
+}
+
+void PlotWidget::refitX()
+{
+    Axis& axis = *m_impl->xAxis;
+    if (!axis.autoscale())
     {
-        m_impl->xAxis->applyRange(core::autoscaleRange(xBounds, m_impl->xAxis->autoscaleMargin()));
+        return;
     }
-    if (m_impl->yAxis->autoscale())
+    const core::Scale scale  = scaleOf(axis);
+    const bool        log    = scale == core::Scale::LOG;
+    const PlotLink*   link   = m_impl->link.data();
+    const Range       bounds = link != nullptr ? link->xDataBounds(log) : xDataBounds(log);
+    if (axis.autoscaleMode() == AutoscaleMode::FOLLOW_LATEST && !log)
     {
-        m_impl->yAxis->applyRange(core::autoscaleRange(yBounds, m_impl->yAxis->autoscaleMargin()));
+        axis.applyRange(core::followRange(bounds, axis.followWindow(), axis.autoscaleMargin()));
+    }
+    else
+    {
+        axis.applyRange(core::autoscaleRange(bounds, axis.autoscaleMargin(), scale));
+    }
+}
+
+void PlotWidget::refitY()
+{
+    const Range xRange = m_impl->xAxis->range();
+    for (Axis* axis : {m_impl->yAxis, m_impl->yAxis2})
+    {
+        if (!axis->autoscale())
+        {
+            continue;
+        }
+        const core::Scale scale   = scaleOf(*axis);
+        const bool        log     = scale == core::Scale::LOG;
+        const bool        visible = axis->autoscaleMode() != AutoscaleMode::FIT_ALL;
+        Range             bounds  = Range::empty();
+        for (const Series* series : std::as_const(m_impl->series))
+        {
+            if (!series->isVisible() || series->isOnSecondaryYAxis() != axis->isSecondary())
+            {
+                continue;
+            }
+            const core::SeriesData& seriesData = series->data();
+            if (visible)
+            {
+                bounds = bounds.united(seriesData.yBoundsWithin(xRange, log));
+            }
+            else
+            {
+                bounds = bounds.united(log ? seriesData.yPositiveBounds() : seriesData.yBounds());
+            }
+        }
+        // Fitting what's visible: with nothing in view, stay put rather than jump to a default.
+        if (visible && !bounds.isValid())
+        {
+            continue;
+        }
+        axis->applyRange(core::autoscaleRange(bounds, axis->autoscaleMargin(), scale));
     }
 }
 
@@ -341,7 +452,7 @@ void PlotWidget::updateSystemTheme()
     {
         return;
     }
-    m_impl->theme = theme;
+    m_impl->theme = std::move(theme);
     update();
     Q_EMIT themeChanged();
 }
@@ -367,20 +478,28 @@ void PlotWidget::setDebugOverlay(bool enabled)
 
 QRectF PlotWidget::plotArea() const
 {
-    return layoutPlot(*this, QRectF(rect()), font(), devicePixelRatioF()).plot;
+    return m_impl->layout(*this).plot;
 }
 
-QPointF PlotWidget::mapToData(QPointF widgetPosition) const
+QPointF PlotWidget::mapToData(QPointF widgetPosition, const Axis* yAxis) const
 {
-    const PlotLayout layout = layoutPlot(*this, QRectF(rect()), font(), devicePixelRatioF());
-    return {layout.x.mapping.toValue(widgetPosition.x()),
-            layout.y.mapping.toValue(widgetPosition.y())};
+    const PlotLayout  layout = m_impl->layout(*this);
+    const AxisLayout& y      = yAxis == m_impl->yAxis2 ? layout.y2 : layout.y;
+    return {layout.x.mapping.toValue(widgetPosition.x()), y.mapping.toValue(widgetPosition.y())};
 }
 
-QPointF PlotWidget::mapFromData(QPointF dataPosition) const
+QPointF PlotWidget::mapFromData(QPointF dataPosition, const Axis* yAxis) const
 {
-    const PlotLayout layout = layoutPlot(*this, QRectF(rect()), font(), devicePixelRatioF());
-    return {layout.x.mapping.toPixel(dataPosition.x()), layout.y.mapping.toPixel(dataPosition.y())};
+    const PlotLayout  layout = m_impl->layout(*this);
+    const AxisLayout& y      = yAxis == m_impl->yAxis2 ? layout.y2 : layout.y;
+    return {layout.x.mapping.toPixel(dataPosition.x()), y.mapping.toPixel(dataPosition.y())};
+}
+
+std::pair<double, double> PlotWidget::naturalMargins() const
+{
+    const PlotLayout layout = layoutPlot(*this, QRectF(rect()), font(), devicePixelRatioF(),
+                                         m_impl->text, LayoutConstraints{});
+    return {layout.naturalLeft, layout.naturalRight};
 }
 
 QSize PlotWidget::sizeHint() const
@@ -401,9 +520,9 @@ void PlotWidget::paintEvent(QPaintEvent* /*event*/)
     QElapsedTimer timer;
     timer.start();
     QPainter         painter(this);
-    const PlotLayout layout = layoutPlot(*this, QRectF(rect()), font(), devicePixelRatioF());
+    const PlotLayout layout = m_impl->layout(*this);
     RenderStats      stats;
-    PlotRenderer     renderer(*this, layout, m_impl->markers);
+    PlotRenderer     renderer(*this, layout, m_impl->markers, m_impl->text);
     renderer.render(painter, stats);
     stats.milliseconds = static_cast<double>(timer.nsecsElapsed()) / 1e6;
     if (m_impl->debugOverlay)
@@ -415,8 +534,7 @@ void PlotWidget::paintEvent(QPaintEvent* /*event*/)
 
 void PlotWidget::mousePressEvent(QMouseEvent* event)
 {
-    const PlotLayout layout = layoutPlot(*this, QRectF(rect()), font(), devicePixelRatioF());
-    if (m_impl->interaction->mousePress(*event, layout))
+    if (m_impl->interaction->mousePress(*event))
     {
         event->accept();
         return;
@@ -446,8 +564,7 @@ void PlotWidget::mouseReleaseEvent(QMouseEvent* event)
 
 void PlotWidget::mouseDoubleClickEvent(QMouseEvent* event)
 {
-    const PlotLayout layout = layoutPlot(*this, QRectF(rect()), font(), devicePixelRatioF());
-    if (m_impl->interaction->mouseDoubleClick(*event, layout))
+    if (m_impl->interaction->mouseDoubleClick(*event))
     {
         event->accept();
         return;
@@ -457,8 +574,7 @@ void PlotWidget::mouseDoubleClickEvent(QMouseEvent* event)
 
 void PlotWidget::wheelEvent(QWheelEvent* event)
 {
-    const PlotLayout layout = layoutPlot(*this, QRectF(rect()), font(), devicePixelRatioF());
-    if (m_impl->interaction->wheel(*event, layout))
+    if (m_impl->interaction->wheel(*event))
     {
         event->accept();
         return;

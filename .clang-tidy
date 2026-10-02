@@ -136,6 +136,14 @@ CheckOptions:
   google-explicit-constructor.IgnoredConversionOperators: ''
 
   # ---------------------------------------------------------------------------
+  # Trailing commas (clang-tidy 23+): multi-line initializer lists end in a comma, so clang-format puts one
+  # element per line. Single-line lists are left alone: the check's "Remove" fix-it is buggy (it removes the
+  # comma after `UniformX{}` in a call's argument list).
+  # ---------------------------------------------------------------------------
+  readability-trailing-comma.MultiLineCommaPolicy: Append
+  readability-trailing-comma.SingleLineCommaPolicy: Ignore
+
+  # ---------------------------------------------------------------------------
   # Qt
   # ---------------------------------------------------------------------------
   # Qt's public headers are umbrella-style (<QPainter> forwards to <QtGui/qpainter.h>): don't ask for the

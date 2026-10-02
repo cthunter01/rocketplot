@@ -200,7 +200,8 @@ DemoPage largeDataPage()
             "its visible index range, as the first, lowest, highest and last point of each pixel "
             "column; an unsorted one visits every point. Pan and zoom, and watch the frame time."),
         .sourceFile = QStringLiteral("LargeDataPage.cpp"),
-        .create     = create};
+        .create     = create,
+    };
 }
 
 }  // namespace rocketplot::demo

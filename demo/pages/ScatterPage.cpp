@@ -38,22 +38,32 @@ QWidget* create(QWidget* parent)
         double             sigma;
         rocketplot::Marker marker;
     };
-    const std::array<Run, 3> runs{{{.name   = "Nominal winds",
-                                    .x      = 0.0,
-                                    .y      = 0.0,
-                                    .sigma  = 18.0,
-                                    .marker = rocketplot::Marker::CIRCLE},
-                                   {.name   = "Gusty",
-                                    .x      = 25.0,
-                                    .y      = 40.0,
-                                    .sigma  = 30.0,
-                                    .marker = rocketplot::Marker::SQUARE},
-                                   {.name   = "Engine-out",
-                                    .x      = -60.0,
-                                    .y      = -35.0,
-                                    .sigma  = 22.0,
-                                    .marker = rocketplot::Marker::TRIANGLE}}};
-    std::uint64_t            seed = 1;
+    const std::array<Run, 3> runs{
+        {
+            {
+                .name   = "Nominal winds",
+                .x      = 0.0,
+                .y      = 0.0,
+                .sigma  = 18.0,
+                .marker = rocketplot::Marker::CIRCLE,
+            },
+            {
+                .name   = "Gusty",
+                .x      = 25.0,
+                .y      = 40.0,
+                .sigma  = 30.0,
+                .marker = rocketplot::Marker::SQUARE,
+            },
+            {
+                .name   = "Engine-out",
+                .x      = -60.0,
+                .y      = -35.0,
+                .sigma  = 22.0,
+                .marker = rocketplot::Marker::TRIANGLE,
+            },
+        },
+    };
+    std::uint64_t seed = 1;
     for (const Run& run : runs)
     {
         auto* points = plot->addScatter(gaussian(400, run.x, run.sigma, seed),
@@ -88,7 +98,8 @@ DemoPage scatterPage()
             "overlapping markers stay apart. Lines can be unsorted in x: the dashed keep-out ring "
             "is a line traced around a circle."),
         .sourceFile = QStringLiteral("ScatterPage.cpp"),
-        .create     = create};
+        .create     = create,
+    };
 }
 
 }  // namespace rocketplot::demo

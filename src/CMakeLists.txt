@@ -6,13 +6,15 @@ include(GenerateExportHeader)
 add_library(rocketplot_core OBJECT
     core/Autoscale.cpp
     core/AxisMapping.cpp
+    core/AxisTicks.cpp
     core/Decimator.cpp
     core/LineBand.cpp
     core/MinMaxPyramid.cpp
     core/NumberFormatter.cpp
     core/PolylineClipper.cpp
     core/SeriesData.cpp
-    core/TickGenerator.cpp)
+    core/TickGenerator.cpp
+    core/TimeTicks.cpp)
 # Core headers are private (src/core/...), but the core may use the Qt-free public value types (Range, UniformX).
 target_include_directories(rocketplot_core PUBLIC ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/include)
 set_target_properties(rocketplot_core PROPERTIES
@@ -48,11 +50,15 @@ target_sources(rocketplot
         PlotLayout.cpp
         PlotLayout.h
         PlotRenderer.cpp
+        PlotLink.cpp
         PlotRenderer.h
         PlotWidget.cpp
         ScatterSeries.cpp
         Series.cpp
+        TextPainter.cpp
+        TextPainter.h
         Theme.cpp
+        plottime.cpp
     PUBLIC
         FILE_SET HEADERS
         BASE_DIRS ${PROJECT_SOURCE_DIR}/include ${PROJECT_BINARY_DIR}/include
@@ -61,6 +67,7 @@ target_sources(rocketplot
             ${PROJECT_SOURCE_DIR}/include/rocketplot/Legend.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/LineSeries.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/NumericRange.h
+            ${PROJECT_SOURCE_DIR}/include/rocketplot/PlotLink.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/PlotWidget.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/Range.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/ScatterSeries.h
@@ -68,6 +75,7 @@ target_sources(rocketplot
             ${PROJECT_SOURCE_DIR}/include/rocketplot/Theme.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/UniformX.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/enums.h
+            ${PROJECT_SOURCE_DIR}/include/rocketplot/plottime.h
             ${PROJECT_BINARY_DIR}/include/rocketplot/export.h)
 
 target_link_libraries(rocketplot

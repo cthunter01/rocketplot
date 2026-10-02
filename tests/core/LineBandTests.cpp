@@ -105,11 +105,13 @@ TEST(LineBand, ZigzagInOneColumnCoversItsExtremes)
 {
     LineBand band;
     Polyline polygons;
-    band.outline(line({{.x = 19.9, .y = 50},
-                       {.x = 20.2, .y = 10},
-                       {.x = 20.5, .y = 90},
-                       {.x = 20.8, .y = 40},
-                       {.x = 21.1, .y = 45}}),
+    band.outline(line({
+                     {.x = 19.9, .y = 50},
+                     {.x = 20.2, .y = 10},
+                     {.x = 20.5, .y = 90},
+                     {.x = 20.8, .y = 40},
+                     {.x = 21.1, .y = 45},
+                 }),
                  kGrid, 1.0, polygons);
     EXPECT_NEAR(band.spans()[20].top, 9.0, 0.1);
     EXPECT_NEAR(band.spans()[20].bottom, 91.0, 0.1);

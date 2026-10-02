@@ -266,4 +266,41 @@ TEST(Decimator, ScatterOnSortedDataOnlyVisitsTheBox)
     EXPECT_LE(visited, 1001U);
 }
 
+TEST(Decimator, LogXColumnsMatchBruteForce)
+{
+    using rocketplot::core::Scale;
+    // x from 1 to 10^5 (sorted), columns spaced evenly in log10(x).
+    const std::size_t   n = 200'000;
+    std::vector<double> x(n);
+    for (std::size_t i = 0; i < n; ++i)
+    {
+        x[i] = std::pow(10.0, 5.0 * static_cast<double>(i) / static_cast<double>(n));
+    }
+    SeriesData data;
+    data.setOwned(x, randomWalk(n, 29));
+    const AxisMapping logX(Range{.min = 1.0, .max = 1e5}, 0.0, 100.0, Scale::LOG);
+    Polyline          line;
+    const auto        result = decimateLine(data, logX, kY, 1.0, line);
+    EXPECT_EQ(result.mode, DecimationMode::MIN_MAX);
+
+    std::vector<PixelPoint> every;
+    every.reserve(n);
+    for (std::size_t i = 0; i < n; ++i)
+    {
+        every.push_back({.x = logX.toPixel(data.x(i)), .y = kY.toPixel(data.y(i))});
+    }
+    EXPECT_EQ(columnExtents(allPoints(line)), columnExtents(every));
+}
+
+TEST(Decimator, NonPositiveValuesOnALogAxisAreGaps)
+{
+    using rocketplot::core::Scale;
+    SeriesData data;
+    data.setOwned(std::vector<double>{1, 2, 3, 4, 5}, std::vector<double>{10, 100, -5, 100, 10});
+    const AxisMapping logY(Range{.min = 1.0, .max = 1000.0}, 300.0, 0.0, Scale::LOG);
+    Polyline          line;
+    decimateLine(data, kX, logY, 1.0, line);
+    EXPECT_EQ(line.runCount(), 2U);
+}
+
 }  // namespace

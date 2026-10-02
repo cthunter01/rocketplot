@@ -5,7 +5,9 @@ A Qt 6 Widgets plotting library (`rocketplot::PlotWidget`: many series on shared
 GoogleTest. Cross-platform: Linux (GCC, Clang), macOS (Apple Clang) and Windows (MSVC).
 
 Needs Qt 6.8+. Linux uses the system Qt; on macOS and Windows put Qt's prefix in `CMAKE_PREFIX_PATH` (for example in
-a `CMakeUserPresets.json`, which is gitignored). CI pins Qt 6.8 on macOS and Windows.
+a `CMakeUserPresets.json`, which is gitignored). CI builds Windows against Qt 6.8 (the minimum, so newer API is caught)
+and macOS against 6.10 (Qt 6.8.3 links the AGL framework, which the macOS 26 SDK removed). CI's Arch image has the
+newest clang-tidy, which may be ahead of this machine's: new checks can fail the `tidy` job first.
 
 ## Commands
 - Build and test (Clang Debug): `cmake --workflow --preset dev`
@@ -41,13 +43,15 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
 
 ## Layout
 - `include/rocketplot/`: public headers (`PlotWidget`, `Series`/`LineSeries`/`ScatterSeries`, `Axis`, `Legend`,
-  `Theme`, `enums.h`; Qt-free value types `Range`, `UniformX`, `NumericRange`). `export.h` is generated into
-  `build/<preset>/include/rocketplot/`
+  `PlotLink`, `Theme`, `enums.h`, `plottime.h`; Qt-free value types `Range`, `UniformX`, `NumericRange`).
+  `export.h` is generated into `build/<preset>/include/rocketplot/`
 - `src/core/`: `rocketplot_core`, an OBJECT library with no Qt: series storage (`SeriesData`), min/max pyramid,
-  decimation, line band outlines, clipping, ticks, number formatting, autoscale. Its headers are private
+  decimation, line band outlines, clipping, axis mapping (linear/log), ticks (`TickGenerator` linear/log,
+  `TimeTicks` calendar), labels (`NumberFormatter`), `AxisTicks` (picks per axis kind), autoscale. Private headers
 - `src/`: `rocketplot` (alias `rocketplot::rocketplot`): the widget layer. `PlotLayout` (where everything goes),
   `PlotRenderer` (paints a layout; shared by screen and future exports), `InteractionController` (mouse bindings),
-  `MarkerPainter`, `Logging` (categories `rocketplot.render|input|data`)
+  `PlotLink` (linked x axes), `TextPainter` (plain and rich text), `MarkerPainter`, `plottime.cpp`, `Logging`
+  (categories `rocketplot.render|input|data`)
 - `demo/`: `rocketplot_demo`, a gallery: one `pages/<Name>Page.cpp` per page, listed in `MainWindow.cpp` and
   `demo.qrc` (the code between `// [snippet]` markers is shown in the app)
 - `tests/core/`: `rocketplot_core_tests` (links the core objects); `tests/widgets/`: `rocketplot_tests` (offscreen Qt,

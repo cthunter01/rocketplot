@@ -126,7 +126,7 @@ TEST(Series, Defaults)
     PlotWidget plot;
     plot.setThemeMode(rocketplot::ThemeMode::LIGHT);
     LineSeries* line    = plot.addLine(std::vector<double>{1});
-    auto*       scatter = plot.addScatter(std::vector<double>{1});
+    const auto* scatter = plot.addScatter(std::vector<double>{1});
     EXPECT_EQ(line->marker(), Marker::NONE);
     EXPECT_EQ(scatter->marker(), Marker::CIRCLE);
     EXPECT_DOUBLE_EQ(line->lineWidth(), plot.theme().lineWidth);

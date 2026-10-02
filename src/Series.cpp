@@ -12,6 +12,7 @@
 
 #include "Logging.h"
 #include "core/SeriesData.h"
+#include "rocketplot/Axis.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/Range.h"
 #include "rocketplot/UniformX.h"
@@ -118,6 +119,31 @@ void Series::resetMarkerSize()
         return;
     }
     m_markerSize.reset();
+    Q_EMIT changed();
+}
+
+Axis* Series::yAxis() const
+{
+    return m_secondaryYAxis ? m_plot->yAxis2() : m_plot->yAxis();
+}
+
+void Series::setYAxis(Axis* axis)
+{
+    if (axis != m_plot->yAxis() && axis != m_plot->yAxis2())
+    {
+        qCWarning(lcData) << "Series::setYAxis: not a y axis of this series' plot";
+        return;
+    }
+    setOnSecondaryYAxis(axis == m_plot->yAxis2());
+}
+
+void Series::setOnSecondaryYAxis(bool secondary)
+{
+    if (secondary == m_secondaryYAxis)
+    {
+        return;
+    }
+    m_secondaryYAxis = secondary;
     Q_EMIT changed();
 }
 

@@ -41,6 +41,7 @@ void expectSame(const MinMax& actual, const MinMax& expected)
     {
         EXPECT_EQ(actual.min, expected.min);
         EXPECT_EQ(actual.max, expected.max);
+        EXPECT_EQ(actual.minPositive, expected.minPositive);
     }
 }
 

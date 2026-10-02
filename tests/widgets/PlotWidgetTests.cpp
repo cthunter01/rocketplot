@@ -9,9 +9,11 @@
 #include <QRectF>
 #include <QSignalSpy>
 #include <QTest>
+#include <QTimeZone>
 #include <QWheelEvent>
 #include <Qt>
 #include <cmath>
+#include <cstddef>
 #include <limits>
 #include <vector>
 
@@ -213,7 +215,7 @@ TEST_F(PlotWidgetTest, ExtremeRangesRender)
 TEST_F(PlotWidgetTest, RemovingSeriesKeepsTheOthersColors)
 {
     auto*            second = m_plot.addLine(std::vector<double>{1}, "second");
-    auto*            third  = m_plot.addLine(std::vector<double>{1}, "third");
+    const auto*      third  = m_plot.addLine(std::vector<double>{1}, "third");
     const QColor     color  = third->color();
     const QSignalSpy removed(&m_plot, &PlotWidget::seriesRemoved);
     m_plot.removeSeries(second);
@@ -243,6 +245,132 @@ TEST_F(PlotWidgetTest, CustomTheme)
     m_plot.setTheme(theme);
     EXPECT_EQ(m_plot.themeMode(), rocketplot::ThemeMode::CUSTOM);
     EXPECT_EQ(m_plot.grab().toImage().pixelColor(2, 2), QColor(Qt::yellow));
+}
+
+TEST_F(PlotWidgetTest, SecondaryAxisFitsItsOwnSeries)
+{
+    const double rightBefore = m_plot.plotArea().right();
+    auto* speed = m_plot.addLine(std::vector<double>{0, 10}, std::vector<double>{0, 5000}, "speed");
+    EXPECT_GT(m_plot.yAxis()->max(), 5000.0);  // on the left axis for now
+    speed->setYAxis(m_plot.yAxis2());
+    EXPECT_TRUE(speed->isOnSecondaryYAxis());
+    EXPECT_LT(m_plot.yAxis()->max(), 10.0);
+    EXPECT_GT(m_plot.yAxis2()->max(), 5000.0);
+    EXPECT_LT(m_plot.plotArea().right(), rightBefore);  // room for the right axis' labels
+    m_plot.setTitle(QStringLiteral("two axes"));
+    EXPECT_FALSE(m_plot.grab().isNull());
+}
+
+TEST_F(PlotWidgetTest, WheelOverTheRightAxisZoomsOnlyIt)
+{
+    m_plot.addLine(std::vector<double>{0, 10}, std::vector<double>{0, 5000})
+        ->setYAxis(m_plot.yAxis2());
+    const QRectF area = m_plot.plotArea();
+    const Range  x    = m_plot.xAxis()->range();
+    const Range  y    = m_plot.yAxis()->range();
+    const Range  y2   = m_plot.yAxis2()->range();
+    wheel(QPointF(area.right() + 10.0, area.center().y()), 120);
+    EXPECT_EQ(m_plot.xAxis()->range(), x);
+    EXPECT_EQ(m_plot.yAxis()->range(), y);
+    EXPECT_LT(m_plot.yAxis2()->range().span(), y2.span());
+}
+
+TEST_F(PlotWidgetTest, MapToDataOnTheRightAxis)
+{
+    m_plot.addLine(std::vector<double>{0, 10}, std::vector<double>{100, 200})
+        ->setYAxis(m_plot.yAxis2());
+    const QPointF widget = m_plot.mapFromData(QPointF(5.0, 150.0), m_plot.yAxis2());
+    EXPECT_NEAR(m_plot.mapToData(widget, m_plot.yAxis2()).y(), 150.0, 1e-9);
+}
+
+TEST_F(PlotWidgetTest, LogScaleFitsThePositiveData)
+{
+    m_plot.clearSeries();
+    m_plot.addLine(std::vector<double>{1, 2, 3, 4}, std::vector<double>{-1, 0.01, 10, 1000});
+    m_plot.yAxis()->setScaleType(rocketplot::ScaleType::LOGARITHMIC);
+    EXPECT_GT(m_plot.yAxis()->min(), 0.0);
+    EXPECT_LT(m_plot.yAxis()->min(), 0.01);
+    EXPECT_GT(m_plot.yAxis()->max(), 1000.0);
+    m_plot.yAxis()->setRange(-1.0, 10.0);  // can't be shown on a log axis
+    EXPECT_GT(m_plot.yAxis()->min(), 0.0);
+    EXPECT_FALSE(m_plot.grab().isNull());
+}
+
+TEST_F(PlotWidgetTest, SwitchingToLogWithANonPositiveRangeRefits)
+{
+    m_plot.yAxis()->setRange(-10.0, 10.0);
+    EXPECT_FALSE(m_plot.yAxis()->autoscale());
+    m_plot.yAxis()->setScaleType(rocketplot::ScaleType::LOGARITHMIC);
+    EXPECT_TRUE(m_plot.yAxis()->autoscale());
+    EXPECT_GT(m_plot.yAxis()->min(), 0.0);
+}
+
+TEST_F(PlotWidgetTest, FitVisibleFollowsTheXRange)
+{
+    m_plot.clearSeries();
+    std::vector<double> y(1000);
+    for (std::size_t i = 0; i < y.size(); ++i)
+    {
+        y[i] = static_cast<double>(i);  // y = x
+    }
+    m_plot.addLine(y);
+    m_plot.yAxis()->setAutoscaleMode(rocketplot::AutoscaleMode::FIT_VISIBLE);
+    m_plot.xAxis()->setRange(100.0, 200.0);
+    EXPECT_TRUE(m_plot.yAxis()->autoscale());
+    EXPECT_LT(m_plot.yAxis()->min(), 100.0);
+    EXPECT_GT(m_plot.yAxis()->min(), 90.0);
+    EXPECT_GT(m_plot.yAxis()->max(), 200.0);
+    EXPECT_LT(m_plot.yAxis()->max(), 210.0);
+}
+
+TEST_F(PlotWidgetTest, FollowLatestScrollsWithAppendedData)
+{
+    m_plot.clearSeries();
+    auto* live = m_plot.addLine(std::vector<double>{}, std::vector<double>{});
+    m_plot.xAxis()->setAutoscaleMode(rocketplot::AutoscaleMode::FOLLOW_LATEST);
+    m_plot.xAxis()->setFollowWindow(10.0);
+    for (int i = 0; i <= 100; ++i)
+    {
+        live->append(static_cast<double>(i) * 0.5, 1.0);  // up to t = 50
+    }
+    EXPECT_NEAR(m_plot.xAxis()->range().span(), 10.0, 1e-9);
+    EXPECT_GT(m_plot.xAxis()->max(), 50.0);
+    EXPECT_LT(m_plot.xAxis()->min(), 50.0);
+    EXPECT_GT(m_plot.xAxis()->min(), 39.0);
+}
+
+TEST_F(PlotWidgetTest, DateTimeAxisRenders)
+{
+    m_plot.clearSeries();
+    const double start = 1.7e9;
+    m_plot.addLine(std::vector<double>{start, start + 3600.0, start + 7200.0},
+                   std::vector<double>{1, 3, 2});
+    m_plot.xAxis()->setScaleType(rocketplot::ScaleType::DATE_TIME);
+    m_plot.xAxis()->setTimeZone(QTimeZone(QByteArrayLiteral("Europe/Berlin")));
+    EXPECT_FALSE(m_plot.grab().isNull());
+    m_plot.xAxis()->setRange(start, start + 0.01);  // ten milliseconds
+    EXPECT_FALSE(m_plot.grab().isNull());
+}
+
+TEST_F(PlotWidgetTest, RichTextLabels)
+{
+    m_plot.setTitle(QStringLiteral("v<sub>z</sub> at T<sub>0</sub>"));
+    m_plot.xAxis()->setLabel(QStringLiteral("<i>t</i> (s)"));
+    m_plot.yAxis()->setLabel(QStringLiteral("v<sub>z</sub> (m/s)"));
+    m_plot.series().front()->setName(QStringLiteral("<b>first</b>"));
+    m_plot.legend()->setVisible(true);
+    EXPECT_FALSE(m_plot.grab().isNull());
+}
+
+TEST_F(PlotWidgetTest, ResetViewTurnsAutoscaleOnEverywhere)
+{
+    m_plot.xAxis()->setRange(1.0, 2.0);
+    m_plot.yAxis()->setRange(1.0, 2.0);
+    m_plot.yAxis2()->setRange(1.0, 2.0);
+    m_plot.resetView();
+    EXPECT_TRUE(m_plot.xAxis()->autoscale());
+    EXPECT_TRUE(m_plot.yAxis()->autoscale());
+    EXPECT_TRUE(m_plot.yAxis2()->autoscale());
 }
 
 TEST(Legend, ShownForTwoEntriesByDefault)

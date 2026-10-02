@@ -19,6 +19,10 @@ plot->addLine(time, stage2, "Stage 2");
 
 // A uniformly sampled channel needs no x array: x = start + i * step.
 plot->addLine(rocketplot::UniformX{.start = 0.0, .step = 1.0 / 1000.0}, samples, "Accelerometer (1 kHz)");
+
+// A second unit on the right; timestamps (seconds since the epoch) as dates and times.
+plot->addLine(time, velocity, "Velocity")->setYAxis(plot->yAxis2());
+plot->xAxis()->setScaleType(rocketplot::ScaleType::DATE_TIME);
 ```
 
 - **Data**: copied in from any range of numbers (`int`, `float`, `std::int16_t`, ...), moved in from an rvalue
@@ -26,6 +30,12 @@ plot->addLine(rocketplot::UniformX{.start = 0.0, .step = 1.0 / 1000.0}, samples,
   NaN and infinite values are gaps.
 - **Large data**: sorted series are drawn from their visible range only, as the extremes of each pixel column,
   read from a precomputed min/max pyramid. 10 million points pan and zoom at interactive frame rates.
+- **Axes**: linear, logarithmic and date/time scales (calendar-aware ticks and concise labels in any time zone),
+  a secondary y axis on the right, minor ticks and grid, short labels (a common offset like `+1.7×10⁹`, a `×10ⁿ`
+  multiplier, or SI prefixes), and Qt rich text in titles and labels (`v<sub>z</sub>`).
+- **Autoscale**: fit all the data, fit y to what's visible in the current x range, or follow the newest data
+  as a scrolling strip chart.
+- **Linked plots**: `PlotLink` ties the x axes of stacked plots together and lines up their plot areas.
 - **Interaction**: drag to pan, wheel to zoom about the pointer (over an axis: only that axis; Ctrl: x only, Shift:
   y only), double-click to autoscale again.
 - **Look**: light and dark themes that follow the application's palette, a colorblind-safe series palette,
@@ -112,7 +122,7 @@ libraries and plugins it needs next to it).
 | Platform | Built with | Runs on |
 | --- | --- | --- |
 | `linux-x86_64` (`.tar.gz`) | GCC 14, Ubuntu 24.04, Qt 6.8 | x86-64 Linux with glibc 2.39+ (Ubuntu 24.04+, Debian 13+, Fedora 40+, RHEL 10+). The demo also needs OpenGL, fontconfig and `libxcb-cursor0` |
-| `macos-universal` (`.tar.gz`) | Apple Clang, Qt 6.8 | macOS 14+, Apple silicon and Intel |
+| `macos-universal` (`.tar.gz`) | Apple Clang, Qt 6.10 | macOS 14+, Apple silicon and Intel |
 | `windows-x86_64` (`.zip`) | MSVC, Qt 6.8 | 64-bit Windows (the VC++ runtime DLLs are included) |
 
 Qt is used under the LGPL-3.0 (see `QT_LICENSE.txt` in the demo archive). Other dependencies are built from source,

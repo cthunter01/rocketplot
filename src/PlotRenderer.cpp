@@ -19,6 +19,7 @@
 
 #include "MarkerPainter.h"
 #include "PlotLayout.h"
+#include "TextPainter.h"
 #include "core/Decimator.h"
 #include "core/LineBand.h"
 #include "core/PolylineClipper.h"
@@ -64,19 +65,23 @@ QPen hairline(const QColor& color)
 
 core::PixelBox expanded(const QRectF& rect, double margin)
 {
-    return {.left   = rect.left() - margin,
-            .top    = rect.top() - margin,
-            .right  = rect.right() + margin,
-            .bottom = rect.bottom() + margin};
+    return {
+        .left   = rect.left() - margin,
+        .top    = rect.top() - margin,
+        .right  = rect.right() + margin,
+        .bottom = rect.bottom() + margin,
+    };
 }
 
 MarkerStyle markerStyle(const Series& series, const Theme& theme)
 {
-    return {.shape     = series.marker(),
-            .size      = series.markerSize(),
-            .color     = series.color(),
-            .ring      = theme.background,
-            .ringWidth = theme.markerRingWidth};
+    return {
+        .shape     = series.marker(),
+        .size      = series.markerSize(),
+        .color     = series.color(),
+        .ring      = theme.background,
+        .ringWidth = theme.markerRingWidth,
+    };
 }
 
 QString modeName(const SeriesStats& stats)
@@ -103,8 +108,9 @@ QString modeName(const SeriesStats& stats)
 
 }  // namespace
 
-PlotRenderer::PlotRenderer(const PlotWidget& plot, const PlotLayout& layout, MarkerPainter& markers)
-  : m_plot(&plot), m_layout(&layout), m_theme(&plot.theme()), m_markers(&markers)
+PlotRenderer::PlotRenderer(const PlotWidget& plot, const PlotLayout& layout, MarkerPainter& markers,
+                           TextPainter& text)
+  : m_plot(&plot), m_layout(&layout), m_theme(&plot.theme()), m_markers(&markers), m_text(&text)
 {
 }
 
@@ -125,30 +131,59 @@ void PlotRenderer::render(QPainter& painter, RenderStats& stats)
 
 void PlotRenderer::drawGrid(QPainter& painter) const
 {
-    const QRectF& plot = m_layout->plot;
-    const double  dpr  = m_layout->devicePixelRatio;
-    painter.setPen(hairline(m_theme->gridLine));
-    if (m_plot->xAxis()->isGridVisible())
-    {
-        for (const double value : m_layout->x.ticks.major)
+    const QRectF& plot     = m_layout->plot;
+    const double  dpr      = m_layout->devicePixelRatio;
+    const auto    vertical = [&](const std::vector<double>& values, const AxisLayout& axis,
+                                 const QColor& color) {
+        painter.setPen(hairline(color));
+        for (const double value : values)
         {
-            const double px = crisp(m_layout->x.mapping.toPixel(value), dpr);
+            const double px = crisp(axis.mapping.toPixel(value), dpr);
             if (px >= plot.left() && px <= plot.right())
             {
                 painter.drawLine(QPointF(px, plot.top()), QPointF(px, plot.bottom()));
             }
         }
-    }
-    if (m_plot->yAxis()->isGridVisible())
-    {
-        for (const double value : m_layout->y.ticks.major)
+    };
+    const auto horizontal = [&](const std::vector<double>& values, const AxisLayout& axis,
+                                const QColor& color) {
+        painter.setPen(hairline(color));
+        for (const double value : values)
         {
-            const double py = crisp(m_layout->y.mapping.toPixel(value), dpr);
+            const double py = crisp(axis.mapping.toPixel(value), dpr);
             if (py >= plot.top() && py <= plot.bottom())
             {
                 painter.drawLine(QPointF(plot.left(), py), QPointF(plot.right(), py));
             }
         }
+    };
+    // Minor grid lines first, so the major ones cross over them.
+    const Axis& x  = *m_plot->xAxis();
+    const Axis& y  = *m_plot->yAxis();
+    const Axis& y2 = *m_plot->yAxis2();
+    if (x.isMinorGridVisible())
+    {
+        vertical(m_layout->x.minor, m_layout->x, m_theme->minorGridLine);
+    }
+    if (y.isMinorGridVisible())
+    {
+        horizontal(m_layout->y.minor, m_layout->y, m_theme->minorGridLine);
+    }
+    if (m_layout->y2.shown && y2.isMinorGridVisible())
+    {
+        horizontal(m_layout->y2.minor, m_layout->y2, m_theme->minorGridLine);
+    }
+    if (x.isGridVisible())
+    {
+        vertical(m_layout->x.major, m_layout->x, m_theme->gridLine);
+    }
+    if (y.isGridVisible())
+    {
+        horizontal(m_layout->y.major, m_layout->y, m_theme->gridLine);
+    }
+    if (m_layout->y2.shown && y2.isGridVisible())
+    {
+        horizontal(m_layout->y2.major, m_layout->y2, m_theme->gridLine);
     }
 }
 
@@ -181,8 +216,9 @@ void PlotRenderer::drawLine(QPainter& painter, const LineSeries& series, SeriesS
 {
     const double                 dpr         = m_layout->devicePixelRatio;
     const double                 columnWidth = 1.0 / dpr;
-    const core::DecimationResult result      = core::decimateLine(
-        series.data(), m_layout->x.mapping, m_layout->y.mapping, columnWidth, m_line);
+    const core::AxisMapping&     y           = m_layout->yFor(series).mapping;
+    const core::DecimationResult result =
+        core::decimateLine(series.data(), m_layout->x.mapping, y, columnWidth, m_line);
     stats.mode          = result.mode;
     stats.visiblePoints = result.visiblePoints;
     core::clipPolyline(m_line, expanded(m_layout->plot, kLineClipMargin + series.lineWidth()),
@@ -211,7 +247,7 @@ void PlotRenderer::drawLine(QPainter& painter, const LineSeries& series, SeriesS
             m_layout->plot.width())
     {
         const MarkerStyle style = markerStyle(series, *m_theme);
-        core::decimateScatter(series.data(), m_layout->x.mapping, m_layout->y.mapping,
+        core::decimateScatter(series.data(), m_layout->x.mapping, y,
                               expanded(m_layout->plot, style.size), columnWidth, m_points);
         m_markers->draw(painter, m_points, style);
     }
@@ -226,7 +262,8 @@ void PlotRenderer::fillBand(QPainter& painter, const LineSeries& series, double 
         .left  = m_layout->plot.left() - (padding * columnWidth),
         .width = columnWidth,
         .count = static_cast<std::size_t>(std::ceil(m_layout->plot.width() / columnWidth) +
-                                          (2.0 * padding))};
+                                          (2.0 * padding)),
+    };
     m_lineBand.outline(m_clipped, grid, halfWidth, m_band);
 
     painter.setPen(Qt::NoPen);
@@ -285,7 +322,7 @@ void PlotRenderer::drawScatter(QPainter& painter, const Series& series, SeriesSt
     // Markers less than a quarter of their size apart look the same as one: draw one per such cell.
     const double cell = std::max(1.0 / m_layout->devicePixelRatio, style.size / 4.0);
     stats.visiblePoints =
-        core::decimateScatter(series.data(), m_layout->x.mapping, m_layout->y.mapping,
+        core::decimateScatter(series.data(), m_layout->x.mapping, m_layout->yFor(series).mapping,
                               expanded(m_layout->plot, style.size), cell, m_points);
     stats.drawnPoints = m_points.size();
     m_markers->draw(painter, m_points, style);
@@ -296,93 +333,135 @@ void PlotRenderer::drawAxes(QPainter& painter) const
     const QRectF& plot  = m_layout->plot;
     const double  dpr   = m_layout->devicePixelRatio;
     const double  pixel = 1.0 / dpr;
-    // The axis lines run along the first pixel row below and the first pixel column left of the
-    // plot.
-    const double axisY = crisp(plot.bottom(), dpr);
-    const double axisX = crisp(plot.left() - pixel, dpr);
-
+    // The axis lines run along the first pixel row below the plot, the first pixel column left of
+    // it and the first one right of it.
+    const double axisY  = crisp(plot.bottom(), dpr);
+    const double axisX  = crisp(plot.left() - pixel, dpr);
+    const double axisX2 = crisp(plot.right(), dpr);
     painter.setPen(hairline(m_theme->axisLine));
-    painter.drawLine(QPointF(axisX - (0.5 * pixel), axisY), QPointF(plot.right(), axisY));
-    painter.drawLine(QPointF(axisX, plot.top()), QPointF(axisX, axisY));
 
-    const auto xTick = [&](double value, double length) {
-        const double px = crisp(m_layout->x.mapping.toPixel(value), dpr);
-        if (px >= plot.left() - pixel && px <= plot.right() + pixel)
+    const auto xTicks = [&](const std::vector<double>& values, double length) {
+        for (const double value : values)
         {
-            painter.drawLine(QPointF(px, axisY), QPointF(px, axisY + length));
+            const double px = crisp(m_layout->x.mapping.toPixel(value), dpr);
+            if (px >= plot.left() - pixel && px <= plot.right() + pixel)
+            {
+                painter.drawLine(QPointF(px, axisY), QPointF(px, axisY + length));
+            }
         }
     };
-    const auto yTick = [&](double value, double length) {
-        const double py = crisp(m_layout->y.mapping.toPixel(value), dpr);
-        if (py >= plot.top() - pixel && py <= plot.bottom() + pixel)
+    // Ticks of a y axis whose line is at x, pointing away from the plot (direction -1: left).
+    const auto yTicks = [&](const AxisLayout& axis, const std::vector<double>& values, double x,
+                            double direction, double length) {
+        for (const double value : values)
         {
-            painter.drawLine(QPointF(axisX - length, py), QPointF(axisX, py));
+            const double py = crisp(axis.mapping.toPixel(value), dpr);
+            if (py >= plot.top() - pixel && py <= plot.bottom() + pixel)
+            {
+                painter.drawLine(QPointF(x + (direction * length), py), QPointF(x, py));
+            }
         }
     };
-    for (const double value : m_layout->x.ticks.minor)
+    if (m_layout->x.shown)
     {
-        xTick(value, m_theme->minorTickLength);
+        painter.drawLine(QPointF(axisX - (0.5 * pixel), axisY),
+                         QPointF(axisX2 + (0.5 * pixel), axisY));
+        xTicks(m_layout->x.minor, m_theme->minorTickLength);
+        xTicks(m_layout->x.major, m_theme->tickLength);
     }
-    for (const double value : m_layout->x.ticks.major)
+    if (m_layout->y.shown)
     {
-        xTick(value, m_theme->tickLength);
+        painter.drawLine(QPointF(axisX, plot.top()), QPointF(axisX, axisY));
+        yTicks(m_layout->y, m_layout->y.minor, axisX, -1.0, m_theme->minorTickLength);
+        yTicks(m_layout->y, m_layout->y.major, axisX, -1.0, m_theme->tickLength);
     }
-    for (const double value : m_layout->y.ticks.minor)
+    if (m_layout->y2.shown)
     {
-        yTick(value, m_theme->minorTickLength);
-    }
-    for (const double value : m_layout->y.ticks.major)
-    {
-        yTick(value, m_theme->tickLength);
+        painter.drawLine(QPointF(axisX2, plot.top()), QPointF(axisX2, axisY));
+        yTicks(m_layout->y2, m_layout->y2.minor, axisX2, 1.0, m_theme->minorTickLength);
+        yTicks(m_layout->y2, m_layout->y2.major, axisX2, 1.0, m_theme->tickLength);
     }
 }
 
 void PlotRenderer::drawLabels(QPainter& painter) const
 {
-    const QRectF& plot = m_layout->plot;
-
+    const QRectF& plot       = m_layout->plot;
+    const double  lineHeight = QFontMetricsF(m_layout->tickFont).height();
     painter.setFont(m_layout->tickFont);
     painter.setPen(m_theme->secondaryText);
-    const double lineHeight = QFontMetricsF(m_layout->tickFont).height();
-    const double labelTop   = plot.bottom() + m_theme->tickLength + kTickLabelGap;
-    for (qsizetype i = 0; i < m_layout->x.labels.size(); ++i)
+
+    if (m_layout->x.shown)
     {
-        const double px =
-            m_layout->x.mapping.toPixel(m_layout->x.ticks.major[static_cast<std::size_t>(i)]);
-        painter.drawText(QRectF(px - (kLabelBoxWidth / 2.0), labelTop, kLabelBoxWidth, lineHeight),
-                         Qt::AlignHCenter | Qt::AlignTop, m_layout->x.labels.at(i));
+        const double labelTop = plot.bottom() + m_theme->tickLength + kTickLabelGap;
+        for (qsizetype i = 0; i < m_layout->x.labels.size(); ++i)
+        {
+            const double px =
+                m_layout->x.mapping.toPixel(m_layout->x.major[static_cast<std::size_t>(i)]);
+            painter.drawText(
+                QRectF(px - (kLabelBoxWidth / 2.0), labelTop, kLabelBoxWidth, lineHeight),
+                Qt::AlignHCenter | Qt::AlignTop, m_layout->x.labels.at(i));
+        }
     }
-    const double labelRight = plot.left() - m_theme->tickLength - kTickLabelGap;
-    for (qsizetype i = 0; i < m_layout->y.labels.size(); ++i)
+    // y labels right-aligned left of the left axis; y2 labels left-aligned right of the right one.
+    const auto yLabels = [&](const AxisLayout& axis, double edge, bool left) {
+        for (qsizetype i = 0; i < axis.labels.size(); ++i)
+        {
+            const double        py = axis.mapping.toPixel(axis.major[static_cast<std::size_t>(i)]);
+            const QRectF        box(left ? edge - kLabelBoxWidth : edge, py - (lineHeight / 2.0),
+                                    kLabelBoxWidth, lineHeight);
+            const Qt::Alignment alignment =
+                (left ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter;
+            painter.drawText(box, static_cast<int>(alignment.toInt()), axis.labels.at(i));
+        }
+    };
+    if (m_layout->y.shown)
     {
-        const double py =
-            m_layout->y.mapping.toPixel(m_layout->y.ticks.major[static_cast<std::size_t>(i)]);
-        painter.drawText(QRectF(labelRight - kLabelBoxWidth, py - (lineHeight / 2.0),
-                                kLabelBoxWidth, lineHeight),
-                         Qt::AlignRight | Qt::AlignVCenter, m_layout->y.labels.at(i));
+        yLabels(m_layout->y, plot.left() - m_theme->tickLength - kTickLabelGap, true);
+    }
+    if (m_layout->y2.shown)
+    {
+        yLabels(m_layout->y2, plot.right() + m_theme->tickLength + kTickLabelGap, false);
     }
 
-    painter.setFont(m_layout->labelFont);
-    if (!m_layout->xLabel.isNull())
+    // What the tick labels leave out: below the x axis on the right, above the y axes.
+    const auto annotation = [&](const AxisLayout& axis, Qt::Alignment alignment) {
+        if (axis.shown && !axis.annotation.isEmpty())
+        {
+            painter.drawText(axis.annotationRect, static_cast<int>(alignment.toInt()),
+                             axis.annotation);
+        }
+    };
+    annotation(m_layout->x, Qt::AlignRight | Qt::AlignVCenter);
+    annotation(m_layout->y, Qt::AlignLeft | Qt::AlignBottom);
+    annotation(m_layout->y2, Qt::AlignRight | Qt::AlignBottom);
+
+    // Axis titles, the y ones rotated to read bottom to top.
+    if (!m_layout->x.titleRect.isNull())
     {
-        painter.drawText(m_layout->xLabel, Qt::AlignCenter, m_plot->xAxis()->label());
+        m_text->draw(painter, m_plot->xAxis()->label(), m_layout->labelFont, m_theme->secondaryText,
+                     m_layout->x.titleRect, Qt::AlignCenter);
     }
-    if (!m_layout->yLabel.isNull())
-    {
-        // Rotated to read bottom to top.
+    const auto rotatedTitle = [&](const QRectF& rect, const QString& text) {
+        if (rect.isNull())
+        {
+            return;
+        }
         painter.save();
-        painter.translate(m_layout->yLabel.center());
+        painter.translate(rect.center());
         painter.rotate(-90.0);
-        const QRectF rotated(-m_layout->yLabel.height() / 2.0, -m_layout->yLabel.width() / 2.0,
-                             m_layout->yLabel.height(), m_layout->yLabel.width());
-        painter.drawText(rotated, Qt::AlignCenter, m_plot->yAxis()->label());
+        const QRectF rotated(-rect.height() / 2.0, -rect.width() / 2.0, rect.height(),
+                             rect.width());
+        // Plain titles longer than the axis are elided rather than cut off.
+        m_text->draw(painter, text, m_layout->labelFont, m_theme->secondaryText, rotated,
+                     Qt::AlignCenter, true);
         painter.restore();
-    }
+    };
+    rotatedTitle(m_layout->y.titleRect, m_plot->yAxis()->label());
+    rotatedTitle(m_layout->y2.titleRect, m_plot->yAxis2()->label());
     if (!m_layout->title.isNull())
     {
-        painter.setFont(m_layout->titleFont);
-        painter.setPen(m_theme->text);
-        painter.drawText(m_layout->title, Qt::AlignCenter, m_plot->title());
+        m_text->draw(painter, m_plot->title(), m_layout->titleFont, m_theme->text, m_layout->title,
+                     Qt::AlignCenter);
     }
 }
 
@@ -400,21 +479,18 @@ void PlotRenderer::drawLegend(QPainter& painter)
                             kLegendRadius, kLegendRadius);
     painter.setBrush(Qt::NoBrush);
 
-    painter.setFont(m_layout->legendFont);
-    const QFontMetricsF metrics(m_layout->legendFont);
-    const double        textLeft  = box.left() + kLegendPadding + kLegendSwatch + kLegendSwatchGap;
-    const double        textWidth = std::max(0.0, box.right() - kLegendPadding - textLeft);
-    double              top       = box.top() + kLegendPadding;
+    const double textLeft  = box.left() + kLegendPadding + kLegendSwatch + kLegendSwatchGap;
+    const double textWidth = std::max(0.0, box.right() - kLegendPadding - textLeft);
+    double       top       = box.top() + kLegendPadding;
     for (const LegendEntry& entry : m_layout->legendEntries)
     {
         painter.setOpacity(entry.series->isVisible() ? 1.0 : kHiddenOpacity);
         const double rowCenter = top + (m_layout->legendRowHeight / 2.0);
         drawLegendSwatch(painter, *entry.series,
                          QPointF(box.left() + kLegendPadding + (kLegendSwatch / 2.0), rowCenter));
-        painter.setPen(m_theme->text);
-        painter.drawText(QRectF(textLeft, top, textWidth, m_layout->legendRowHeight),
-                         Qt::AlignLeft | Qt::AlignVCenter,
-                         metrics.elidedText(entry.name, Qt::ElideRight, textWidth));
+        m_text->draw(painter, entry.name, m_layout->legendFont, m_theme->text,
+                     QRectF(textLeft, top, textWidth, m_layout->legendRowHeight),
+                     Qt::AlignLeft | Qt::AlignVCenter, true);
         top += m_layout->legendRowHeight + kLegendRowGap;
     }
     painter.setOpacity(1.0);
@@ -450,12 +526,20 @@ void drawDebugOverlay(QPainter& painter, const PlotLayout& layout, const RenderS
     const QColor cyan(0, 200, 255, 200);
     const QColor orange(255, 150, 0, 200);
     outline(layout.plot, magenta);
-    outline(layout.xAxisArea, cyan);
-    outline(layout.yAxisArea, cyan);
     outline(layout.title, orange);
-    outline(layout.xLabel, orange);
-    outline(layout.yLabel, orange);
     outline(layout.legend, orange);
+    for (const AxisLayout* axis : {&layout.x, &layout.y, &layout.y2})
+    {
+        if (axis->shown)
+        {
+            outline(axis->area, cyan);
+            outline(axis->titleRect, orange);
+            if (!axis->annotation.isEmpty())
+            {
+                outline(axis->annotationRect, orange);
+            }
+        }
+    }
 
     const QLocale locale;
     QStringList   lines;
@@ -471,6 +555,13 @@ void drawDebugOverlay(QPainter& painter, const PlotLayout& layout, const RenderS
                  .arg(xRange.max, 0, 'g', 8)
                  .arg(yRange.min, 0, 'g', 8)
                  .arg(yRange.max, 0, 'g', 8);
+    if (layout.y2.shown)
+    {
+        const Range y2Range = layout.y2.mapping.range();
+        lines.back() += QStringLiteral("   y2 [%1, %2]")
+                            .arg(y2Range.min, 0, 'g', 8)
+                            .arg(y2Range.max, 0, 'g', 8);
+    }
     for (const SeriesStats& series : stats.series)
     {
         const QString name = series.name.isEmpty() ? QStringLiteral("(unnamed)") : series.name;

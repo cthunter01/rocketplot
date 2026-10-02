@@ -46,14 +46,16 @@ QWidget* create(QWidget* parent)
 
 DemoPage gapsPage()
 {
-    return {.title       = QStringLiteral("Gaps (NaN)"),
-            .description = QStringLiteral("NaN and infinite values are gaps: the line breaks "
-                                          "there, and autoscale ignores them. Zoom "
-                                          "in on a dropout: gaps stay exact at every zoom level, "
-                                          "even when millions of points share "
-                                          "a pixel."),
-            .sourceFile  = QStringLiteral("GapsPage.cpp"),
-            .create      = create};
+    return {
+        .title       = QStringLiteral("Gaps (NaN)"),
+        .description = QStringLiteral("NaN and infinite values are gaps: the line breaks "
+                                      "there, and autoscale ignores them. Zoom "
+                                      "in on a dropout: gaps stay exact at every zoom level, "
+                                      "even when millions of points share "
+                                      "a pixel."),
+        .sourceFile  = QStringLiteral("GapsPage.cpp"),
+        .create      = create,
+    };
 }
 
 }  // namespace rocketplot::demo

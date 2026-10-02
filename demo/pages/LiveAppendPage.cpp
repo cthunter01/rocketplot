@@ -22,6 +22,7 @@
 #include "rocketplot/Axis.h"
 #include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotWidget.h"
+#include "rocketplot/enums.h"
 
 namespace rocketplot::demo
 {
@@ -94,6 +95,13 @@ QWidget* create(QWidget* parent)
     controls->addWidget(start);
     controls->addWidget(new QLabel(QStringLiteral("Rate:"), page));
     controls->addWidget(rate);
+    auto* view = new QComboBox(page);
+    view->addItem(QStringLiteral("Fit all"), 0.0);
+    view->addItem(QStringLiteral("Follow last 10 s"), 10.0);
+    view->addItem(QStringLiteral("Follow last 60 s"), 60.0);
+    view->setCurrentIndex(1);
+    controls->addWidget(new QLabel(QStringLiteral("View:"), page));
+    controls->addWidget(view);
     controls->addWidget(clear);
     controls->addWidget(status, 1);
     layout->addLayout(controls);
@@ -102,8 +110,28 @@ QWidget* create(QWidget* parent)
     plot->setTitle(QStringLiteral("Live channels"));
     plot->xAxis()->setLabel(QStringLiteral("Time (s)"));
     layout->addWidget(plot, 1);
+    const auto applyView = [plot, view] {
+        // [snippet]
+        // A strip chart: x shows the newest window of data and scrolls; y fits what's in view.
+        const double window = view->currentData().toDouble();
+        if (window > 0.0)
+        {
+            plot->xAxis()->setAutoscaleMode(rocketplot::AutoscaleMode::FOLLOW_LATEST);
+            plot->xAxis()->setFollowWindow(window);
+            plot->yAxis()->setAutoscaleMode(rocketplot::AutoscaleMode::FIT_VISIBLE);
+        }
+        else
+        {
+            plot->xAxis()->setAutoscaleMode(rocketplot::AutoscaleMode::FIT_ALL);
+            plot->yAxis()->setAutoscaleMode(rocketplot::AutoscaleMode::FIT_ALL);
+        }
+        plot->resetView();
+        // [/snippet]
+    };
+    applyView();
+    QObject::connect(view, &QComboBox::currentIndexChanged, page, applyView);
 
-    auto feed = std::make_shared<Feed>();
+    const auto feed = std::make_shared<Feed>();
     for (std::size_t channel = 0; channel < feed->series.size(); ++channel)
     {
         feed->series.at(channel) = plot->addLine(std::vector<double>{}, std::vector<double>{},
@@ -154,13 +182,15 @@ QWidget* create(QWidget* parent)
 
 DemoPage liveAppendPage()
 {
-    return {.title = QStringLiteral("Live append"),
-            .description =
-                QStringLiteral("Samples are appended as they arrive while autoscale keeps them all "
-                               "in view. Pan or zoom to "
-                               "take over an axis; double-click to hand it back to autoscale."),
-            .sourceFile = QStringLiteral("LiveAppendPage.cpp"),
-            .create     = create};
+    return {
+        .title       = QStringLiteral("Live append"),
+        .description = QStringLiteral(
+            "Samples are appended as they arrive. Following the latest data turns the plot into a "
+            "strip chart: x shows the newest window and scrolls, y fits what is in view. Pan or "
+            "zoom to take over an axis; double-click to hand it back."),
+        .sourceFile = QStringLiteral("LiveAppendPage.cpp"),
+        .create     = create,
+    };
 }
 
 }  // namespace rocketplot::demo

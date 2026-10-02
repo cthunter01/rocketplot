@@ -20,6 +20,10 @@ void MinMax::add(std::size_t index, double value) noexcept
         firstFinite = index;
     }
     lastFinite = index;
+    if (value > 0.0 && value < minPositive)
+    {
+        minPositive = value;
+    }
     if (value < min)
     {
         min    = value;
@@ -43,7 +47,8 @@ void MinMax::merge(const MinMax& later) noexcept
     {
         firstFinite = later.firstFinite;
     }
-    lastFinite = later.lastFinite;
+    lastFinite  = later.lastFinite;
+    minPositive = std::min(minPositive, later.minPositive);
     if (later.min < min)
     {
         min    = later.min;

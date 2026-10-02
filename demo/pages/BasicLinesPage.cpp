@@ -42,7 +42,8 @@ DemoPage basicLinesPage()
             "only, "
             "Shift: y only), double-click to fit the data again."),
         .sourceFile = QStringLiteral("BasicLinesPage.cpp"),
-        .create     = create};
+        .create     = create,
+    };
 }
 
 }  // namespace rocketplot::demo

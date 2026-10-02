@@ -16,6 +16,7 @@ struct MinMax
 {
     double      min          = std::numeric_limits<double>::infinity();
     double      max          = -std::numeric_limits<double>::infinity();
+    double      minPositive  = std::numeric_limits<double>::infinity();  ///< Smallest value > 0
     std::size_t argMin       = kNoIndex;
     std::size_t argMax       = kNoIndex;
     std::size_t firstFinite  = kNoIndex;

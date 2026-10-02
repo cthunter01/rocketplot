@@ -1,29 +1,59 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
+
+#include "rocketplot/Range.h"
 
 namespace rocketplot::core
 {
 
-/// How the labels of one axis are written, chosen once for all its ticks so they look alike.
-struct TickFormat
+/// How an axis writes numbers.
+enum class NumberStyle : std::uint8_t
 {
-    bool scientific = false;  ///< 1.5e6 instead of 1500000
-    int  decimals   = 0;      ///< Digits after the decimal point (of the mantissa when scientific)
-
-    friend constexpr bool operator==(const TickFormat&, const TickFormat&) = default;
+    AUTO,   ///< Plain numbers, with a common offset and a ×10ⁿ multiplier when they'd be long
+    SI,     ///< A common SI prefix on every label (250m, 1.5k), with an offset when needed
+    PLAIN,  ///< Always the full number
 };
 
-/// Decimal places needed to write every multiple of @p step exactly (0.25 → 2, 5 → 0, 0.1 → 1), at
-/// most 15.
+/// How the labels of one linear axis are written: label = (value - offset) / 10^exponent with a
+/// fixed number of decimals; or, when si is set, value - offset with each label's own SI prefix.
+/// Chosen once per axis so all labels look alike.
+struct Labeling
+{
+    double offset   = 0.0;
+    int    exponent = 0;
+    int    decimals = 0;
+    bool   si       = false;
+    double step     = 0.0;  ///< The tick step it was chosen for
+
+    friend bool operator==(const Labeling&, const Labeling&) = default;
+};
+
+/// Decimal places needed to write every multiple of @p step exactly (0.25 → 2, 5 → 0, 0.1 → 1),
+/// at most 15.
 [[nodiscard]] int decimalsForStep(double step);
 
-/// The format for ticks @p step apart on an axis whose largest absolute value is @p magnitude.
-/// Scientific notation is used for steps of a million or more and for magnitudes below 1e-4.
-[[nodiscard]] TickFormat chooseTickFormat(double step, double magnitude);
+/// The labeling for ticks @p step apart on an axis showing @p range.
+///
+/// AUTO and SI subtract an offset when at least 4 leading digits are the same across the range
+/// (epoch seconds, coordinates: 1700000000.1 to .9 becomes 0.1 to 0.9 "+1.7×10⁹"). AUTO then
+/// factors out ×10ⁿ when the largest label would be 10⁶ or more, or below 10⁻⁴; SI uses the prefix
+/// of the largest label's thousands.
+[[nodiscard]] Labeling chooseLabeling(Range range, double step, NumberStyle style);
 
-/// A tick label in UTF-8, e.g. "2.5", "−40" (with a true minus sign) or "3e6". Zero is always "0",
-/// never "−0".
-[[nodiscard]] std::string formatTick(double value, const TickFormat& format);
+/// A tick label in UTF-8, e.g. "2.5", "−40" (with a true minus sign) or "250m". Zero is always "0".
+[[nodiscard]] std::string formatLabel(double value, const Labeling& labeling);
+
+/// What the labeling leaves out, to show once by the axis: "×10⁶", "+1.7×10⁹", "×10⁻³ +1.7×10⁹",
+/// "+1.5k". Empty when labels are the full numbers.
+[[nodiscard]] std::string labelingAnnotation(const Labeling& labeling);
+
+/// A label for a tick on a log axis: plain for 0.001 to 10000 ("0.01", "100"), else "10⁻⁶" or
+/// "2×10⁸"; with NumberStyle::SI, "100k", "2µ".
+[[nodiscard]] std::string formatLogLabel(double value, NumberStyle style);
+
+/// @p exponent in Unicode superscript digits ("⁻¹²").
+[[nodiscard]] std::string superscript(int exponent);
 
 }  // namespace rocketplot::core

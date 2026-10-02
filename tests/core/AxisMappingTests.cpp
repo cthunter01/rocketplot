@@ -1,5 +1,6 @@
 #include "core/AxisMapping.h"
 
+#include <cmath>
 #include <limits>
 
 #include <gtest/gtest.h>
@@ -70,6 +71,40 @@ TEST(AxisMapping, UsableRanges)
     EXPECT_FALSE(isUsableRange({.min = 1e9, .max = 1e9 + 1e-9}));  // below double resolution
     EXPECT_FALSE(isUsableRange({.min = -1e301, .max = 1e301}));
     EXPECT_FALSE(isUsableRange({.min = 0.0, .max = std::numeric_limits<double>::infinity()}));
+}
+
+TEST(AxisMapping, LogScaleSpacesDecadesEvenly)
+{
+    using rocketplot::core::Scale;
+    const AxisMapping x(Range{.min = 1.0, .max = 1000.0}, 0.0, 300.0, Scale::LOG);
+    EXPECT_DOUBLE_EQ(x.toPixel(1.0), 0.0);
+    EXPECT_NEAR(x.toPixel(10.0), 100.0, 1e-9);
+    EXPECT_NEAR(x.toPixel(100.0), 200.0, 1e-9);
+    EXPECT_NEAR(x.toValue(150.0), std::sqrt(1000.0), 1e-9);
+    EXPECT_TRUE(std::isnan(x.toPixel(-1.0)));
+    EXPECT_FALSE(std::isfinite(x.toPixel(0.0)));
+}
+
+TEST(AxisMapping, LogZoomAndPanAreMultiplicative)
+{
+    using rocketplot::core::Scale;
+    const AxisMapping x(Range{.min = 1.0, .max = 10000.0}, 0.0, 400.0, Scale::LOG);
+    const Range       zoomed = rocketplot::core::zoomedRange(x, 200.0, 0.5);  // about 100
+    EXPECT_NEAR(zoomed.min, 10.0, 1e-9);
+    EXPECT_NEAR(zoomed.max, 1000.0, 1e-9);
+    const Range panned = rocketplot::core::pannedRange(x, -100.0);  // one decade
+    EXPECT_NEAR(panned.min, 10.0, 1e-9);
+    EXPECT_NEAR(panned.max, 100000.0, 1e-6);
+}
+
+TEST(AxisMapping, UsableLogRanges)
+{
+    using rocketplot::core::isUsableRange;
+    using rocketplot::core::Scale;
+    EXPECT_TRUE(isUsableRange({.min = 1e-300, .max = 1e300}, Scale::LOG));
+    EXPECT_FALSE(isUsableRange({.min = 0.0, .max = 10.0}, Scale::LOG));
+    EXPECT_FALSE(isUsableRange({.min = -1.0, .max = 10.0}, Scale::LOG));
+    EXPECT_TRUE(isUsableRange({.min = -1.0, .max = 10.0}, Scale::LINEAR));
 }
 
 }  // namespace

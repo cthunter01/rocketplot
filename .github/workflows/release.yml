@@ -77,9 +77,10 @@ jobs:
         if: runner.os == 'Windows'
       # The Qt installer's build, deployed next to the demo (Ubuntu's own Qt is too old, and a distribution Qt
       # cannot be deployed).
+      # macOS: Qt 6.10, as in CI (Qt 6.8.3 links the AGL framework, which the macOS 26 SDK removed).
       - uses: jurplel/install-qt-action@v4
         with:
-          version: '6.8.*'
+          version: ${{ runner.os == 'macOS' && '6.10.*' || '6.8.*' }}
           cache: true
       - uses: actions/checkout@v7
       - name: Configure, build, test and package

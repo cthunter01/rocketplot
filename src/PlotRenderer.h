@@ -18,6 +18,7 @@ class MarkerPainter;
 class PlotWidget;
 class ScatterSeries;
 class Series;
+class TextPainter;
 struct PlotLayout;
 struct Theme;
 
@@ -44,7 +45,8 @@ struct RenderStats
 class PlotRenderer
 {
 public:
-    PlotRenderer(const PlotWidget& plot, const PlotLayout& layout, MarkerPainter& markers);
+    PlotRenderer(const PlotWidget& plot, const PlotLayout& layout, MarkerPainter& markers,
+                 TextPainter& text);
 
     void render(QPainter& painter, RenderStats& stats);
 
@@ -64,6 +66,7 @@ private:
     const PlotLayout*             m_layout;
     const Theme*                  m_theme;
     MarkerPainter*                m_markers;
+    TextPainter*                  m_text;
     core::Polyline                m_line;  // reused buffers
     core::Polyline                m_clipped;
     core::Polyline                m_band;

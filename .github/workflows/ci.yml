@@ -39,9 +39,11 @@ jobs:
       - name: Install Ninja
         run: brew install ninja
       # The Qt installer's universal (arm64 + x86_64) build; Homebrew's Qt is arm64-only and always the newest.
+      # Not 6.8: its last open-source release (6.8.3) links the AGL framework, which the macOS 26 SDK removed.
+      # Windows still builds against 6.8, the oldest supported Qt.
       - uses: jurplel/install-qt-action@v4
         with:
-          version: '6.8.*'
+          version: '6.10.*'
           cache: true
       - uses: actions/checkout@v7
       - name: Configure, build and test

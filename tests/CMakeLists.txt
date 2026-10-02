@@ -4,6 +4,7 @@ include(GoogleTest)
 add_executable(rocketplot_core_tests
     core/AutoscaleTests.cpp
     core/AxisMappingTests.cpp
+    core/AxisTicksTests.cpp
     core/DecimatorTests.cpp
     core/LineBandTests.cpp
     core/MinMaxPyramidTests.cpp
@@ -11,7 +12,8 @@ add_executable(rocketplot_core_tests
     core/PolylineClipperTests.cpp
     core/RangeTests.cpp
     core/SeriesDataTests.cpp
-    core/TickGeneratorTests.cpp)
+    core/TickGeneratorTests.cpp
+    core/TimeTicksTests.cpp)
 target_link_libraries(rocketplot_core_tests PRIVATE rocketplot_core GTest::gtest_main)
 rocketplot_configure_target(rocketplot_core_tests)
 
@@ -19,8 +21,10 @@ rocketplot_configure_target(rocketplot_core_tests)
 # and QSignalSpy; the assertions are GoogleTest's.
 add_executable(rocketplot_tests
     widgets/main.cpp
+    widgets/PlotLinkTests.cpp
     widgets/PlotWidgetTests.cpp
-    widgets/SeriesTests.cpp)
+    widgets/SeriesTests.cpp
+    widgets/plottime_tests.cpp)
 target_link_libraries(rocketplot_tests PRIVATE rocketplot::rocketplot Qt6::Test GTest::gtest)
 rocketplot_configure_qt_target(rocketplot_tests)
 if(WIN32)

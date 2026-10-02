@@ -7,26 +7,40 @@
 #include <vector>
 
 #include "core/AxisMapping.h"
-#include "core/TickGenerator.h"
 
 namespace rocketplot
 {
 
+class Axis;
 class PlotWidget;
 class Series;
+class TextPainter;
 
-/// One axis's share of a layout: how values map to pixels, its ticks and their labels.
+/// One axis's share of a layout.
 struct AxisLayout
 {
-    core::AxisMapping mapping;
-    core::Ticks       ticks;
-    QStringList       labels;  ///< One per major tick
+    bool                shown = false;
+    core::AxisMapping   mapping;
+    std::vector<double> major;
+    std::vector<double> minor;
+    QStringList         labels;      ///< One per major tick
+    QString             annotation;  ///< Offset, multiplier or date context, shown once
+    QRectF              area;        ///< Ticks and tick labels
+    QRectF              titleRect;   ///< The axis label
+    QRectF              annotationRect;
 };
 
 struct LegendEntry
 {
     const Series* series = nullptr;
     QString       name;
+};
+
+/// Smallest margins either side of the plot area (linked plots line up with these).
+struct LayoutConstraints
+{
+    double minLeft  = 0.0;
+    double minRight = 0.0;
 };
 
 /// Where everything goes for one frame. Computed from the plot's state and the target rectangle, so
@@ -39,14 +53,11 @@ struct PlotLayout
     QRectF bounds;  ///< The whole target
     QRectF plot;    ///< Inside the axes: where data is drawn
     QRectF title;
-    QRectF xAxisArea;  ///< Below the plot: x ticks and their labels
-    QRectF yAxisArea;  ///< Left of the plot: y ticks and their labels
-    QRectF xLabel;
-    QRectF yLabel;
     QRectF legend;  ///< Empty when the legend isn't shown
 
     AxisLayout x;
     AxisLayout y;
+    AxisLayout y2;  ///< The secondary y axis, on the right
 
     QFont tickFont;
     QFont labelFont;
@@ -55,13 +66,25 @@ struct PlotLayout
 
     std::vector<LegendEntry> legendEntries;  ///< Empty when the legend isn't shown
     double                   legendRowHeight = 0.0;
+
+    /// The margins left and right of the plot area that this plot's content needs, before
+    /// constraints.
+    double naturalLeft  = 0.0;
+    double naturalRight = 0.0;
+
+    /// The y layout a series is drawn against.
+    [[nodiscard]] const AxisLayout& yFor(const Series& series) const;
 };
 
 /// Lays out @p plot in @p bounds, using @p font as the base font.
 [[nodiscard]] PlotLayout layoutPlot(const PlotWidget& plot, const QRectF& bounds, const QFont& font,
-                                    double devicePixelRatio);
+                                    double devicePixelRatio, TextPainter& text,
+                                    LayoutConstraints constraints = {});
 
-// Legend geometry shared by layout and drawing.
+/// The scale an axis maps values with.
+[[nodiscard]] core::Scale scaleOf(const Axis& axis);
+
+// Geometry shared by layout and drawing.
 inline constexpr double kLegendPadding   = 8.0;
 inline constexpr double kLegendSwatch    = 24.0;
 inline constexpr double kLegendSwatchGap = 8.0;

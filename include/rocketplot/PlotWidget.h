@@ -8,9 +8,11 @@
 #include <QWidget>
 #include <memory>
 #include <span>
+#include <utility>
 #include <vector>
 
 #include "rocketplot/NumericRange.h"
+#include "rocketplot/Range.h"
 #include "rocketplot/Theme.h"
 #include "rocketplot/UniformX.h"
 #include "rocketplot/enums.h"
@@ -26,6 +28,7 @@ namespace rocketplot
 
 class Axis;
 class Legend;
+class PlotLink;
 class LineSeries;
 class ScatterSeries;
 class Series;
@@ -129,14 +132,18 @@ public:
     // Axes, legend, title
     // --------------------------------------------------------------------------------------
 
-    [[nodiscard]] Axis*   xAxis() const noexcept;
-    [[nodiscard]] Axis*   yAxis() const noexcept;
+    [[nodiscard]] Axis* xAxis() const noexcept;
+    [[nodiscard]] Axis* yAxis() const noexcept;
+    /// The secondary y axis, on the right. Shown once a series uses it (Series::setYAxis()).
+    [[nodiscard]] Axis*   yAxis2() const noexcept;
     [[nodiscard]] Legend* legend() const noexcept;
+    /// The link this plot's x axis is tied to, if any (see PlotLink).
+    [[nodiscard]] PlotLink* link() const noexcept;
 
     [[nodiscard]] QString title() const;
     void                  setTitle(const QString& title);
 
-    /// Turns autoscale back on for both axes, fitting all visible data.
+    /// Turns autoscale back on for every axis, fitting the data.
     void resetView();
 
     // Appearance
@@ -160,9 +167,9 @@ public:
 
     /// The area inside the axes where data is drawn, in widget coordinates.
     [[nodiscard]] QRectF plotArea() const;
-    /// The data coordinates at a widget position, and back.
-    [[nodiscard]] QPointF mapToData(QPointF widgetPosition) const;
-    [[nodiscard]] QPointF mapFromData(QPointF dataPosition) const;
+    /// The data coordinates at a widget position, and back, using @p yAxis (default: yAxis()).
+    [[nodiscard]] QPointF mapToData(QPointF widgetPosition, const Axis* yAxis = nullptr) const;
+    [[nodiscard]] QPointF mapFromData(QPointF dataPosition, const Axis* yAxis = nullptr) const;
 
     [[nodiscard]] QSize sizeHint() const override;
     [[nodiscard]] QSize minimumSizeHint() const override;
@@ -187,15 +194,23 @@ protected:
     void changeEvent(QEvent* event) override;
 
 private:
+    friend class PlotLink;
     struct Private;
 
     template <class SeriesType>
-    SeriesType*             adopt(SeriesType* series, const QString& name);
-    void                    seriesDataChanged();
-    void                    seriesStyleChanged();
-    void                    applyAutoscale();
-    void                    updateSystemTheme();
-    [[nodiscard]] qsizetype nextColorIndex();
+    SeriesType* adopt(SeriesType* series, const QString& name);
+    void        seriesDataChanged();
+    void        seriesStyleChanged();
+    void        applyAutoscale();
+    void        refitX();
+    void        refitY();
+    void        updateSystemTheme();
+    void        setLink(PlotLink* link);
+    // Bounds of the visible series' x values (only positive ones for a log axis).
+    [[nodiscard]] Range xDataBounds(bool positiveOnly) const;
+    // The margins left and right of the plot area that this plot's labels need.
+    [[nodiscard]] std::pair<double, double> naturalMargins() const;
+    [[nodiscard]] qsizetype                 nextColorIndex();
 
     std::unique_ptr<Private> m_impl;
 };

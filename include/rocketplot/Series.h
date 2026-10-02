@@ -23,6 +23,7 @@ namespace core
 class SeriesData;
 }
 
+class Axis;
 class PlotWidget;
 
 /// A data set drawn in a PlotWidget: the base of LineSeries and ScatterSeries. Series are created
@@ -49,6 +50,8 @@ class ROCKETPLOT_EXPORT Series : public QObject
     Q_PROPERTY(rocketplot::Marker marker READ marker WRITE setMarker NOTIFY changed)
     Q_PROPERTY(
         double markerSize READ markerSize WRITE setMarkerSize RESET resetMarkerSize NOTIFY changed)
+    Q_PROPERTY(
+        bool onSecondaryYAxis READ isOnSecondaryYAxis WRITE setOnSecondaryYAxis NOTIFY changed)
 
 public:
     ~Series() override;
@@ -77,6 +80,13 @@ public:
     [[nodiscard]] double markerSize() const;
     void                 setMarkerSize(double size);
     void                 resetMarkerSize();
+
+    /// The y axis the series is drawn against: the plot's yAxis() (the default) or yAxis2().
+    [[nodiscard]] Axis* yAxis() const;
+    /// Draws the series against @p axis, which must be the plot's yAxis() or yAxis2().
+    void               setYAxis(Axis* axis);
+    [[nodiscard]] bool isOnSecondaryYAxis() const noexcept { return m_secondaryYAxis; }
+    void               setOnSecondaryYAxis(bool secondary);
 
     // Data
     // -----------------------------------------------------------------------------------------------------
@@ -190,6 +200,7 @@ private:
     qsizetype                         m_colorIndex = 0;  // into the theme's series colors
     Marker                            m_marker;
     std::optional<double>             m_markerSize;
+    bool                              m_secondaryYAxis = false;
 };
 
 }  // namespace rocketplot

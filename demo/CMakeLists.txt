@@ -8,10 +8,15 @@ add_executable(rocketplot_demo
     demo.qrc
     main.cpp
     pages/BasicLinesPage.cpp
+    pages/DateTimePage.cpp
     pages/GapsPage.cpp
     pages/LargeDataPage.cpp
+    pages/LinkedPlotsPage.cpp
     pages/LiveAppendPage.cpp
+    pages/LogScalePage.cpp
+    pages/NumberFormatsPage.cpp
     pages/ScatterPage.cpp
+    pages/TwoAxesPage.cpp
     pages/UniformSamplingPage.cpp)
 target_link_libraries(rocketplot_demo PRIVATE rocketplot::rocketplot)
 target_include_directories(rocketplot_demo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})   # pages/ include "DemoPage.h"

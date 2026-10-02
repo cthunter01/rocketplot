@@ -79,4 +79,39 @@ void addDropouts(std::vector<double>& values, std::size_t runs, std::size_t maxL
     }
 }
 
+Ascent simulateAscent(double duration, double rate, std::uint64_t seed)
+{
+    constexpr double          kGravity       = 9.81;
+    constexpr double          kMainEngineCut = 150.0;
+    constexpr double          kIgnition2     = 160.0;
+    const auto                count          = static_cast<std::size_t>(duration * rate) + 1;
+    const std::vector<double> noise          = gaussian(count, 0.0, 0.4, seed);
+    Ascent                    ascent;
+    double                    velocity = 0.0;
+    double                    altitude = 0.0;
+    const double              dt       = 1.0 / rate;
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        const double t = static_cast<double>(i) * dt;
+        // Thrust acceleration grows as propellant mass drops.
+        double thrust = 0.0;
+        if (t < kMainEngineCut)
+        {
+            thrust = 13.0 + (0.12 * t);
+        }
+        else if (t >= kIgnition2)
+        {
+            thrust = 8.0 + (0.06 * (t - kIgnition2));
+        }
+        const double acceleration = thrust - kGravity;
+        velocity += acceleration * dt;
+        altitude += velocity * dt;
+        ascent.time.push_back(t);
+        ascent.altitude.push_back(altitude / 1000.0);
+        ascent.velocity.push_back(velocity);
+        ascent.acceleration.push_back(acceleration + noise[i]);
+    }
+    return ascent;
+}
+
 }  // namespace rocketplot::demo
