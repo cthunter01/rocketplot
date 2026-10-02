@@ -113,8 +113,10 @@ TEST(AxisMapping, TransformMovesAndZoomsAtOnce)
     using rocketplot::core::transformedRange;
     using rocketplot::core::zoomedRange;
     const AxisMapping x(Range{.min = 0.0, .max = 100.0}, 0.0, 1000.0);
-    // Scale 1 is a pan; equal pixels a zoom.
-    EXPECT_EQ(transformedRange(x, 500.0, 600.0, 1.0), pannedRange(x, 100.0));
+    // Scale 1 is a pan; equal pixels a zoom (to rounding: Apple silicon fuses multiply-adds).
+    const Range pan = transformedRange(x, 500.0, 600.0, 1.0);
+    EXPECT_DOUBLE_EQ(pan.min, pannedRange(x, 100.0).min);
+    EXPECT_DOUBLE_EQ(pan.max, pannedRange(x, 100.0).max);
     const Range zoom = transformedRange(x, 250.0, 250.0, 2.0);
     EXPECT_DOUBLE_EQ(zoom.min, zoomedRange(x, 250.0, 0.5).min);
     EXPECT_DOUBLE_EQ(zoom.max, zoomedRange(x, 250.0, 0.5).max);

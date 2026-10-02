@@ -401,7 +401,6 @@ TEST_F(InteractionTest, CrosshairFollowsThePointer)
     const QImage plain    = m_plot.grab().toImage();
     EXPECT_FALSE(m_plot.crosshairPosition());
     m_plot.setCrosshairEnabled(true);
-    EXPECT_TRUE(m_plot.hasMouseTracking());
     const QSignalSpy moved(&m_plot, &PlotWidget::crosshairMoved);
     QTest::mouseMove(&m_plot, position);
     ASSERT_TRUE(m_plot.crosshairPosition());
@@ -420,7 +419,6 @@ TEST_F(InteractionTest, CrosshairFollowsThePointer)
     QTest::mouseMove(&m_plot, position);
     m_plot.setCrosshairEnabled(false);
     EXPECT_FALSE(m_plot.crosshairPosition());
-    EXPECT_FALSE(m_plot.hasMouseTracking());
 }
 
 TEST_F(InteractionTest, CrosshairOnlyOverThePlotArea)

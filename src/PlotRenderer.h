@@ -6,11 +6,13 @@
 
 #include "core/Decimator.h"
 #include "core/LineBand.h"
+#include "core/Occupancy.h"
 
 class QColor;
 class QPainter;
 class QPen;
 class QPointF;
+class QRectF;
 
 namespace rocketplot
 {
@@ -42,15 +44,26 @@ struct RenderStats
     std::vector<SeriesStats> series;
 };
 
-/// Paints a plot with a precomputed layout: background, grid, series, axes, labels, legend. It only
-/// reads the plot, so the same code can paint the widget or (later) an image or vector export.
+/// How to draw a frame, beyond what the plot says.
+struct RenderOptions
+{
+    /// Drawn on top of the others, which are faded (the series whose legend entry the user points
+    /// at).
+    const Series* highlighted = nullptr;
+    /// Records where data is drawn, for placing the legend.
+    core::Occupancy* occupancy = nullptr;
+};
+
+/// Paints a plot with a precomputed layout: background, grid, series, axes and labels (the legend
+/// is drawn over it, see LegendLayout.h). It only reads the plot, so the same code can paint the
+/// widget or (later) an image or vector export.
 class PlotRenderer
 {
 public:
     PlotRenderer(const PlotWidget& plot, const PlotLayout& layout, MarkerPainter& markers,
                  TextPainter& text);
 
-    void render(QPainter& painter, RenderStats& stats);
+    void render(QPainter& painter, RenderStats& stats, const RenderOptions& options = {});
 
 private:
     void drawGrid(QPainter& painter) const;
@@ -61,14 +74,13 @@ private:
     void drawScatter(QPainter& painter, const Series& series, SeriesStats& stats);
     void drawAxes(QPainter& painter) const;
     void drawLabels(QPainter& painter) const;
-    void drawLegend(QPainter& painter);
-    void drawLegendSwatch(QPainter& painter, const Series& series, QPointF center);
 
     const PlotWidget*             m_plot;
     const PlotLayout*             m_layout;
     const Theme*                  m_theme;
     MarkerPainter*                m_markers;
     TextPainter*                  m_text;
+    RenderOptions                 m_options;
     core::Polyline                m_line;  // reused buffers
     core::Polyline                m_clipped;
     core::Polyline                m_band;
@@ -82,7 +94,9 @@ private:
 /// A pen one device pixel wide at any scale, for axes, grid lines and outlines.
 [[nodiscard]] QPen hairlinePen(const QColor& color);
 
-/// Draws the debug overlay: layout boxes, frame time and what each series drew.
-void drawDebugOverlay(QPainter& painter, const PlotLayout& layout, const RenderStats& stats);
+/// Draws the debug overlay: layout boxes (and the @p legend box), frame time and what each series
+/// drew.
+void drawDebugOverlay(QPainter& painter, const PlotLayout& layout, const RenderStats& stats,
+                      const QRectF& legend);
 
 }  // namespace rocketplot

@@ -1,12 +1,16 @@
 #include "rocketplot/PlotWidget.h"
 
 #include <QAction>
+#include <QColor>
+#include <QColorDialog>
 #include <QContextMenuEvent>
 #include <QCursor>
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QGuiApplication>
+#include <QIcon>
 #include <QList>
+#include <QLocale>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QNativeGestureEvent>
@@ -26,6 +30,8 @@
 #include <QWheelEvent>
 #include <QWidget>
 #include <Qt>
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <memory>
@@ -35,6 +41,7 @@
 #include <vector>
 
 #include "InteractionController.h"
+#include "LegendLayout.h"
 #include "Logging.h"
 #include "MarkerPainter.h"
 #include "Overlays.h"
@@ -44,6 +51,7 @@
 #include "ViewHistory.h"
 #include "core/Autoscale.h"
 #include "core/AxisMapping.h"
+#include "core/Occupancy.h"
 #include "core/SeriesData.h"
 #include "rocketplot/Axis.h"
 #include "rocketplot/InputBindings.h"
@@ -78,32 +86,42 @@ struct PlotWidget::Private
     {
     }
 
-    Axis*                                  xAxis  = nullptr;
-    Axis*                                  yAxis  = nullptr;
-    Axis*                                  yAxis2 = nullptr;
-    Legend*                                legend = nullptr;
-    QList<Series*>                         series;
-    QString                                title;
-    ThemeMode                              themeMode    = ThemeMode::SYSTEM;
-    Theme                                  theme        = Theme::light();
-    bool                                   debugOverlay = false;
+    // Fields ordered by size, so the struct packs tightly.
+    Axis*                                  xAxis        = nullptr;
+    Axis*                                  yAxis        = nullptr;
+    Axis*                                  yAxis2       = nullptr;
+    Legend*                                legend       = nullptr;
     qsizetype                              colorCounter = 0;
     MarkerPainter                          markers;
     TextPainter                            text;
-    QPointer<PlotLink>                     link;
     std::unique_ptr<InteractionController> interaction;
+    QPointer<PlotLink>                     link;
+    QList<Series*>                         series;
+    QString                                title;
     InputBindings                          bindings = InputBindings::defaults();
-    ViewHistory                            history;  // when not linked
-    bool                                   crosshair = false;
-    std::optional<QPointF>                 hover;    // the pointer over the plot area
     std::optional<double>                  linkedX;  // a linked plot's crosshair
+    std::optional<QPointF>                 hover;    // the pointer over the plot area
+    ViewHistory                            history;  // when not linked
+    Theme                                  theme = Theme::light();
 
-    // The plot as last rendered, drawn again as long as nothing it shows changes (the crosshair
-    // and zoom box are drawn over it).
-    QPixmap     cache;
-    PlotLayout  cacheLayout;
-    RenderStats stats;
-    bool        dirty = true;
+    // The plot as last rendered, drawn again as long as nothing it shows changes (the legend,
+    // crosshair and zoom box are drawn over it).
+    QPixmap         cache;
+    PlotLayout      cacheLayout;
+    RenderStats     stats;
+    core::Occupancy occupancy;  // where the cached rendering drew data, for a BEST legend
+
+    // The legend as last drawn (clicks and pointing are matched against it).
+    LegendLayout           legendLayout;
+    double                 valueWidth = 0.0;  // the widest values while the crosshair is shown
+    std::optional<QPointF> pointer;           // over the widget
+    QPointer<Series>       pointed;           // the series whose legend entry the pointer is on
+
+    ThemeMode                   themeMode = ThemeMode::SYSTEM;
+    std::optional<LegendAnchor> bestAnchor;  // where a BEST legend went last
+    bool                        debugOverlay = false;
+    bool                        crosshair    = false;
+    bool                        dirty        = true;
 
     // The current layout (with the link's margins).
     [[nodiscard]] PlotLayout layout(const PlotWidget& plot)
@@ -140,6 +158,7 @@ PlotWidget::PlotWidget(QWidget* parent) : QWidget(parent), m_impl(std::make_uniq
     m_impl->interaction =
         std::make_unique<InteractionController>(*this, [this] { return m_impl->layout(*this); });
     m_impl->debugOverlay = qEnvironmentVariableIntValue("ROCKETPLOT_DEBUG_OVERLAY") == 1;
+    setMouseTracking(true);  // the crosshair and the legend follow the pointer
 
     for (const Axis* axis : {m_impl->xAxis, m_impl->yAxis, m_impl->yAxis2})
     {
@@ -172,7 +191,18 @@ PlotWidget::PlotWidget(QWidget* parent) : QWidget(parent), m_impl(std::make_uniq
             current->syncFrom(this);
         }
     });
-    connect(m_impl->legend, &Legend::changed, this, [this] { invalidate(); });
+    connect(m_impl->legend, &Legend::changed, this, [this] {
+        // The legend is drawn over the cached rendering, which has the data a BEST legend avoids
+        // only if it was rendered for one.
+        if (m_impl->legend->anchor() == LegendAnchor::BEST && !m_impl->occupancy.isRecorded())
+        {
+            markDirty();
+        }
+        else
+        {
+            update();
+        }
+    });
     connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this,
             [this] { updateSystemTheme(); });
 
@@ -448,7 +478,6 @@ void PlotWidget::setCrosshairEnabled(bool enabled)
     }
     m_impl->crosshair = enabled;
     m_impl->linkedX.reset();
-    setMouseTracking(enabled);
     if (enabled && underMouse())
     {
         setHoverPosition(mapFromGlobal(QPointF(QCursor::pos())));
@@ -538,6 +567,18 @@ void PlotWidget::updateCursor()
         default:
             break;
     }
+    if (m_impl->interaction->isDraggingLegend())
+    {
+        setCursor(Qt::ClosedHandCursor);
+        return;
+    }
+    if (m_impl->legend->isInteractive() && m_impl->pointer &&
+        m_impl->legendLayout.box.contains(*m_impl->pointer))
+    {
+        // Entries are clicked; the rest of the box is a handle.
+        setCursor(m_impl->pointed ? Qt::PointingHandCursor : Qt::OpenHandCursor);
+        return;
+    }
     if (m_impl->hover)
     {
         setCursor(Qt::CrossCursor);
@@ -550,6 +591,11 @@ void PlotWidget::updateCursor()
 
 void PlotWidget::showContextMenu(QPoint position, QPoint globalPosition)
 {
+    if (const LegendEntry* entry = legendEntryAt(QPointF(position)))
+    {
+        showEntryMenu(entry->series, globalPosition);
+        return;
+    }
     auto* menu = new QMenu(this);
     menu->setAttribute(Qt::WA_DeleteOnClose);
     menu->addAction(tr("Back"), this, &PlotWidget::back)->setEnabled(canGoBack());
@@ -562,6 +608,177 @@ void PlotWidget::showContextMenu(QPoint position, QPoint globalPosition)
     connect(crosshair, &QAction::toggled, this, &PlotWidget::setCrosshairEnabled);
     Q_EMIT contextMenuAboutToShow(menu, QPointF(position));
     menu->popup(globalPosition);
+}
+
+// Legend
+// --------------------------------------------------------------------------------------------------------
+
+const LegendEntry* PlotWidget::legendEntryAt(QPointF position) const
+{
+    if (!m_impl->legend->isInteractive())
+    {
+        return nullptr;
+    }
+    return m_impl->legendLayout.entryAt(position);
+}
+
+bool PlotWidget::isOnLegend(QPointF position) const
+{
+    return m_impl->legend->isInteractive() && m_impl->legendLayout.box.contains(position);
+}
+
+void PlotWidget::pointAt(std::optional<QPointF> position)
+{
+    m_impl->pointer             = position;
+    const LegendEntry* entry    = position ? legendEntryAt(*position) : nullptr;
+    Series*            series   = entry != nullptr ? entry->series : nullptr;
+    const Series*      previous = m_impl->pointed.data();
+    if (series != previous)
+    {
+        m_impl->pointed = series;
+        // The highlighted series is drawn over the others, which fade.
+        if ((series != nullptr && series->isVisible()) ||
+            (previous != nullptr && previous->isVisible()))
+        {
+            markDirty();
+        }
+        update();
+    }
+    updateCursor();
+}
+
+const Series* PlotWidget::highlightedSeries() const
+{
+    const Series* series = m_impl->pointed.data();
+    return series != nullptr && series->isVisible() && m_impl->legend->isInteractive() ? series
+                                                                                       : nullptr;
+}
+
+void PlotWidget::isolateSeries(Series* series)
+{
+    // Showing only the one already shown alone shows them all again.
+    const bool alone =
+        series->isVisible() && std::ranges::none_of(m_impl->series, [series](const Series* other) {
+            return other != series && other->isVisible();
+        });
+    for (Series* other : std::as_const(m_impl->series))
+    {
+        other->setVisible(alone || other == series);
+    }
+}
+
+void PlotWidget::showEntryMenu(Series* series, QPoint globalPosition)
+{
+    auto* menu = new QMenu(this);
+    menu->setAttribute(Qt::WA_DeleteOnClose);
+    const QPointer<Series> target(series);
+    const auto             onTarget = [target](auto&& action) {
+        return [target, action] {
+            if (Series* current = target.data())
+            {
+                action(*current);
+            }
+        };
+    };
+
+    QAction* visible = menu->addAction(tr("Visible"));
+    visible->setCheckable(true);
+    visible->setChecked(series->isVisible());
+    connect(visible, &QAction::triggered, this,
+            onTarget([](Series& current) { current.setVisible(!current.isVisible()); }));
+    menu->addAction(tr("Show only this"), this, onTarget([this](Series& current) {
+                        for (Series* other : std::as_const(m_impl->series))
+                        {
+                            other->setVisible(other == &current);
+                        }
+                    }));
+    menu->addAction(tr("Show all"), this, [this] {
+        for (Series* other : std::as_const(m_impl->series))
+        {
+            other->setVisible(true);
+        }
+    });
+    menu->addSeparator();
+
+    menu->addAction(tr("Color…"), this, onTarget([this](Series& current) {
+                        const QColor color =
+                            QColorDialog::getColor(current.color(), this, tr("Series color"));
+                        if (color.isValid())
+                        {
+                            current.setColor(color);
+                        }
+                    }));
+    if (series->m_color)
+    {
+        menu->addAction(tr("Theme color"), this,
+                        onTarget([](Series& current) { current.resetColor(); }));
+    }
+    if (auto* line = qobject_cast<LineSeries*>(series))
+    {
+        QMenu*        widths = menu->addMenu(tr("Line width"));
+        const QLocale locale;
+        for (const double width : {1.0, 1.5, 2.0, 3.0, 4.0})
+        {
+            QAction* action = widths->addAction(tr("%1 px").arg(locale.toString(width)));
+            action->setCheckable(true);
+            action->setChecked(line->lineWidth() == width);
+            connect(action, &QAction::triggered, this, onTarget([width](Series& current) {
+                        if (auto* currentLine = qobject_cast<LineSeries*>(&current))
+                        {
+                            currentLine->setLineWidth(width);
+                        }
+                    }));
+        }
+    }
+    QMenu*     markers = menu->addMenu(tr("Marker"));
+    const auto shapes  = std::to_array<std::pair<Marker, QString>>({
+        {Marker::NONE, tr("None")},
+        {Marker::CIRCLE, tr("Circle")},
+        {Marker::SQUARE, tr("Square")},
+        {Marker::DIAMOND, tr("Diamond")},
+        {Marker::TRIANGLE, tr("Triangle")},
+        {Marker::CROSS, tr("Cross")},
+        {Marker::PLUS, tr("Plus")},
+    });
+    const bool scatter = qobject_cast<LineSeries*>(series) == nullptr;
+    for (const auto& [shape, name] : shapes)
+    {
+        if (shape == Marker::NONE && scatter)
+        {
+            continue;  // a scatter series without markers draws nothing
+        }
+        QAction* action = markers->addAction(markerIcon(*series, shape), name);
+        action->setCheckable(true);
+        action->setChecked(series->marker() == shape);
+        connect(action, &QAction::triggered, this,
+                onTarget([shape](Series& current) { current.setMarker(shape); }));
+    }
+    menu->addSeparator();
+    menu->addAction(tr("Remove"), this,
+                    onTarget([this](Series& current) { removeSeries(&current); }));
+    Q_EMIT m_impl->legend->entryMenuAboutToShow(menu, series);
+    menu->popup(globalPosition);
+}
+
+QIcon PlotWidget::markerIcon(const Series& series, Marker shape) const
+{
+    constexpr int    kIconSize   = 16;
+    constexpr double kMarkerSize = 10.0;
+    const double     dpr         = devicePixelRatioF();
+    QPixmap          pixmap(QSize(kIconSize, kIconSize) * dpr);
+    pixmap.setDevicePixelRatio(dpr);
+    pixmap.fill(Qt::transparent);
+    if (shape != Marker::NONE)
+    {
+        QPainter painter(&pixmap);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        MarkerStyle style = markerStyle(series, m_impl->theme);
+        style.shape       = shape;
+        style.size        = kMarkerSize;
+        style.ringWidth   = 0.0;
+        MarkerPainter::draw(painter, QPointF(kIconSize / 2.0, kIconSize / 2.0), style);
+    }
+    return {pixmap};
 }
 
 void PlotWidget::applyAutoscale()
@@ -738,6 +955,11 @@ QRectF PlotWidget::plotArea() const
     return m_impl->layout(*this).plot;
 }
 
+QRectF PlotWidget::legendArea() const
+{
+    return m_impl->legendLayout.box;
+}
+
 QPointF PlotWidget::mapToData(QPointF widgetPosition, const Axis* yAxis) const
 {
     const PlotLayout  layout = m_impl->layout(*this);
@@ -820,9 +1042,19 @@ void PlotWidget::renderCache()
     m_impl->cacheLayout = m_impl->layout(*this);
     RenderStats stats;
     {
+        // A BEST legend needs to know where the data is drawn.
+        const bool best = m_impl->legend->anchor() == LegendAnchor::BEST;
+        if (!best)
+        {
+            m_impl->occupancy.clear();
+        }
         QPainter     painter(&m_impl->cache);
         PlotRenderer renderer(*this, m_impl->cacheLayout, m_impl->markers, m_impl->text);
-        renderer.render(painter, stats);
+        renderer.render(painter, stats,
+                        {
+                            .highlighted = highlightedSeries(),
+                            .occupancy   = best ? &m_impl->occupancy : nullptr,
+                        });
     }
     stats.milliseconds = static_cast<double>(timer.nsecsElapsed()) / 1e6;
     m_impl->stats      = std::move(stats);
@@ -838,6 +1070,10 @@ void PlotWidget::paintEvent(QPaintEvent* /*event*/)
     {
         renderCache();
     }
+    if (m_impl->hover)
+    {
+        syncCrosshair();  // linked plots show the x under the pointer as drawn
+    }
     QPainter painter(this);
     painter.drawPixmap(QPointF(), m_impl->cache);
     const PlotLayout& layout = m_impl->cacheLayout;
@@ -845,13 +1081,40 @@ void PlotWidget::paintEvent(QPaintEvent* /*event*/)
     {
         drawCrosshair(painter, *this, layout, m_impl->hover, m_impl->linkedX);
     }
+
+    // The legend, with the values at the crosshair.
+    const std::optional<QPointF> crosshair = crosshairPosition();
+    if (!crosshair)
+    {
+        m_impl->valueWidth = 0.0;
+    }
+    m_impl->legendLayout =
+        layoutLegend(*this, layout, m_impl->text,
+                     {
+                         .crosshairX    = crosshair ? std::optional(crosshair->x()) : std::nullopt,
+                         .minValueWidth = m_impl->valueWidth,
+                         .occupancy     = &m_impl->occupancy,
+                         .previousBest  = m_impl->bestAnchor,
+                     });
+    m_impl->valueWidth = std::max(m_impl->valueWidth, m_impl->legendLayout.valueWidth);
+    if (m_impl->legend->anchor() == LegendAnchor::BEST && m_impl->legendLayout.isShown())
+    {
+        m_impl->bestAnchor = m_impl->legendLayout.anchor;
+    }
+    else
+    {
+        m_impl->bestAnchor.reset();
+    }
+    drawLegend(painter, *this, layout, m_impl->legendLayout, m_impl->text,
+               m_impl->legend->isInteractive() ? m_impl->pointed.data() : nullptr);
+
     if (const std::optional<QRectF> box = m_impl->interaction->zoomBox(); box && layout.valid)
     {
         drawZoomBox(painter, layout, m_impl->theme, *box);
     }
     if (m_impl->debugOverlay)
     {
-        drawDebugOverlay(painter, layout, m_impl->stats);
+        drawDebugOverlay(painter, layout, m_impl->stats, m_impl->legendLayout.box);
     }
 }
 
@@ -923,6 +1186,7 @@ void PlotWidget::contextMenuEvent(QContextMenuEvent* event)
 void PlotWidget::leaveEvent(QEvent* event)
 {
     m_impl->interaction->leave();
+    pointAt(std::nullopt);
     QWidget::leaveEvent(event);
 }
 

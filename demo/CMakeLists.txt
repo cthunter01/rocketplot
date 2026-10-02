@@ -12,6 +12,7 @@ add_executable(rocketplot_demo
     pages/GapsPage.cpp
     pages/InteractionPage.cpp
     pages/LargeDataPage.cpp
+    pages/LegendPage.cpp
     pages/LinkedPlotsPage.cpp
     pages/LiveAppendPage.cpp
     pages/LogScalePage.cpp

@@ -2,7 +2,9 @@
 
 #include <QElapsedTimer>
 #include <QPointF>
+#include <QPointer>
 #include <QRectF>
+#include <QSizeF>
 #include <Qt>
 #include <cstdint>
 #include <functional>
@@ -25,6 +27,7 @@ namespace rocketplot
 class Axis;
 class InputBindings;
 class PlotWidget;
+class Series;
 
 /// Turns mouse, trackpad and touch input into view changes. Each gesture with its button and
 /// modifier keys is looked up in the plot's InputBindings to find its action; where the pointer is
@@ -66,6 +69,8 @@ public:
 
     /// The action of the drag under way: PAN, BOX_ZOOM, or NONE.
     [[nodiscard]] PlotAction dragAction() const noexcept;
+    /// Whether the user is moving the legend.
+    [[nodiscard]] bool isDraggingLegend() const noexcept;
     /// The box being dragged out to zoom, in widget coordinates (nothing while it is too small).
     [[nodiscard]] std::optional<QRectF> zoomBox() const;
 
@@ -131,6 +136,7 @@ private:
     {
         bool                  active = false;
         PlotAction            action = PlotAction::NONE;  // NONE: a press that is only a click
+        bool                  legend = false;  // on the legend: moves it or clicks an entry
         Qt::MouseButton       button = Qt::NoButton;
         Qt::KeyboardModifiers modifiers;
         Region                region = Region::PLOT;
@@ -141,6 +147,13 @@ private:
         std::vector<Target>   targets;
     };
     Drag m_drag;
+    // A drag on the legend: the entry pressed, and where the legend was.
+    struct LegendGrab
+    {
+        QPointer<Series> entry;
+        QRectF           box;
+    };
+    LegendGrab m_legendGrab;
     // A right-button drag or click just ended: a context menu asked for now (on the release) is
     // dropped.
     bool m_dropMenu = false;

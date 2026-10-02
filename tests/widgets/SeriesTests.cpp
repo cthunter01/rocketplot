@@ -174,4 +174,15 @@ TEST(Series, ColorsFollowTheTheme)
     EXPECT_EQ(line->color(), QColor(Qt::black));  // a color set by the user stays
 }
 
+TEST(Series, NearestIndex)
+{
+    PlotWidget  plot;
+    LineSeries* line = plot.addLine(std::vector<double>{0, 1, 4}, std::vector<double>{5, 6, 7});
+    EXPECT_EQ(line->nearestIndex(2.4), 1U);
+    EXPECT_EQ(line->nearestIndex(2.6), 2U);
+    EXPECT_FALSE(line->nearestIndex(4.5));  // past the data
+    LineSeries* unsorted = plot.addLine(std::vector<double>{0, 2, 1}, std::vector<double>{5, 6, 7});
+    EXPECT_FALSE(unsorted->nearestIndex(1.0));
+}
+
 }  // namespace

@@ -103,6 +103,10 @@ public:
     /// Whether x never decreases (and has no NaN). Sorted series pan and zoom fastest with millions
     /// of points.
     [[nodiscard]] bool isSortedByX() const noexcept;
+    /// The point whose x is nearest @p x, for a series sorted by x and @p x within its x range
+    /// (between its first and last point); nothing otherwise. The legend shows its y at the
+    /// crosshair.
+    [[nodiscard]] std::optional<std::size_t> nearestIndex(double x) const;
     /// Whether x is implicit (UniformX) rather than an array.
     [[nodiscard]] bool hasUniformX() const noexcept;
     /// Whether the series reads the caller's memory (setDataView()) rather than its own copy.

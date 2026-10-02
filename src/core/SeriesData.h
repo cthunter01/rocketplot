@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -78,6 +79,9 @@ public:
     [[nodiscard]] std::size_t lowerBound(double value) const;
     /// First index whose x is > @p value (size() if none). Only meaningful when isSortedByX().
     [[nodiscard]] std::size_t upperBound(double value) const;
+    /// The point whose x is nearest @p value (on a tie, the earlier one), when the series is sorted
+    /// by x and @p value lies within its x range; nothing otherwise.
+    [[nodiscard]] std::optional<std::size_t> nearestIndex(double value) const;
 
 private:
     void resetDerived();

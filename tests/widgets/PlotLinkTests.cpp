@@ -25,6 +25,16 @@ using rocketplot::PlotLink;
 using rocketplot::PlotWidget;
 using rocketplot::Range;
 
+// Points at the center of @p plot's plot area, and returns where that is. QTest moves the cursor
+// there, which reports a move only if it was elsewhere (an earlier test may have left it there).
+QPoint pointAtCenter(PlotWidget& plot)
+{
+    const QPoint center = plot.plotArea().center().toPoint();
+    QTest::mouseMove(&plot, QPoint(1, 1));
+    QTest::mouseMove(&plot, center);
+    return center;
+}
+
 // One wheel notch in, at the center of @p plot.
 void zoomIn(PlotWidget& plot)
 {
@@ -125,7 +135,7 @@ TEST_F(PlotLinkTest, CrosshairShowsInTheOtherPlots)
 {
     m_a.setCrosshairEnabled(true);
     m_b.setCrosshairEnabled(true);
-    QTest::mouseMove(&m_a, m_a.plotArea().center().toPoint());
+    pointAtCenter(m_a);
     ASSERT_TRUE(m_a.crosshairPosition());
     ASSERT_TRUE(m_b.crosshairPosition());
     const QPointF a = m_a.crosshairPosition().value_or(QPointF());
@@ -155,15 +165,20 @@ TEST_F(PlotLinkTest, CrosshairStaysWhenAnotherPlotMoves)
     {
         plot->setCrosshairEnabled(true);
     }
-    QTest::mouseMove(&m_a, m_a.plotArea().center().toPoint());
+    const QPoint pointer = pointAtCenter(m_a);
     // A plot without the pointer moves first (new data, code): the crosshair stays everywhere,
     // at the x now under the pointer.
     m_b.xAxis()->setRange(1.0, 3.0);
+    for (PlotWidget* plot : {&m_a, &m_b, &third})
+    {
+        plot->grab();  // as drawn: the plot areas have lined up again
+    }
     ASSERT_TRUE(m_a.crosshairPosition());
     ASSERT_TRUE(third.crosshairPosition());
     EXPECT_DOUBLE_EQ(third.crosshairPosition().value_or(QPointF()).x(),
                      m_a.crosshairPosition().value_or(QPointF()).x());
-    EXPECT_NEAR(m_a.crosshairPosition().value_or(QPointF()).x(), 2.0, 0.01);
+    // The x under the pointer, though the plot areas moved as their labels changed.
+    EXPECT_NEAR(m_a.crosshairPosition().value_or(QPointF()).x(), m_a.mapToData(pointer).x(), 1e-9);
 }
 
 TEST_F(PlotLinkTest, PlotsShareTheirHistory)

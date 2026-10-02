@@ -11,6 +11,7 @@ add_library(rocketplot_core OBJECT
     core/LineBand.cpp
     core/MinMaxPyramid.cpp
     core/NumberFormatter.cpp
+    core/Occupancy.cpp
     core/PolylineClipper.cpp
     core/SeriesData.cpp
     core/TickGenerator.cpp
@@ -43,6 +44,8 @@ target_sources(rocketplot
         InteractionController.cpp
         InteractionController.h
         Legend.cpp
+        LegendLayout.cpp
+        LegendLayout.h
         LineSeries.cpp
         Logging.cpp
         Logging.h

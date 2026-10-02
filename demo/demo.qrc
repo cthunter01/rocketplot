@@ -7,6 +7,7 @@
         <file alias="GapsPage.cpp">pages/GapsPage.cpp</file>
         <file alias="InteractionPage.cpp">pages/InteractionPage.cpp</file>
         <file alias="LargeDataPage.cpp">pages/LargeDataPage.cpp</file>
+        <file alias="LegendPage.cpp">pages/LegendPage.cpp</file>
         <file alias="LinkedPlotsPage.cpp">pages/LinkedPlotsPage.cpp</file>
         <file alias="LiveAppendPage.cpp">pages/LiveAppendPage.cpp</file>
         <file alias="LogScalePage.cpp">pages/LogScalePage.cpp</file>

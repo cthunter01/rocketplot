@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <span>
 #include <utility>
 #include <vector>
@@ -175,6 +176,11 @@ Range Series::yBounds() const noexcept
 bool Series::isSortedByX() const noexcept
 {
     return m_data->isSortedByX();
+}
+
+std::optional<std::size_t> Series::nearestIndex(double x) const
+{
+    return m_data->nearestIndex(x);
 }
 
 bool Series::hasUniformX() const noexcept

@@ -151,6 +151,29 @@ TEST(SeriesData, BoundsSearch)
     EXPECT_EQ(data.upperBound(5.0), 5U);
 }
 
+TEST(SeriesData, NearestIndex)
+{
+    SeriesData data;
+    data.setOwned(std::vector<double>{0, 1, 1, 2, 5}, std::vector<double>{0, 0, 0, 0, 0});
+    EXPECT_EQ(data.nearestIndex(0.0), 0U);
+    EXPECT_EQ(data.nearestIndex(0.4), 0U);
+    EXPECT_EQ(data.nearestIndex(0.5), 0U);  // a tie: the earlier
+    EXPECT_EQ(data.nearestIndex(1.0), 1U);
+    EXPECT_EQ(data.nearestIndex(3.6), 4U);
+    EXPECT_EQ(data.nearestIndex(5.0), 4U);
+    // Outside the data, or unsorted: nothing.
+    EXPECT_FALSE(data.nearestIndex(-0.1));
+    EXPECT_FALSE(data.nearestIndex(5.1));
+    EXPECT_FALSE(data.nearestIndex(kNaN));
+    data.setOwned(std::vector<double>{0, 2, 1}, std::vector<double>{0, 0, 0});
+    EXPECT_FALSE(data.nearestIndex(1.0));
+    data.setOwned(UniformX{.start = 10.0, .step = 0.5}, std::vector<double>(5, 0.0));
+    EXPECT_EQ(data.nearestIndex(10.7), 1U);
+    EXPECT_EQ(data.nearestIndex(12.0), 4U);
+    data.clear();
+    EXPECT_FALSE(data.nearestIndex(0.0));
+}
+
 // The same 200-point grid as UniformX and as an x array.
 struct Grids
 {

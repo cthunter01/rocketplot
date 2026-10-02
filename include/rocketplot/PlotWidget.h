@@ -22,6 +22,7 @@
 
 class QContextMenuEvent;
 class QEvent;
+class QIcon;
 class QMenu;
 class QMouseEvent;
 class QPaintEvent;
@@ -40,6 +41,7 @@ class LineSeries;
 class ScatterSeries;
 class Series;
 class ViewHistory;
+struct LegendEntry;
 
 /// A widget that plots any number of data sets on shared x and y axes, with a legend.
 ///
@@ -208,6 +210,8 @@ public:
 
     /// The area inside the axes where data is drawn, in widget coordinates.
     [[nodiscard]] QRectF plotArea() const;
+    /// Where the legend was last drawn, in widget coordinates; empty when it isn't shown.
+    [[nodiscard]] QRectF legendArea() const;
     /// The data coordinates at a widget position, and back, using @p yAxis (default: yAxis()).
     [[nodiscard]] QPointF mapToData(QPointF widgetPosition, const Axis* yAxis = nullptr) const;
     [[nodiscard]] QPointF mapFromData(QPointF dataPosition, const Axis* yAxis = nullptr) const;
@@ -276,6 +280,15 @@ private:
     void updateCursor();
     void showContextMenu(QPoint position, QPoint globalPosition);
     void renderCache();
+    // The legend: what the pointer is on (as last drawn, and if the legend is interactive), what
+    // that highlights, and what clicking and its menu do.
+    [[nodiscard]] const LegendEntry* legendEntryAt(QPointF position) const;
+    [[nodiscard]] bool               isOnLegend(QPointF position) const;
+    void                             pointAt(std::optional<QPointF> position);
+    [[nodiscard]] const Series*      highlightedSeries() const;
+    void                             isolateSeries(Series* series);
+    void                             showEntryMenu(Series* series, QPoint globalPosition);
+    [[nodiscard]] QIcon              markerIcon(const Series& series, Marker shape) const;
     // Bounds of the visible series' x values (only positive ones for a log axis).
     [[nodiscard]] Range xDataBounds(bool positiveOnly) const;
     // The margins left and right of the plot area that this plot's labels need.

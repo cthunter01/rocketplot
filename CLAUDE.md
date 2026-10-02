@@ -52,10 +52,12 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
   Private headers
 - `src/`: `rocketplot` (alias `rocketplot::rocketplot`): the widget layer. `PlotLayout` (where everything goes),
   `PlotRenderer` (paints a layout; shared by screen and future exports), `InteractionController` (mouse, wheel,
-  trackpad and touch input through the `InputBindings`), `ViewHistory` (back/forward), `Overlays` (crosshair and
-  zoom box, drawn over the widget's cached rendering), `PlotLink` (linked x axes, crosshair and history),
-  `TextPainter` (plain and rich text), `MarkerPainter`, `plottime.cpp`, `Logging` (categories
-  `rocketplot.render|input|data`)
+  trackpad and touch input through the `InputBindings`), `ViewHistory` (back/forward), `LegendLayout` (legend
+  placement, values and drawing), `Occupancy` (where data was drawn, for the legend's BEST spot), `Overlays`
+  (crosshair and zoom box), `PlotLink` (linked x axes, crosshair and history), `TextPainter` (plain and rich
+  text), `MarkerPainter`, `plottime.cpp`, `Logging` (categories `rocketplot.render|input|data`). The legend,
+  crosshair and zoom box are drawn over the widget's cached rendering: call `PlotWidget::invalidate()` when what
+  the plot shows changes, `update()` for overlays only
 - `demo/`: `rocketplot_demo`, a gallery: one `pages/<Name>Page.cpp` per page, listed in `MainWindow.cpp` and
   `demo.qrc` (the code between `// [snippet]` markers is shown in the app)
 - `tests/core/`: `rocketplot_core_tests` (links the core objects); `tests/widgets/`: `rocketplot_tests` (offscreen Qt,

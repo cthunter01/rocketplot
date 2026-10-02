@@ -20,7 +20,6 @@
 #include "core/NumberFormatter.h"
 #include "core/TimeTicks.h"
 #include "rocketplot/Axis.h"
-#include "rocketplot/Legend.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/Series.h"
 #include "rocketplot/Theme.h"
@@ -37,7 +36,6 @@ constexpr double kOuterPadding  = 10.0;
 constexpr double kTitleGap      = 10.0;
 constexpr double kAxisLabelGap  = 6.0;
 constexpr double kAnnotationGap = 4.0;
-constexpr double kLegendMargin  = 10.0;
 constexpr double kMinPlotSize   = 16.0;
 constexpr double kMinorSpacing  = 4.0;
 // Space between neighboring x tick labels, and the height y tick labels need per tick (in label
@@ -131,6 +129,15 @@ QString zoneNameOf(const QTimeZone& zone, double at)
                                   : abbreviation;
 }
 
+// @p value written in full for @p axis, to @p resolution (data units).
+QString formatAxisValue(const Axis& axis, double value, double resolution)
+{
+    const bool time = axis.scaleType() == ScaleType::DATE_TIME;
+    return QString::fromStdString(
+        core::formatReadout(value, resolution, kindOf(axis), styleOf(axis),
+                            time ? utcOffsetOf(axis.timeZone()) : core::UtcOffset{}));
+}
+
 // Fills ticks, labels and annotation for @p axis drawn over @p lengthPx.
 void fillTicks(AxisLayout& layout, const Axis& axis, double lengthPx, double minSpacingPx)
 {
@@ -172,68 +179,6 @@ bool hasSeriesOnSecondary(const PlotWidget& plot)
 {
     return std::ranges::any_of(plot.series(),
                                [](const Series* series) { return series->isOnSecondaryYAxis(); });
-}
-
-QRectF placeLegend(const QRectF& plot, double width, double height, LegendAnchor anchor)
-{
-    const double left    = plot.left() + kLegendMargin;
-    const double right   = plot.right() - kLegendMargin - width;
-    const double centerX = plot.center().x() - (width / 2.0);
-    const double top     = plot.top() + kLegendMargin;
-    const double bottom  = plot.bottom() - kLegendMargin - height;
-    const double centerY = plot.center().y() - (height / 2.0);
-    switch (anchor)
-    {
-        case LegendAnchor::TOP_LEFT:
-            return {left, top, width, height};
-        case LegendAnchor::TOP:
-            return {centerX, top, width, height};
-        case LegendAnchor::TOP_RIGHT:
-            return {right, top, width, height};
-        case LegendAnchor::RIGHT:
-            return {right, centerY, width, height};
-        case LegendAnchor::BOTTOM_RIGHT:
-            return {right, bottom, width, height};
-        case LegendAnchor::BOTTOM:
-            return {centerX, bottom, width, height};
-        case LegendAnchor::BOTTOM_LEFT:
-            return {left, bottom, width, height};
-        case LegendAnchor::LEFT:
-            return {left, centerY, width, height};
-    }
-    return {right, top, width, height};
-}
-
-void layoutLegend(const PlotWidget& plot, PlotLayout& layout, TextPainter& text)
-{
-    for (const Series* series : plot.series())
-    {
-        if (!series->name().isEmpty())
-        {
-            layout.legendEntries.push_back({.series = series, .name = series->name()});
-        }
-    }
-    if (!plot.legend()->isShownFor(static_cast<qsizetype>(layout.legendEntries.size())))
-    {
-        layout.legendEntries.clear();
-        return;
-    }
-    double textWidth  = 0.0;
-    double textHeight = QFontMetricsF(layout.legendFont).height();
-    for (const LegendEntry& entry : layout.legendEntries)
-    {
-        const QSizeF size = text.size(entry.name, layout.legendFont);
-        textWidth         = std::max(textWidth, size.width());
-        textHeight        = std::max(textHeight, size.height());
-    }
-    const auto rows        = static_cast<double>(layout.legendEntries.size());
-    layout.legendRowHeight = std::max(textHeight, plot.theme().markerSize + 2.0);
-    const double maxWidth  = layout.plot.width() - (2.0 * kLegendMargin);
-    const double width =
-        std::min(maxWidth, (2.0 * kLegendPadding) + kLegendSwatch + kLegendSwatchGap + textWidth);
-    const double height =
-        (2.0 * kLegendPadding) + (rows * layout.legendRowHeight) + ((rows - 1.0) * kLegendRowGap);
-    layout.legend = placeLegend(layout.plot, width, height, plot.legend()->anchor());
 }
 
 void setFonts(PlotLayout& layout, const QFont& font, const Theme& theme)
@@ -454,12 +399,14 @@ core::Scale scaleOf(const Axis& axis)
 
 QString readoutLabel(const Axis& axis, const core::AxisMapping& mapping, double pixel)
 {
-    const double value      = mapping.toValue(pixel);
-    const double resolution = std::abs(mapping.toValue(pixel + 1.0) - value);
-    const bool   time       = axis.scaleType() == ScaleType::DATE_TIME;
-    return QString::fromStdString(
-        core::formatReadout(value, resolution, kindOf(axis), styleOf(axis),
-                            time ? utcOffsetOf(axis.timeZone()) : core::UtcOffset{}));
+    const double value = mapping.toValue(pixel);
+    return formatAxisValue(axis, value, std::abs(mapping.toValue(pixel + 1.0) - value));
+}
+
+QString valueLabel(const Axis& axis, const core::AxisMapping& mapping, double value)
+{
+    const double pixel = mapping.toPixel(value);
+    return formatAxisValue(axis, value, std::abs(mapping.toValue(pixel + 1.0) - value));
 }
 
 PlotLayout layoutPlot(const PlotWidget& plot, const QRectF& bounds, const QFont& font,
@@ -494,7 +441,6 @@ PlotLayout layoutPlot(const PlotWidget& plot, const QRectF& bounds, const QFont&
 
     layout.plot = QRectF(plotLeft, vertical.plotTop, plotRight - plotLeft, plotHeight);
     placeAxes(plot, layout, vertical);
-    layoutLegend(plot, layout, text);
     layout.valid = true;
     return layout;
 }

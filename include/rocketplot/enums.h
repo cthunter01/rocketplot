@@ -27,6 +27,8 @@ Q_ENUM_NS(Marker)
 /// Where the legend sits inside the plot area.
 enum class LegendAnchor : std::uint8_t
 {
+    BEST,  ///< The corner or edge where it covers the least data, moving only when another is
+           ///< clearly better (the default)
     TOP_LEFT,
     TOP,
     TOP_RIGHT,
@@ -35,6 +37,7 @@ enum class LegendAnchor : std::uint8_t
     BOTTOM,
     BOTTOM_LEFT,
     LEFT,
+    CUSTOM,  ///< At Legend::position(), e.g. where the user dragged it
 };
 Q_ENUM_NS(LegendAnchor)
 

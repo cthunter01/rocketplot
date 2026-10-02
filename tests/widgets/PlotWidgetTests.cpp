@@ -373,19 +373,4 @@ TEST_F(PlotWidgetTest, ResetViewTurnsAutoscaleOnEverywhere)
     EXPECT_TRUE(m_plot.yAxis2()->autoscale());
 }
 
-TEST(Legend, ShownForTwoEntriesByDefault)
-{
-    PlotWidget          plot;
-    rocketplot::Legend* legend = plot.legend();
-    EXPECT_FALSE(legend->isShownFor(0));
-    EXPECT_FALSE(legend->isShownFor(1));
-    EXPECT_TRUE(legend->isShownFor(2));
-    legend->setVisible(true);
-    EXPECT_TRUE(legend->isShownFor(1));
-    legend->setVisible(false);
-    EXPECT_FALSE(legend->isShownFor(3));
-    legend->resetVisible();
-    EXPECT_TRUE(legend->isShownFor(2));
-}
-
 }  // namespace

@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <format>
 #include <iterator>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <utility>
@@ -184,6 +185,25 @@ std::size_t SeriesData::upperBound(double value) const
         ++index;
     }
     return index;
+}
+
+std::optional<std::size_t> SeriesData::nearestIndex(double value) const
+{
+    if (!m_sorted || empty() || std::isnan(value) || value < x(0) || value > x(size() - 1))
+    {
+        return std::nullopt;
+    }
+    const std::size_t after = lowerBound(value);  // the first at or after value
+    if (after == 0)
+    {
+        return after;
+    }
+    const std::size_t before = after - 1;
+    if (after >= size())
+    {
+        return before;
+    }
+    return value - x(before) <= x(after) - value ? before : after;
 }
 
 Range SeriesData::yBoundsWithin(Range xRange, bool positiveOnly) const

@@ -16,6 +16,9 @@ class QPainter;
 namespace rocketplot
 {
 
+class Series;
+struct Theme;
+
 /// How markers look: a shape filled (or, for CROSS and PLUS, stroked) in the series color, inside a
 /// ring of the background color that keeps overlapping markers and crossing lines apart.
 struct MarkerStyle
@@ -26,6 +29,9 @@ struct MarkerStyle
     QColor ring;
     double ringWidth = 2.0;
 };
+
+/// How @p series draws its markers with @p theme.
+[[nodiscard]] MarkerStyle markerStyle(const Series& series, const Theme& theme);
 
 /// The outline of @p marker with diameter @p size, centered on (0, 0). Empty for Marker::NONE.
 [[nodiscard]] QPainterPath markerPath(Marker marker, double size);

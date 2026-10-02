@@ -29,6 +29,7 @@ DemoPage twoAxesPage();
 DemoPage numberFormatsPage();
 DemoPage linkedPlotsPage();
 DemoPage interactionPage();
+DemoPage legendPage();
 DemoPage largeDataPage();
 DemoPage liveAppendPage();
 

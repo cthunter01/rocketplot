@@ -9,6 +9,7 @@ add_executable(rocketplot_core_tests
     core/LineBandTests.cpp
     core/MinMaxPyramidTests.cpp
     core/NumberFormatterTests.cpp
+    core/OccupancyTests.cpp
     core/PolylineClipperTests.cpp
     core/RangeTests.cpp
     core/SeriesDataTests.cpp
@@ -22,6 +23,7 @@ rocketplot_configure_target(rocketplot_core_tests)
 add_executable(rocketplot_tests
     widgets/main.cpp
     widgets/InputBindingsTests.cpp
+    widgets/LegendTests.cpp
     widgets/PlotLinkTests.cpp
     widgets/PlotWidgetTests.cpp
     widgets/SeriesTests.cpp

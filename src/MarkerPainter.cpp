@@ -17,6 +17,8 @@
 #include <span>
 
 #include "core/Decimator.h"
+#include "rocketplot/Series.h"
+#include "rocketplot/Theme.h"
 #include "rocketplot/enums.h"
 
 namespace rocketplot
@@ -72,6 +74,17 @@ void paintMarker(QPainter& painter, const MarkerStyle& style)
 }
 
 }  // namespace
+
+MarkerStyle markerStyle(const Series& series, const Theme& theme)
+{
+    return {
+        .shape     = series.marker(),
+        .size      = series.markerSize(),
+        .color     = series.color(),
+        .ring      = theme.background,
+        .ringWidth = theme.markerRingWidth,
+    };
+}
 
 QPainterPath markerPath(Marker marker, double size)
 {

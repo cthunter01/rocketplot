@@ -24,14 +24,17 @@
 #include <utility>
 #include <vector>
 
+#include "LegendLayout.h"
 #include "Logging.h"
 #include "PlotLayout.h"
 #include "ViewHistory.h"
 #include "core/AxisMapping.h"
 #include "rocketplot/Axis.h"
 #include "rocketplot/InputBindings.h"
+#include "rocketplot/Legend.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/Range.h"
+#include "rocketplot/Series.h"
 #include "rocketplot/enums.h"
 
 namespace rocketplot
@@ -255,6 +258,10 @@ bool InteractionController::mouseMove(const QMouseEvent& event)
     m_plot->setHoverPosition(event.position());
     if (!m_drag.active)
     {
+        m_plot->pointAt(event.position());
+    }
+    if (!m_drag.active)
+    {
         return false;
     }
     dragTo(event.position());
@@ -276,6 +283,15 @@ bool InteractionController::mouseRelease(const QMouseEvent& event)
 
 bool InteractionController::mouseDoubleClick(const QMouseEvent& event)
 {
+    // On the legend: an entry's series alone (never a reset).
+    if (event.button() == Qt::LeftButton && m_plot->isOnLegend(event.position()))
+    {
+        if (const LegendEntry* entry = m_plot->legendEntryAt(event.position()))
+        {
+            m_plot->isolateSeries(entry->series);
+        }
+        return true;
+    }
     if (regionAt(m_layout(), event.position()) == Region::OUTSIDE)
     {
         return false;
@@ -362,6 +378,26 @@ bool InteractionController::wheel(const QWheelEvent& event)
 bool InteractionController::beginDrag(QPointF position, Qt::MouseButton button,
                                       Qt::KeyboardModifiers modifiers)
 {
+    m_continuous = Continuous::NONE;
+    if (button == Qt::LeftButton && m_plot->isOnLegend(position))
+    {
+        const LegendEntry* entry = m_plot->legendEntryAt(position);
+        m_legendGrab             = {
+            .entry = entry != nullptr ? entry->series : nullptr,
+            .box   = m_plot->legendArea(),
+        };
+        m_drag = {
+            .active    = true,
+            .legend    = true,
+            .button    = button,
+            .modifiers = modifiers,
+            .start     = position,
+            .current   = position,
+            .plot      = m_plot->plotArea(),
+            .targets   = {},
+        };
+        return true;
+    }
     const PlotLayout layout = m_layout();
     const Region     region = regionAt(layout, position);
     PlotAction       action = bindings().action(Gesture::DRAG, button, modifiers);
@@ -401,6 +437,18 @@ void InteractionController::dragTo(QPointF position)
 {
     m_drag.current = position;
     m_drag.moved   = m_drag.moved || (position - m_drag.start).manhattanLength() >= dragDistance();
+    if (m_drag.legend)
+    {
+        if (m_drag.moved)
+        {
+            // Wherever it is dropped, it stays inside the plot area.
+            const QRectF& box     = m_legendGrab.box;
+            const QPointF topLeft = box.topLeft() + (position - m_drag.start);
+            m_plot->legend()->setPosition(legendPosition(m_drag.plot, box.size(), topLeft));
+            m_plot->updateCursor();
+        }
+        return;
+    }
     if (m_drag.action == PlotAction::PAN)
     {
         const QPointF delta = position - m_drag.start;
@@ -421,6 +469,16 @@ void InteractionController::dragTo(QPointF position)
 void InteractionController::endDrag(QPointF position, bool click)
 {
     dragTo(position);
+    if (m_drag.legend)
+    {
+        const Drag drag = std::exchange(m_drag, Drag{});
+        if (Series* entry = m_legendGrab.entry.data(); entry != nullptr && click && !drag.moved)
+        {
+            entry->setVisible(!entry->isVisible());
+        }
+        m_plot->pointAt(position);
+        return;
+    }
     if (m_drag.action == PlotAction::BOX_ZOOM)
     {
         applyBoxZoom();
@@ -455,6 +513,11 @@ void InteractionController::endDrag(QPointF position, bool click)
 PlotAction InteractionController::dragAction() const noexcept
 {
     return m_drag.active ? m_drag.action : PlotAction::NONE;
+}
+
+bool InteractionController::isDraggingLegend() const noexcept
+{
+    return m_drag.active && m_drag.legend && m_drag.moved;
 }
 
 InteractionController::BoxAxes InteractionController::boxAxes() const
@@ -656,6 +719,14 @@ void InteractionController::tapped(QPointF position)
         (position - m_touch.lastTapPosition).manhattanLength() <= hints->touchDoubleTapDistance())
     {
         m_touch.lastTap.invalidate();
+        if (m_plot->isOnLegend(position))
+        {
+            if (const LegendEntry* entry = m_plot->legendEntryAt(position))
+            {
+                m_plot->isolateSeries(entry->series);
+            }
+            return;
+        }
         perform(bindings().action(Gesture::DOUBLE_CLICK, Qt::LeftButton, Qt::NoModifier));
         return;
     }

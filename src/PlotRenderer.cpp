@@ -4,6 +4,7 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QFontMetricsF>
+#include <QList>
 #include <QLocale>
 #include <QPainter>
 #include <QPen>
@@ -22,6 +23,7 @@
 #include "TextPainter.h"
 #include "core/Decimator.h"
 #include "core/LineBand.h"
+#include "core/Occupancy.h"
 #include "core/PolylineClipper.h"
 #include "rocketplot/Axis.h"
 #include "rocketplot/LineSeries.h"
@@ -41,10 +43,9 @@ namespace
 // lines and round caps at the edge are drawn as they would be without clipping.
 constexpr double      kLineClipMargin = 16.0;
 constexpr std::size_t kPolylineChunk  = 2048;
-constexpr double      kHiddenOpacity  = 0.35;
 constexpr double      kMinDotRadius   = 2.0;
-constexpr double      kLegendRadius   = 4.0;
-constexpr double      kMaxSwatchWidth = 3.0;
+// While one series is highlighted, the others are drawn this faint.
+constexpr double kFadedOpacity = 0.25;
 // Labels are centered on their tick in a box this wide (wider than any label).
 constexpr double kLabelBoxWidth = 400.0;
 
@@ -55,17 +56,6 @@ core::PixelBox expanded(const QRectF& rect, double margin)
         .top    = rect.top() - margin,
         .right  = rect.right() + margin,
         .bottom = rect.bottom() + margin,
-    };
-}
-
-MarkerStyle markerStyle(const Series& series, const Theme& theme)
-{
-    return {
-        .shape     = series.marker(),
-        .size      = series.markerSize(),
-        .color     = series.color(),
-        .ring      = theme.background,
-        .ringWidth = theme.markerRingWidth,
     };
 }
 
@@ -112,8 +102,13 @@ PlotRenderer::PlotRenderer(const PlotWidget& plot, const PlotLayout& layout, Mar
 {
 }
 
-void PlotRenderer::render(QPainter& painter, RenderStats& stats)
+void PlotRenderer::render(QPainter& painter, RenderStats& stats, const RenderOptions& options)
 {
+    m_options = options;
+    if (m_options.occupancy != nullptr)
+    {
+        m_options.occupancy->reset(expanded(m_layout->plot, 0.0));
+    }
     painter.fillRect(m_layout->bounds, m_theme->background);
     if (!m_layout->valid)
     {
@@ -124,7 +119,6 @@ void PlotRenderer::render(QPainter& painter, RenderStats& stats)
     drawSeries(painter, stats);
     drawAxes(painter);
     drawLabels(painter);
-    drawLegend(painter);
 }
 
 void PlotRenderer::drawGrid(QPainter& painter) const
@@ -189,23 +183,42 @@ void PlotRenderer::drawSeries(QPainter& painter, RenderStats& stats)
 {
     painter.save();
     painter.setClipRect(m_layout->plot);
-    for (const Series* series : m_plot->series())
+    const QList<Series*> all         = m_plot->series();
+    const Series*        highlighted = m_options.highlighted;
+    if (highlighted != nullptr && !all.contains(highlighted))
     {
-        SeriesStats seriesStats{.name = series->name(), .totalPoints = series->size()};
-        const auto* line    = qobject_cast<const LineSeries*>(series);
+        highlighted = nullptr;
+    }
+    const auto draw = [&](const Series& series) {
+        SeriesStats seriesStats{.name = series.name(), .totalPoints = series.size()};
+        const auto* line    = qobject_cast<const LineSeries*>(&series);
         seriesStats.scatter = line == nullptr;
-        if (series->isVisible())
+        if (series.isVisible())
         {
+            painter.setOpacity(highlighted != nullptr && &series != highlighted ? kFadedOpacity
+                                                                                : 1.0);
             if (line != nullptr)
             {
                 drawLine(painter, *line, seriesStats);
             }
             else
             {
-                drawScatter(painter, *series, seriesStats);
+                drawScatter(painter, series, seriesStats);
             }
         }
         stats.series.push_back(seriesStats);
+    };
+    for (const Series* series : all)
+    {
+        if (series != highlighted)
+        {
+            draw(*series);
+        }
+    }
+    // The highlighted series on top of the others.
+    if (highlighted != nullptr)
+    {
+        draw(*highlighted);
     }
     painter.restore();
 }
@@ -221,6 +234,10 @@ void PlotRenderer::drawLine(QPainter& painter, const LineSeries& series, SeriesS
     stats.visiblePoints = result.visiblePoints;
     core::clipPolyline(m_line, expanded(m_layout->plot, kLineClipMargin + series.lineWidth()),
                        m_clipped);
+    if (m_options.occupancy != nullptr)
+    {
+        m_options.occupancy->addPolyline(m_clipped, series.lineWidth());
+    }
 
     // More than a point per pixel column of sorted data: fill the line's outline (fast) instead of
     // stroking it.
@@ -248,6 +265,10 @@ void PlotRenderer::drawLine(QPainter& painter, const LineSeries& series, SeriesS
         core::decimateScatter(series.data(), m_layout->x.mapping, y,
                               expanded(m_layout->plot, style.size), columnWidth, m_points);
         m_markers->draw(painter, m_points, style);
+        if (m_options.occupancy != nullptr)
+        {
+            m_options.occupancy->addPoints(m_points, style.size);
+        }
     }
 }
 
@@ -324,6 +345,10 @@ void PlotRenderer::drawScatter(QPainter& painter, const Series& series, SeriesSt
                               expanded(m_layout->plot, style.size), cell, m_points);
     stats.drawnPoints = m_points.size();
     m_markers->draw(painter, m_points, style);
+    if (m_options.occupancy != nullptr)
+    {
+        m_options.occupancy->addPoints(m_points, style.size);
+    }
 }
 
 void PlotRenderer::drawAxes(QPainter& painter) const
@@ -463,52 +488,8 @@ void PlotRenderer::drawLabels(QPainter& painter) const
     }
 }
 
-void PlotRenderer::drawLegend(QPainter& painter)
-{
-    if (m_layout->legendEntries.empty())
-    {
-        return;
-    }
-    const QRectF& box   = m_layout->legend;
-    const double  pixel = 1.0 / m_layout->devicePixelRatio;
-    painter.setPen(hairlinePen(m_theme->legendBorder));
-    painter.setBrush(m_theme->legendBackground);
-    painter.drawRoundedRect(box.adjusted(pixel / 2.0, pixel / 2.0, -pixel / 2.0, -pixel / 2.0),
-                            kLegendRadius, kLegendRadius);
-    painter.setBrush(Qt::NoBrush);
-
-    const double textLeft  = box.left() + kLegendPadding + kLegendSwatch + kLegendSwatchGap;
-    const double textWidth = std::max(0.0, box.right() - kLegendPadding - textLeft);
-    double       top       = box.top() + kLegendPadding;
-    for (const LegendEntry& entry : m_layout->legendEntries)
-    {
-        painter.setOpacity(entry.series->isVisible() ? 1.0 : kHiddenOpacity);
-        const double rowCenter = top + (m_layout->legendRowHeight / 2.0);
-        drawLegendSwatch(painter, *entry.series,
-                         QPointF(box.left() + kLegendPadding + (kLegendSwatch / 2.0), rowCenter));
-        m_text->draw(painter, entry.name, m_layout->legendFont, m_theme->text,
-                     QRectF(textLeft, top, textWidth, m_layout->legendRowHeight),
-                     Qt::AlignLeft | Qt::AlignVCenter, true);
-        top += m_layout->legendRowHeight + kLegendRowGap;
-    }
-    painter.setOpacity(1.0);
-}
-
-void PlotRenderer::drawLegendSwatch(QPainter& painter, const Series& series, QPointF center)
-{
-    const MarkerStyle style = markerStyle(series, *m_theme);
-    if (const auto* line = qobject_cast<const LineSeries*>(&series))
-    {
-        QPen pen = line->pen();
-        pen.setWidthF(std::min(pen.widthF(), kMaxSwatchWidth));
-        painter.setPen(pen);
-        painter.drawLine(center - QPointF(kLegendSwatch / 2.0, 0.0),
-                         center + QPointF(kLegendSwatch / 2.0, 0.0));
-    }
-    MarkerPainter::draw(painter, center, style);
-}
-
-void drawDebugOverlay(QPainter& painter, const PlotLayout& layout, const RenderStats& stats)
+void drawDebugOverlay(QPainter& painter, const PlotLayout& layout, const RenderStats& stats,
+                      const QRectF& legend)
 {
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing, false);
@@ -525,7 +506,7 @@ void drawDebugOverlay(QPainter& painter, const PlotLayout& layout, const RenderS
     const QColor orange(255, 150, 0, 200);
     outline(layout.plot, magenta);
     outline(layout.title, orange);
-    outline(layout.legend, orange);
+    outline(legend, orange);
     for (const AxisLayout* axis : {&layout.x, &layout.y, &layout.y2})
     {
         if (axis->shown)

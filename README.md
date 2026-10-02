@@ -42,6 +42,9 @@ plot->xAxis()->setScaleType(rocketplot::ScaleType::DATE_TIME);
   scroll to pan and pinch to zoom; touchscreens drag and pinch. Back and forward through the view history (the
   mouse's side buttons, the context menu, or `back()`/`forward()`), a crosshair with its coordinates on the axes,
   and a context menu you can add to. `InputBindings` remaps which gesture does what.
+- **Legend**: goes where it hides the least data, or where you drag it. Click an entry to hide its series,
+  double-click to show it alone, point at it to bring its series forward, right-click it to change its color,
+  width or marker. With the crosshair on, each entry reads its series at the pointer.
 - **Look**: light and dark themes that follow the application's palette, a colorblind-safe series palette,
   hairline grid, tabular tick labels. A debug overlay shows layout boxes, frame time and what each series drew.
 - MIT licensed; needs only Qt.

@@ -30,12 +30,6 @@ struct AxisLayout
     QRectF              annotationRect;
 };
 
-struct LegendEntry
-{
-    const Series* series = nullptr;
-    QString       name;
-};
-
 /// Smallest margins either side of the plot area (linked plots line up with these).
 struct LayoutConstraints
 {
@@ -53,7 +47,6 @@ struct PlotLayout
     QRectF bounds;  ///< The whole target
     QRectF plot;    ///< Inside the axes: where data is drawn
     QRectF title;
-    QRectF legend;  ///< Empty when the legend isn't shown
 
     AxisLayout x;
     AxisLayout y;
@@ -63,9 +56,6 @@ struct PlotLayout
     QFont labelFont;
     QFont titleFont;
     QFont legendFont;
-
-    std::vector<LegendEntry> legendEntries;  ///< Empty when the legend isn't shown
-    double                   legendRowHeight = 0.0;
 
     /// The margins left and right of the plot area that this plot's content needs, before
     /// constraints.
@@ -88,12 +78,11 @@ struct PlotLayout
 /// pixel resolves there (for the crosshair's tags).
 [[nodiscard]] QString readoutLabel(const Axis& axis, const core::AxisMapping& mapping,
                                    double pixel);
+/// A data @p value of an axis laid out as @p mapping, written to the precision a pixel resolves
+/// where it is (for the legend's values).
+[[nodiscard]] QString valueLabel(const Axis& axis, const core::AxisMapping& mapping, double value);
 
 // Geometry shared by layout and drawing.
-inline constexpr double kLegendPadding   = 8.0;
-inline constexpr double kLegendSwatch    = 24.0;
-inline constexpr double kLegendSwatchGap = 8.0;
-inline constexpr double kLegendRowGap    = 4.0;
-inline constexpr double kTickLabelGap    = 4.0;
+inline constexpr double kTickLabelGap = 4.0;
 
 }  // namespace rocketplot
