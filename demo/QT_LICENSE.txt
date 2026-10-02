@@ -1,0 +1,8 @@
+This archive includes the Qt libraries (https://www.qt.io), used under the GNU Lesser General Public License
+version 3 (LGPL-3.0). The Qt libraries are dynamically linked and may be replaced with compatible versions.
+
+LGPL-3.0 text:       https://www.gnu.org/licenses/lgpl-3.0.html
+Qt source code:      https://download.qt.io/official_releases/qt/
+Qt licensing:        https://www.qt.io/licensing/open-source-lgpl-obligations
+
+rocketplot itself is MIT licensed; see LICENSE.

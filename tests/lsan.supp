@@ -1,0 +1,6 @@
+# LeakSanitizer suppressions for the asan preset (LSAN_OPTIONS in CMakePresets.json).
+# Only system libraries that keep process-lifetime caches on purpose. Never suppress libQt6*: that would hide
+# real leaks in our widgets.
+leak:libfontconfig.so
+leak:libglib-2.0.so
+leak:libdbus-1.so
