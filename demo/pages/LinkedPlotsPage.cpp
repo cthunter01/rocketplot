@@ -30,8 +30,9 @@ QWidget* create(QWidget* parent)
         plot->yAxis()->setLabel(label);
         // Zoom into a stretch of time and each plot fits its y axis to what is visible.
         plot->yAxis()->setAutoscaleMode(rocketplot::AutoscaleMode::FIT_VISIBLE);
+        plot->setCrosshairEnabled(true);
         plot->addLine(ascent.time, values);
-        link->addPlot(plot);  // pan and zoom in x together; plot areas line up
+        link->addPlot(plot);  // x pans, zooms and crosshair together; plot areas line up
         layout->addWidget(plot);
         return plot;
     };
@@ -50,11 +51,10 @@ DemoPage linkedPlotsPage()
         .title       = QStringLiteral("Linked plots"),
         .description = QStringLiteral(
             "A PlotLink ties the x axes of stacked plots together: pan or zoom in one and the "
-            "others "
-            "follow, and their plot areas stay aligned however wide each one's labels are. With "
-            "FIT_VISIBLE, each y axis fits the data in the current time window (Ctrl+scroll zooms "
-            "x "
-            "only)."),
+            "others follow, the crosshair shows the same time in all of them, and their plot "
+            "areas stay aligned however wide each one's labels are. With FIT_VISIBLE, each y axis "
+            "fits the data in the current time window (Ctrl+scroll zooms x only). The plots share "
+            "one view history: Back undoes a zoom in whichever plot it happened."),
         .sourceFile = QStringLiteral("LinkedPlotsPage.cpp"),
         .create     = create,
     };

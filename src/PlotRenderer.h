@@ -7,7 +7,9 @@
 #include "core/Decimator.h"
 #include "core/LineBand.h"
 
+class QColor;
 class QPainter;
+class QPen;
 class QPointF;
 
 namespace rocketplot
@@ -73,6 +75,12 @@ private:
     core::LineBand                m_lineBand;
     std::vector<core::PixelPoint> m_points;
 };
+
+/// The center of the device pixel that contains @p value (in logical coordinates): a 1-device-pixel
+/// antialiased line there covers exactly one pixel row or column, so it is crisp.
+[[nodiscard]] double crispPixel(double value, double devicePixelRatio);
+/// A pen one device pixel wide at any scale, for axes, grid lines and outlines.
+[[nodiscard]] QPen hairlinePen(const QColor& color);
 
 /// Draws the debug overlay: layout boxes, frame time and what each series drew.
 void drawDebugOverlay(QPainter& painter, const PlotLayout& layout, const RenderStats& stats);

@@ -1,12 +1,14 @@
 #pragma once
 
 #include <QList>
+#include <QPoint>
 #include <QPointF>
 #include <QRectF>
 #include <QSize>
 #include <QString>
 #include <QWidget>
 #include <memory>
+#include <optional>
 #include <span>
 #include <utility>
 #include <vector>
@@ -18,20 +20,26 @@
 #include "rocketplot/enums.h"
 #include "rocketplot/export.h"
 
+class QContextMenuEvent;
 class QEvent;
+class QMenu;
 class QMouseEvent;
 class QPaintEvent;
+class QResizeEvent;
 class QWheelEvent;
 
 namespace rocketplot
 {
 
 class Axis;
+class InputBindings;
+class InteractionController;
 class Legend;
 class PlotLink;
 class LineSeries;
 class ScatterSeries;
 class Series;
+class ViewHistory;
 
 /// A widget that plots any number of data sets on shared x and y axes, with a legend.
 ///
@@ -44,9 +52,12 @@ class Series;
 /// plot->addLine(time, stage2, "Stage 2");
 /// @endcode
 ///
-/// Drag to pan and use the wheel to zoom about the pointer; over an axis, either only affects that
-/// axis, and with Ctrl (x) or Shift (y) held the wheel zooms one axis. A double-click returns to
-/// autoscale.
+/// Drag to pan, Shift-drag to zoom to a box, and use the wheel to zoom about the pointer; over an
+/// axis, these only affect that axis, and with Ctrl (x) or Shift (y) held the wheel zooms one axis.
+/// On a trackpad, scroll to pan and pinch to zoom; on a touchscreen, drag and pinch. A double-click
+/// returns to autoscale, and back() and forward() (the mouse's back and forward buttons, and the
+/// context menu) step through the views the user went through. setInputBindings() changes which
+/// gesture does what.
 ///
 /// Series are owned by the plot. Data rules (copy vs view, UniformX, gaps, exceptions) are
 /// described on Series.
@@ -57,6 +68,8 @@ class ROCKETPLOT_EXPORT PlotWidget : public QWidget
     Q_PROPERTY(
         rocketplot::ThemeMode themeMode READ themeMode WRITE setThemeMode NOTIFY themeChanged)
     Q_PROPERTY(bool debugOverlay READ debugOverlay WRITE setDebugOverlay NOTIFY debugOverlayChanged)
+    Q_PROPERTY(bool crosshairEnabled READ isCrosshairEnabled WRITE setCrosshairEnabled NOTIFY
+                   crosshairEnabledChanged)
 
 public:
     explicit PlotWidget(QWidget* parent = nullptr);
@@ -143,8 +156,36 @@ public:
     [[nodiscard]] QString title() const;
     void                  setTitle(const QString& title);
 
-    /// Turns autoscale back on for every axis, fitting the data.
+    // View
+    // -----------------------------------------------------------------------------------------------------
+
+    /// Turns autoscale back on for every axis, fitting the data. Recorded in the view history.
     void resetView();
+
+    /// The view before the last pan, zoom or reset by the user (or resetView()), and back again. A
+    /// view is every axis's range and autoscale setting; linked plots (PlotLink) share one history,
+    /// so going back undoes a pan in whichever of them it happened. Ranges set in code aren't
+    /// recorded.
+    void               back();
+    void               forward();
+    [[nodiscard]] bool canGoBack() const;
+    [[nodiscard]] bool canGoForward() const;
+
+    // Interaction
+    // ----------------------------------------------------------------------------------------------
+
+    /// Which gestures pan, zoom and so on. InputBindings::defaults() to begin with.
+    [[nodiscard]] const InputBindings& inputBindings() const noexcept;
+    void                               setInputBindings(const InputBindings& bindings);
+
+    /// Draws lines through the pointer over the plot area, with its coordinates in tags on the
+    /// axes. Linked plots (PlotLink) show a line at the same x. Off by default; the context menu
+    /// has a switch for it.
+    [[nodiscard]] bool isCrosshairEnabled() const noexcept;
+    void               setCrosshairEnabled(bool enabled);
+    /// Where the crosshair is, in data coordinates (y on yAxis()), or nothing when it isn't shown.
+    /// On a plot showing a linked plot's crosshair, y is NaN.
+    [[nodiscard]] std::optional<QPointF> crosshairPosition() const;
 
     // Appearance
     // -----------------------------------------------------------------------------------------------
@@ -178,22 +219,37 @@ Q_SIGNALS:
     void titleChanged();
     void themeChanged();
     void debugOverlayChanged();
+    void crosshairEnabledChanged();
+    /// The crosshair moved, appeared or disappeared, or the data under it moved (see
+    /// crosshairPosition()).
+    void crosshairMoved();
     /// An axis range changed (pan, zoom, autoscale or setRange()).
     void viewChanged();
+    /// canGoBack() or canGoForward() may have changed.
+    void historyChanged();
+    /// The context menu is about to open at @p position (widget coordinates): add to @p menu here.
+    /// It is deleted once closed. For no menu, or one of your own, set the widget's
+    /// contextMenuPolicy (Qt::NoContextMenu, Qt::CustomContextMenu).
+    void contextMenuAboutToShow(QMenu* menu, QPointF position);
     void seriesAdded(rocketplot::Series* series);
     /// Emitted just before @p series is deleted.
     void seriesRemoved(rocketplot::Series* series);
 
 protected:
+    bool event(QEvent* event) override;
     void paintEvent(QPaintEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
     void mouseDoubleClickEvent(QMouseEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;
+    void contextMenuEvent(QContextMenuEvent* event) override;
+    void leaveEvent(QEvent* event) override;
     void changeEvent(QEvent* event) override;
 
 private:
+    friend class InteractionController;
     friend class PlotLink;
     struct Private;
 
@@ -206,6 +262,20 @@ private:
     void        refitY();
     void        updateSystemTheme();
     void        setLink(PlotLink* link);
+    // Repaints after a change to what the plot shows (the cached rendering is redrawn); linked
+    // plots repaint too, as their margins may follow.
+    void invalidate();
+    void markDirty();
+    // The history this plot's views are recorded in: its own, or its link's.
+    [[nodiscard]] ViewHistory& history() const;
+    // The pointer over the plot area, for the crosshair (nothing when it is elsewhere).
+    void setHoverPosition(std::optional<QPointF> position);
+    // The x of a linked plot's crosshair.
+    void setLinkedCrosshair(std::optional<double> x);
+    void syncCrosshair();
+    void updateCursor();
+    void showContextMenu(QPoint position, QPoint globalPosition);
+    void renderCache();
     // Bounds of the visible series' x values (only positive ones for a log axis).
     [[nodiscard]] Range xDataBounds(bool positiveOnly) const;
     // The margins left and right of the plot area that this plot's labels need.

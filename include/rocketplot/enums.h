@@ -76,4 +76,32 @@ enum class AutoscaleMode : std::uint8_t
 };
 Q_ENUM_NS(AutoscaleMode)
 
+/// A pointer gesture that InputBindings maps to an action.
+enum class Gesture : std::uint8_t
+{
+    DRAG,   ///< Press a button and move (a one-finger drag on a touchscreen is the left button)
+    CLICK,  ///< Press and release a button without moving
+    DOUBLE_CLICK,  ///< Also a double tap on a touchscreen (the left button)
+    WHEEL,         ///< A mouse wheel
+    SCROLL,        ///< Two-finger scrolling on a trackpad (a Magic Mouse's surface too)
+    PINCH,         ///< Two fingers on a trackpad or touchscreen moving apart or together
+};
+Q_ENUM_NS(Gesture)
+
+/// What a gesture does to the view. Over the plot it applies to every axis (or the ones it names);
+/// over an axis, to that axis alone.
+enum class PlotAction : std::uint8_t
+{
+    NONE,
+    PAN,       ///< DRAG, SCROLL: move the view with the pointer
+    ZOOM,      ///< WHEEL, SCROLL, PINCH: zoom about the pointer
+    ZOOM_X,    ///< WHEEL, SCROLL, PINCH: zoom the x axis only
+    ZOOM_Y,    ///< WHEEL, SCROLL, PINCH: zoom the y axes only
+    BOX_ZOOM,  ///< DRAG: zoom to the rectangle dragged out (a thin one zooms one axis)
+    RESET,     ///< CLICK, DOUBLE_CLICK: back to autoscale (PlotWidget::resetView())
+    BACK,      ///< CLICK, DOUBLE_CLICK: the previous view (PlotWidget::back())
+    FORWARD,   ///< CLICK, DOUBLE_CLICK: the next view (PlotWidget::forward())
+};
+Q_ENUM_NS(PlotAction)
+
 }  // namespace rocketplot

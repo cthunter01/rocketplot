@@ -53,6 +53,13 @@ struct Labeling
 /// "2×10⁸"; with NumberStyle::SI, "100k", "2µ".
 [[nodiscard]] std::string formatLogLabel(double value, NumberStyle style);
 
+/// A value on its own, such as a crosshair's readout, written to @p resolution (the smallest
+/// difference that matters, e.g. the value of one pixel): 3.14159 at 0.01 is "3.14". AUTO writes
+/// numbers from 10⁻⁴ to 10⁶ plainly, and others as "1.235×10⁹" unless they need more than 6
+/// digits (epoch seconds to the millisecond stay plain); SI uses a prefix ("1.235k"); PLAIN is
+/// always plain.
+[[nodiscard]] std::string formatValue(double value, double resolution, NumberStyle style);
+
 /// @p exponent in Unicode superscript digits ("⁻¹²").
 [[nodiscard]] std::string superscript(int exponent);
 

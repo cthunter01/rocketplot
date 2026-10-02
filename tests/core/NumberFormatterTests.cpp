@@ -16,6 +16,7 @@ using rocketplot::core::chooseLabeling;
 using rocketplot::core::decimalsForStep;
 using rocketplot::core::formatLabel;
 using rocketplot::core::formatLogLabel;
+using rocketplot::core::formatValue;
 using rocketplot::core::Labeling;
 using rocketplot::core::labelingAnnotation;
 using rocketplot::core::NumberStyle;
@@ -166,6 +167,29 @@ TEST(NumberFormatter, NonFiniteValues)
     EXPECT_EQ(formatLabel(std::numeric_limits<double>::infinity(), labeling), "∞");
     EXPECT_EQ(formatLabel(-std::numeric_limits<double>::infinity(), labeling),
               std::string(kMinusSign) + "∞");
+}
+
+TEST(NumberFormatter, ValuesToAResolution)
+{
+    const std::string minus(kMinusSign);
+    const std::string times(kTimesSign);
+    EXPECT_EQ(formatValue(3.14159, 0.01, NumberStyle::AUTO), "3.14");
+    EXPECT_EQ(formatValue(3.14159, 0.03, NumberStyle::AUTO), "3.14");
+    EXPECT_EQ(formatValue(-2.5, 0.5, NumberStyle::AUTO), minus + "2.5");
+    EXPECT_EQ(formatValue(1234.567, 20.0, NumberStyle::AUTO), "1235");
+    EXPECT_EQ(formatValue(-0.0004, 0.01, NumberStyle::AUTO), "0");
+    // Large and tiny numbers: ×10ⁿ, unless they need many digits.
+    EXPECT_EQ(formatValue(3.2e9, 1e7, NumberStyle::AUTO), "3.20" + times + "10⁹");
+    EXPECT_EQ(formatValue(-1.5e-7, 1e-9, NumberStyle::AUTO), minus + "1.50" + times + "10⁻⁷");
+    EXPECT_EQ(formatValue(9.9996e9, 1e6, NumberStyle::AUTO), "1.000" + times + "10¹⁰");
+    EXPECT_EQ(formatValue(1700000000.1234, 0.001, NumberStyle::AUTO), "1700000000.123");
+    // SI and plain.
+    EXPECT_EQ(formatValue(1234.5, 0.1, NumberStyle::SI), "1.2345k");
+    EXPECT_EQ(formatValue(0.5, 0.001, NumberStyle::SI), "500m");
+    EXPECT_EQ(formatValue(3.2e9, 1e7, NumberStyle::PLAIN), "3200000000");
+    // No usable resolution: as many digits as the value has.
+    EXPECT_EQ(formatValue(0.1, 0.0, NumberStyle::AUTO), "0.1");
+    EXPECT_EQ(formatValue(std::numeric_limits<double>::quiet_NaN(), 1.0, NumberStyle::AUTO), "NaN");
 }
 
 }  // namespace

@@ -21,9 +21,11 @@ rocketplot_configure_target(rocketplot_core_tests)
 # and QSignalSpy; the assertions are GoogleTest's.
 add_executable(rocketplot_tests
     widgets/main.cpp
+    widgets/InputBindingsTests.cpp
     widgets/PlotLinkTests.cpp
     widgets/PlotWidgetTests.cpp
     widgets/SeriesTests.cpp
+    widgets/interaction_tests.cpp
     widgets/plottime_tests.cpp)
 target_link_libraries(rocketplot_tests PRIVATE rocketplot::rocketplot Qt6::Test GTest::gtest)
 rocketplot_configure_qt_target(rocketplot_tests)

@@ -50,4 +50,14 @@ AxisTicks makeTicks(const TickRequest& request)
     return result;
 }
 
+std::string formatReadout(double value, double resolution, TickKind kind, NumberStyle style,
+                          const UtcOffset& utcOffset)
+{
+    if (kind == TickKind::TIME)
+    {
+        return formatTime(value, resolution, utcOffset);
+    }
+    return formatValue(value, resolution, style);
+}
+
 }  // namespace rocketplot::core

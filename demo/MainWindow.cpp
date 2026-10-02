@@ -93,9 +93,9 @@ QString snippet(const QString& sourceFile)
 MainWindow::MainWindow(QWidget* parent)
   : QMainWindow(parent),
     m_pages{
-        basicLinesPage(),  scatterPage(),   gapsPage(),       uniformSamplingPage(),
-        logScalePage(),    dateTimePage(),  twoAxesPage(),    numberFormatsPage(),
-        linkedPlotsPage(), largeDataPage(), liveAppendPage(),
+        basicLinesPage(),  scatterPage(),     gapsPage(),      uniformSamplingPage(),
+        logScalePage(),    dateTimePage(),    twoAxesPage(),   numberFormatsPage(),
+        linkedPlotsPage(), interactionPage(), largeDataPage(), liveAppendPage(),
     },
     m_list(new QListWidget(this)),
     m_pageLayout(new QVBoxLayout),

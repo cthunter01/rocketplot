@@ -39,6 +39,7 @@ generate_export_header(rocketplot
 target_sources(rocketplot
     PRIVATE
         Axis.cpp
+        InputBindings.cpp
         InteractionController.cpp
         InteractionController.h
         Legend.cpp
@@ -47,6 +48,8 @@ target_sources(rocketplot
         Logging.h
         MarkerPainter.cpp
         MarkerPainter.h
+        Overlays.cpp
+        Overlays.h
         PlotLayout.cpp
         PlotLayout.h
         PlotRenderer.cpp
@@ -58,12 +61,15 @@ target_sources(rocketplot
         TextPainter.cpp
         TextPainter.h
         Theme.cpp
+        ViewHistory.cpp
+        ViewHistory.h
         plottime.cpp
     PUBLIC
         FILE_SET HEADERS
         BASE_DIRS ${PROJECT_SOURCE_DIR}/include ${PROJECT_BINARY_DIR}/include
         FILES
             ${PROJECT_SOURCE_DIR}/include/rocketplot/Axis.h
+            ${PROJECT_SOURCE_DIR}/include/rocketplot/InputBindings.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/Legend.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/LineSeries.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/NumericRange.h

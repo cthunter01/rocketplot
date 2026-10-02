@@ -13,6 +13,10 @@ namespace
 constexpr int kLegendAlpha = 230;
 // Hairline borders: the text color at 10%.
 constexpr int kBorderAlpha = 26;
+// The crosshair: the secondary text color at 60%. The zoom box: the first series color, filled at
+// 12%.
+constexpr int kCrosshairAlpha = 153;
+constexpr int kZoomFillAlpha  = 31;
 
 }  // namespace
 
@@ -36,6 +40,11 @@ Theme Theme::light()
     theme.minorGridLine    = QColor(0xf0, 0xef, 0xeb);
     theme.legendBackground = QColor(0xfc, 0xfc, 0xfb, kLegendAlpha);
     theme.legendBorder     = QColor(0x0b, 0x0b, 0x0b, kBorderAlpha);
+    theme.crosshair        = QColor(0x52, 0x51, 0x4e, kCrosshairAlpha);
+    theme.tagBackground    = QColor(0x52, 0x51, 0x4e);
+    theme.tagText          = QColor(0xfc, 0xfc, 0xfb);
+    theme.zoomBoxBorder    = QColor(0x2a, 0x78, 0xd6);
+    theme.zoomBoxFill      = QColor(0x2a, 0x78, 0xd6, kZoomFillAlpha);
     // Blue, orange, aqua, yellow, magenta, green, violet, red: adjacent colors stay apart under the
     // common color-vision deficiencies. Keep the order.
     theme.seriesColors = {
@@ -57,6 +66,11 @@ Theme Theme::dark()
     theme.minorGridLine    = QColor(0x23, 0x23, 0x22);
     theme.legendBackground = QColor(0x1a, 0x1a, 0x19, kLegendAlpha);
     theme.legendBorder     = QColor(0xff, 0xff, 0xff, kBorderAlpha);
+    theme.crosshair        = QColor(0xc3, 0xc2, 0xb7, kCrosshairAlpha);
+    theme.tagBackground    = QColor(0xc3, 0xc2, 0xb7);
+    theme.tagText          = QColor(0x1a, 0x1a, 0x19);
+    theme.zoomBoxBorder    = QColor(0x39, 0x87, 0xe5);
+    theme.zoomBoxFill      = QColor(0x39, 0x87, 0xe5, kZoomFillAlpha);
     // The same hues as light(), stepped for a dark background.
     theme.seriesColors = {
         QColor(0x39, 0x87, 0xe5), QColor(0xd9, 0x59, 0x26), QColor(0x19, 0x9e, 0x70),

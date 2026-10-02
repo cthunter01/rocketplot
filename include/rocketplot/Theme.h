@@ -24,6 +24,11 @@ struct ROCKETPLOT_EXPORT Theme
     QColor minorGridLine;     ///< Grid lines at the minor ticks (when shown)
     QColor legendBackground;  ///< Fill of the legend box (usually translucent)
     QColor legendBorder;      ///< Hairline around the legend box
+    QColor crosshair;         ///< Crosshair lines
+    QColor tagBackground;     ///< The crosshair's value tags on the axes
+    QColor tagText;
+    QColor zoomBoxBorder;  ///< The box dragged out to zoom
+    QColor zoomBoxFill;
 
     /// Series colors, given out in this order. A plot with more series than colors starts over.
     QList<QColor> seriesColors;

@@ -1,26 +1,35 @@
 #pragma once
 
+#include <QElapsedTimer>
 #include <QPointF>
+#include <QRectF>
 #include <Qt>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <vector>
 
 #include "PlotLayout.h"
 #include "core/AxisMapping.h"
+#include "rocketplot/enums.h"
 
+class QContextMenuEvent;
 class QMouseEvent;
+class QNativeGestureEvent;
+class QTouchEvent;
 class QWheelEvent;
 
 namespace rocketplot
 {
 
 class Axis;
+class InputBindings;
 class PlotWidget;
 
-/// Turns mouse input into view changes. Each gesture (a drag, the wheel, a double-click) with its
-/// button and modifier keys is looked up in a table of bindings to find its action; where the
-/// pointer is (over the plot or an axis) then decides which axes the action applies to.
+/// Turns mouse, trackpad and touch input into view changes. Each gesture with its button and
+/// modifier keys is looked up in the plot's InputBindings to find its action; where the pointer is
+/// (over the plot or an axis) then decides which axes the action applies to. Each pan, zoom or
+/// reset is a step in the plot's view history.
 ///
 /// Pan and zoom keep the data value under the pointer where it is, even when the change makes the
 /// axes' labels wider or narrower and so moves the plot area.
@@ -35,30 +44,6 @@ public:
         Y2_AXIS,
         OUTSIDE,
     };
-    enum class Gesture : std::uint8_t
-    {
-        DRAG,
-        WHEEL,
-        DOUBLE_CLICK,
-    };
-    enum class Action : std::uint8_t
-    {
-        NONE,
-        PAN,   ///< Every axis over the plot, one over an axis
-        ZOOM,  ///< Every axis over the plot, one over an axis
-        ZOOM_X,
-        ZOOM_Y,  ///< Both y axes over the plot, one over a y axis
-        RESET,   ///< Back to autoscale
-    };
-    /// A gesture to look up. The button is Qt::NoButton for the wheel; the modifiers must match
-    /// exactly (the keypad modifier is ignored).
-    struct Binding
-    {
-        Gesture               gesture   = Gesture::DRAG;
-        Qt::MouseButton       button    = Qt::NoButton;
-        Qt::KeyboardModifiers modifiers = Qt::NoModifier;
-        Action                action    = Action::NONE;
-    };
 
     /// @p layout computes the plot's current layout.
     InteractionController(PlotWidget& plot, std::function<PlotLayout()> layout);
@@ -71,8 +56,18 @@ public:
     bool mouseRelease(const QMouseEvent& event);
     bool mouseDoubleClick(const QMouseEvent& event);
     bool wheel(const QWheelEvent& event);
+    bool touch(const QTouchEvent& event);
+    bool nativeGesture(const QNativeGestureEvent& event);
+    /// Whether to open the context menu now. When the right button is bound to a drag or click,
+    /// its release decides instead: a click that didn't move opens the menu (if the click does
+    /// nothing else), and menus asked for meanwhile are dropped.
+    [[nodiscard]] bool contextMenu(const QContextMenuEvent& event);
+    void               leave();
 
-    [[nodiscard]] const std::vector<Binding>& bindings() const noexcept { return m_bindings; }
+    /// The action of the drag under way: PAN, BOX_ZOOM, or NONE.
+    [[nodiscard]] PlotAction dragAction() const noexcept;
+    /// The box being dragged out to zoom, in widget coordinates (nothing while it is too small).
+    [[nodiscard]] std::optional<QRectF> zoomBox() const;
 
 private:
     // An axis being panned or zoomed, with the value that must stay under the pointer.
@@ -83,26 +78,93 @@ private:
         double            value      = 0.0;
         bool              horizontal = true;
     };
+    // Which axes a zoom box zooms.
+    enum class BoxAxes : std::uint8_t
+    {
+        NONE,
+        X,
+        Y,
+        BOTH,
+    };
+    // Gestures without a press and release: a step lasts while their events keep coming.
+    enum class Continuous : std::uint8_t
+    {
+        NONE,
+        WHEEL,
+        SCROLL,
+        PINCH,
+    };
 
-    [[nodiscard]] Action              actionFor(Gesture gesture, Qt::MouseButton button,
-                                                Qt::KeyboardModifiers modifiers) const;
-    [[nodiscard]] std::vector<Target> targetsFor(Action action, Region region, QPointF position,
+    [[nodiscard]] const InputBindings& bindings() const;
+    [[nodiscard]] std::vector<Target> targetsFor(PlotAction action, Region region, QPointF position,
                                                  const PlotLayout& layout) const;
     [[nodiscard]] const AxisLayout&   layoutOf(const PlotLayout& layout, const Axis* axis) const;
     // Pans each target's axis so its value lies under @p pointer in the current layout.
     void keepUnderPointer(const std::vector<Target>& targets, QPointF pointer) const;
+    // Zooms the targets by @p factor (< 1 zooms in) about @p position.
+    void zoom(const std::vector<Target>& targets, QPointF position, double factor) const;
+    // Performs a CLICK or DOUBLE_CLICK action; returns whether there was one.
+    bool perform(PlotAction action);
+    // Starts or continues a history step of continuous gesture events.
+    void continueStep(Continuous kind);
+
+    bool beginDrag(QPointF position, Qt::MouseButton button, Qt::KeyboardModifiers modifiers);
+    void dragTo(QPointF position);
+    // Ends the drag at @p position; without @p click, a drag that didn't move is no click.
+    void                  endDrag(QPointF position, bool click);
+    [[nodiscard]] BoxAxes boxAxes() const;
+    void                  applyBoxZoom();
+    void beginPinch(QPointF first, QPointF second, Qt::KeyboardModifiers modifiers);
+    void pinchTo(QPointF first, QPointF second);
+    void endPinch();
+    // Touch events, given the points still down. A touch that ends (@p lifted, not cancelled)
+    // without moving is a tap; two close together are a double tap.
+    bool touchBegin(const std::vector<QPointF>& down, Qt::KeyboardModifiers modifiers);
+    void touchUpdate(const std::vector<QPointF>& down, Qt::KeyboardModifiers modifiers);
+    void touchEnd(QPointF position, bool lifted);
+    void tapped(QPointF position);
 
     PlotWidget*                 m_plot;
     std::function<PlotLayout()> m_layout;
-    std::vector<Binding>        m_bindings;
 
     struct Drag
     {
-        bool                active = false;
-        QPointF             start;
-        std::vector<Target> targets;
+        bool                  active = false;
+        PlotAction            action = PlotAction::NONE;  // NONE: a press that is only a click
+        Qt::MouseButton       button = Qt::NoButton;
+        Qt::KeyboardModifiers modifiers;
+        Region                region = Region::PLOT;
+        QPointF               start;
+        QPointF               current;
+        QRectF                plot;           // the plot area when it began
+        bool                  moved = false;  // beyond the drag distance: not a click
+        std::vector<Target>   targets;
     };
     Drag m_drag;
+    // A right-button drag or click just ended: a context menu asked for now (on the release) is
+    // dropped.
+    bool m_dropMenu = false;
+
+    struct Pinch
+    {
+        bool                active = false;
+        QPointF             first;  // the two touch points when it began
+        QPointF             second;
+        std::vector<Target> targets;
+    };
+    Pinch m_pinch;
+
+    struct Touch
+    {
+        bool          moved = false;  // the touch went beyond the drag distance
+        QElapsedTimer pressed;        // since the first finger went down
+        QElapsedTimer lastTap;
+        QPointF       lastTapPosition;
+    };
+    Touch m_touch;
+
+    Continuous    m_continuous = Continuous::NONE;
+    QElapsedTimer m_continuousTimer;
 };
 
 }  // namespace rocketplot

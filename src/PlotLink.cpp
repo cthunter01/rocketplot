@@ -3,8 +3,11 @@
 #include <QList>
 #include <QObject>
 #include <algorithm>
+#include <memory>
+#include <optional>
 #include <utility>
 
+#include "ViewHistory.h"
 #include "rocketplot/Axis.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/Range.h"
@@ -12,7 +15,17 @@
 namespace rocketplot
 {
 
-PlotLink::PlotLink(QObject* parent) : QObject(parent) { }
+PlotLink::PlotLink(QObject* parent)
+  : QObject(parent),
+    m_history(std::make_unique<ViewHistory>([this] { return m_plots; },
+                                            [this] {
+                                                for (PlotWidget* plot : std::as_const(m_plots))
+                                                {
+                                                    Q_EMIT plot->historyChanged();
+                                                }
+                                            }))
+{
+}
 
 PlotLink::~PlotLink()
 {
@@ -35,6 +48,7 @@ void PlotLink::addPlot(PlotWidget* plot)
     const PlotWidget* first = m_plots.isEmpty() ? nullptr : m_plots.front();
     m_plots.append(plot);
     plot->setLink(this);
+    m_history->clear();  // its views don't cover the newcomer
     connect(plot, &QObject::destroyed, this, [this, plot] { m_plots.removeOne(plot); });
     connect(plot, &PlotWidget::viewChanged, this, &PlotLink::updateAll);
     if (first != nullptr)
@@ -58,6 +72,7 @@ void PlotLink::removePlot(PlotWidget* plot)
     }
     disconnect(plot, nullptr, this, nullptr);
     plot->setLink(nullptr);
+    m_history->clear();
     updateAll();
     Q_EMIT changed();
 }
@@ -76,6 +91,38 @@ void PlotLink::setAlignMargins(bool align)
     m_alignMargins = align;
     updateAll();
     Q_EMIT changed();
+}
+
+void PlotLink::setLinkCrosshair(bool link)
+{
+    if (link == m_linkCrosshair)
+    {
+        return;
+    }
+    m_linkCrosshair = link;
+    if (!link)
+    {
+        for (PlotWidget* plot : std::as_const(m_plots))
+        {
+            plot->setLinkedCrosshair(std::nullopt);
+        }
+    }
+    Q_EMIT changed();
+}
+
+void PlotLink::syncCrosshair(const PlotWidget* source, std::optional<double> x)
+{
+    if (!m_linkCrosshair)
+    {
+        return;
+    }
+    for (PlotWidget* plot : std::as_const(m_plots))
+    {
+        if (plot != source)
+        {
+            plot->setLinkedCrosshair(x);
+        }
+    }
 }
 
 void PlotLink::syncFrom(const PlotWidget* source)
@@ -101,7 +148,7 @@ void PlotLink::updateAll()
 {
     for (PlotWidget* plot : std::as_const(m_plots))
     {
-        plot->update();
+        plot->markDirty();
     }
 }
 

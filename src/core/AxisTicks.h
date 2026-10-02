@@ -47,4 +47,9 @@ struct AxisTicks
 /// ticks.
 [[nodiscard]] AxisTicks makeTicks(const TickRequest& request);
 
+/// A single value of any kind of axis written out in full, to @p resolution (in data units, e.g.
+/// what one pixel spans there): formatValue() for numbers, formatTime() for times.
+[[nodiscard]] std::string formatReadout(double value, double resolution, TickKind kind,
+                                        NumberStyle style, const UtcOffset& utcOffset = {});
+
 }  // namespace rocketplot::core

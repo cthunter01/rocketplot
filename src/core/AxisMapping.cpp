@@ -96,4 +96,33 @@ Range zoomedRange(const AxisMapping& mapping, double pixel, double factor) noexc
     };
 }
 
+Range transformedRange(const AxisMapping& mapping, double fromPixel, double toPixel,
+                       double scale) noexcept
+{
+    const Range  range  = mapping.range();
+    const double pixels = mapping.pixelEnd() - mapping.pixelStart();
+    // Nothing to do (exactly: rounding would move the range by an ulp).
+    if (pixels == 0.0 || !(scale > 0.0) || !std::isfinite(scale) ||
+        (scale == 1.0 && fromPixel == toPixel))
+    {
+        return range;
+    }
+    // In transformed space: the anchor value sits at toPixel, with scale times fewer units per
+    // pixel.
+    const double anchor        = mapping.forward(mapping.toValue(fromPixel));
+    const double unitsPerPixel = (mapping.forward(range.max) - mapping.forward(range.min)) / pixels;
+    const double scaled        = unitsPerPixel / scale;
+    return {
+        .min = mapping.inverse(anchor + ((mapping.pixelStart() - toPixel) * scaled)),
+        .max = mapping.inverse(anchor + ((mapping.pixelEnd() - toPixel) * scaled)),
+    };
+}
+
+Range rangeBetween(const AxisMapping& mapping, double pixelA, double pixelB) noexcept
+{
+    const double a = mapping.toValue(pixelA);
+    const double b = mapping.toValue(pixelB);
+    return {.min = std::min(a, b), .max = std::max(a, b)};
+}
+
 }  // namespace rocketplot::core

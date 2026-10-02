@@ -28,6 +28,7 @@ DemoPage dateTimePage();
 DemoPage twoAxesPage();
 DemoPage numberFormatsPage();
 DemoPage linkedPlotsPage();
+DemoPage interactionPage();
 DemoPage largeDataPage();
 DemoPage liveAppendPage();
 

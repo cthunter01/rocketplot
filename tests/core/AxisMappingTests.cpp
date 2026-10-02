@@ -107,4 +107,49 @@ TEST(AxisMapping, UsableLogRanges)
     EXPECT_TRUE(isUsableRange({.min = -1.0, .max = 10.0}, Scale::LINEAR));
 }
 
+TEST(AxisMapping, TransformMovesAndZoomsAtOnce)
+{
+    using rocketplot::core::pannedRange;
+    using rocketplot::core::transformedRange;
+    using rocketplot::core::zoomedRange;
+    const AxisMapping x(Range{.min = 0.0, .max = 100.0}, 0.0, 1000.0);
+    // Scale 1 is a pan; equal pixels a zoom.
+    EXPECT_EQ(transformedRange(x, 500.0, 600.0, 1.0), pannedRange(x, 100.0));
+    const Range zoom = transformedRange(x, 250.0, 250.0, 2.0);
+    EXPECT_DOUBLE_EQ(zoom.min, zoomedRange(x, 250.0, 0.5).min);
+    EXPECT_DOUBLE_EQ(zoom.max, zoomedRange(x, 250.0, 0.5).max);
+    // Both: the value at 200 px (20) lands at 600 px, magnified twice.
+    const Range       both = transformedRange(x, 200.0, 600.0, 2.0);
+    const AxisMapping after(both, 0.0, 1000.0);
+    EXPECT_NEAR(after.toPixel(20.0), 600.0, 1e-9);
+    EXPECT_NEAR(both.span(), 50.0, 1e-9);
+    // Nothing to scale by, or nothing to do: unchanged.
+    EXPECT_EQ(transformedRange(x, 0.0, 10.0, 0.0), x.range());
+    const AxisMapping odd(Range{.min = -5.3, .max = 5.3}, 517.0, 13.0);
+    EXPECT_EQ(transformedRange(odd, 211.0, 211.0, 1.0), odd.range());
+}
+
+TEST(AxisMapping, TransformOnAYAxisAndALogScale)
+{
+    using rocketplot::core::Scale;
+    using rocketplot::core::transformedRange;
+    const AxisMapping y(Range{.min = 0.0, .max = 1.0}, 400.0, 0.0);
+    // Content dragged 100 px down: higher values come into view at the top.
+    const Range down = transformedRange(y, 200.0, 300.0, 1.0);
+    EXPECT_DOUBLE_EQ(down.min, 0.25);
+    EXPECT_DOUBLE_EQ(down.max, 1.25);
+    const AxisMapping log(Range{.min = 1.0, .max = 10000.0}, 0.0, 400.0, Scale::LOG);
+    const Range       zoomed = transformedRange(log, 200.0, 200.0, 2.0);  // about 100
+    EXPECT_NEAR(zoomed.min, 10.0, 1e-9);
+    EXPECT_NEAR(zoomed.max, 1000.0, 1e-9);
+}
+
+TEST(AxisMapping, RangeBetweenPixels)
+{
+    const AxisMapping y(Range{.min = 0.0, .max = 1.0}, 400.0, 0.0);
+    const Range       box = rocketplot::core::rangeBetween(y, 100.0, 300.0);
+    EXPECT_DOUBLE_EQ(box.min, 0.25);
+    EXPECT_DOUBLE_EQ(box.max, 0.75);
+}
+
 }  // namespace

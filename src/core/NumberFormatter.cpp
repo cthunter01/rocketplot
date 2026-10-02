@@ -42,6 +42,8 @@ constexpr std::array<std::string_view, 10> kSuperscriptDigits = {
 constexpr std::string_view kSuperscriptMinus = "⁻";
 // Significant digits when writing a number as short as possible.
 constexpr int kSignificantDigits = 15;
+// formatValue() writes large and tiny numbers that need at most this many digits as ×10ⁿ.
+constexpr int kMaxScientificDigits = 6;
 
 double pow10(int exponent)
 {
@@ -292,6 +294,52 @@ std::string formatLogLabel(double value, NumberStyle style)
         return fixed(value, std::max(0, -magnitude));
     }
     return powerOfTen(value, magnitude);
+}
+
+std::string formatValue(double value, double resolution, NumberStyle style)
+{
+    if (!std::isfinite(value))
+    {
+        return formatLabel(value, Labeling{});
+    }
+    resolution = std::abs(resolution);
+    if (!(resolution > 0.0) || !std::isfinite(resolution))
+    {
+        return value == 0.0 ? "0" : shortest(value);
+    }
+    // Decimals down to the resolution's leading digit: 0.03 → 2.
+    const int    finest   = magnitudeOf(resolution);
+    const int    decimals = std::clamp(-finest, 0, kMaxDecimals);
+    const double rounded  = std::round(value * pow10(decimals)) / pow10(decimals);
+    if (rounded == 0.0 || style == NumberStyle::PLAIN)
+    {
+        return fixed(value, decimals);
+    }
+    int magnitude = magnitudeOf(rounded);
+    if (style == NumberStyle::SI)
+    {
+        const int exponent = thousandsOf(magnitude);
+        if (exponent >= kSiLowest && exponent <= kSiHighest)
+        {
+            return fixed(value / pow10(exponent), std::clamp(exponent - finest, 0, kMaxDecimals)) +
+                   std::string(siPrefix(exponent));
+        }
+    }
+    const int digits = magnitude - finest + 1;  // significant digits the resolution asks for
+    if ((magnitude > kMultiplierBelow && magnitude < kMultiplierFrom) ||
+        (magnitude >= kMultiplierFrom && digits > kMaxScientificDigits))
+    {
+        return fixed(value, decimals);
+    }
+    const int mantissaDecimals = std::clamp(digits - 1, 0, kMaxDecimals);
+    double    mantissa         = value / pow10(magnitude);
+    // 9.9996 to three decimals is 10.000: write it as 1.000 of the next power.
+    if (std::abs(std::round(mantissa * pow10(mantissaDecimals))) >= 10.0 * pow10(mantissaDecimals))
+    {
+        ++magnitude;
+        mantissa = value / pow10(magnitude);
+    }
+    return fixed(mantissa, mantissaDecimals) + std::string(kTimes) + "10" + superscript(magnitude);
 }
 
 std::string superscript(int exponent)

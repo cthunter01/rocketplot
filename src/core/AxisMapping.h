@@ -72,4 +72,13 @@ private:
 /// put. On a log scale the zoom is multiplicative.
 [[nodiscard]] Range zoomedRange(const AxisMapping& mapping, double pixel, double factor) noexcept;
 
+/// The range in which the value under @p fromPixel appears at @p toPixel, with the content
+/// magnified @p scale times about it (> 1 zooms in): a two-finger pinch, which moves and zooms at
+/// once. With scale 1 it is a pan, with equal pixels a zoom. Multiplicative on a log scale.
+[[nodiscard]] Range transformedRange(const AxisMapping& mapping, double fromPixel, double toPixel,
+                                     double scale) noexcept;
+
+/// The values between two pixels, in increasing order (a zoom box's edges).
+[[nodiscard]] Range rangeBetween(const AxisMapping& mapping, double pixelA, double pixelB) noexcept;
+
 }  // namespace rocketplot::core

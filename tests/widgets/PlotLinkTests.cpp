@@ -1,6 +1,13 @@
 #include "rocketplot/PlotLink.h"
 
+#include <QApplication>
+#include <QEvent>
+#include <QPoint>
+#include <QPointF>
 #include <QTest>
+#include <QWheelEvent>
+#include <Qt>
+#include <cmath>
 #include <memory>
 #include <vector>
 
@@ -17,6 +24,15 @@ namespace
 using rocketplot::PlotLink;
 using rocketplot::PlotWidget;
 using rocketplot::Range;
+
+// One wheel notch in, at the center of @p plot.
+void zoomIn(PlotWidget& plot)
+{
+    const QPointF position = plot.plotArea().center();
+    QWheelEvent event(position, plot.mapToGlobal(position), QPoint(), QPoint(0, 120), Qt::NoButton,
+                      Qt::NoModifier, Qt::NoScrollPhase, false);
+    QApplication::sendEvent(&plot, &event);
+}
 
 class PlotLinkTest : public testing::Test
 {
@@ -103,6 +119,70 @@ TEST_F(PlotLinkTest, APlotJoinsOneLinkAtATime)
     other.addPlot(&m_b);
     EXPECT_EQ(m_b.link(), &other);
     EXPECT_EQ(m_link.plots().size(), 1);
+}
+
+TEST_F(PlotLinkTest, CrosshairShowsInTheOtherPlots)
+{
+    m_a.setCrosshairEnabled(true);
+    m_b.setCrosshairEnabled(true);
+    QTest::mouseMove(&m_a, m_a.plotArea().center().toPoint());
+    ASSERT_TRUE(m_a.crosshairPosition());
+    ASSERT_TRUE(m_b.crosshairPosition());
+    const QPointF a = m_a.crosshairPosition().value_or(QPointF());
+    const QPointF b = m_b.crosshairPosition().value_or(QPointF());
+    EXPECT_DOUBLE_EQ(b.x(), a.x());
+    EXPECT_TRUE(std::isnan(b.y()));
+
+    QEvent leave(QEvent::Leave);
+    QApplication::sendEvent(&m_a, &leave);
+    EXPECT_FALSE(m_b.crosshairPosition());
+
+    m_link.setLinkCrosshair(false);
+    QTest::mouseMove(&m_a, m_a.plotArea().center().toPoint() + QPoint(10, 0));
+    EXPECT_TRUE(m_a.crosshairPosition());
+    EXPECT_FALSE(m_b.crosshairPosition());
+}
+
+TEST_F(PlotLinkTest, CrosshairStaysWhenAnotherPlotMoves)
+{
+    PlotWidget third;
+    third.resize(600, 300);
+    third.addLine(std::vector<double>{0, 1});
+    m_link.addPlot(&third);
+    third.show();
+    ASSERT_TRUE(QTest::qWaitForWindowExposed(&third));
+    for (PlotWidget* plot : {&m_a, &m_b, &third})
+    {
+        plot->setCrosshairEnabled(true);
+    }
+    QTest::mouseMove(&m_a, m_a.plotArea().center().toPoint());
+    // A plot without the pointer moves first (new data, code): the crosshair stays everywhere,
+    // at the x now under the pointer.
+    m_b.xAxis()->setRange(1.0, 3.0);
+    ASSERT_TRUE(m_a.crosshairPosition());
+    ASSERT_TRUE(third.crosshairPosition());
+    EXPECT_DOUBLE_EQ(third.crosshairPosition().value_or(QPointF()).x(),
+                     m_a.crosshairPosition().value_or(QPointF()).x());
+    EXPECT_NEAR(m_a.crosshairPosition().value_or(QPointF()).x(), 2.0, 0.01);
+}
+
+TEST_F(PlotLinkTest, PlotsShareTheirHistory)
+{
+    const Range x = m_a.xAxis()->range();
+    const Range y = m_a.yAxis()->range();
+    zoomIn(m_a);
+    EXPECT_TRUE(m_b.canGoBack());
+    m_b.back();  // undoes the zoom in a
+    EXPECT_EQ(m_a.xAxis()->range(), x);
+    EXPECT_EQ(m_a.yAxis()->range(), y);
+    EXPECT_TRUE(m_a.yAxis()->autoscale());
+    EXPECT_TRUE(m_a.canGoForward());
+
+    // Joining or leaving starts the history afresh.
+    zoomIn(m_b);
+    m_link.removePlot(&m_b);
+    EXPECT_FALSE(m_a.canGoBack());
+    EXPECT_FALSE(m_b.canGoBack());
 }
 
 }  // namespace

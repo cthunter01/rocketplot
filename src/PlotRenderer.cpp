@@ -48,21 +48,6 @@ constexpr double      kMaxSwatchWidth = 3.0;
 // Labels are centered on their tick in a box this wide (wider than any label).
 constexpr double kLabelBoxWidth = 400.0;
 
-// The center of the device pixel that contains @p value (in logical coordinates): a 1-device-pixel
-// antialiased line there covers exactly one pixel row or column, so it is crisp.
-double crisp(double value, double devicePixelRatio)
-{
-    return (std::floor(value * devicePixelRatio) + 0.5) / devicePixelRatio;
-}
-
-QPen hairline(const QColor& color)
-{
-    QPen pen(color, 1.0);
-    pen.setCosmetic(true);  // 1 device pixel at any scale
-    pen.setCapStyle(Qt::FlatCap);
-    return pen;
-}
-
 core::PixelBox expanded(const QRectF& rect, double margin)
 {
     return {
@@ -108,6 +93,19 @@ QString modeName(const SeriesStats& stats)
 
 }  // namespace
 
+double crispPixel(double value, double devicePixelRatio)
+{
+    return (std::floor(value * devicePixelRatio) + 0.5) / devicePixelRatio;
+}
+
+QPen hairlinePen(const QColor& color)
+{
+    QPen pen(color, 1.0);
+    pen.setCosmetic(true);  // 1 device pixel at any scale
+    pen.setCapStyle(Qt::FlatCap);
+    return pen;
+}
+
 PlotRenderer::PlotRenderer(const PlotWidget& plot, const PlotLayout& layout, MarkerPainter& markers,
                            TextPainter& text)
   : m_plot(&plot), m_layout(&layout), m_theme(&plot.theme()), m_markers(&markers), m_text(&text)
@@ -135,10 +133,10 @@ void PlotRenderer::drawGrid(QPainter& painter) const
     const double  dpr      = m_layout->devicePixelRatio;
     const auto    vertical = [&](const std::vector<double>& values, const AxisLayout& axis,
                                  const QColor& color) {
-        painter.setPen(hairline(color));
+        painter.setPen(hairlinePen(color));
         for (const double value : values)
         {
-            const double px = crisp(axis.mapping.toPixel(value), dpr);
+            const double px = crispPixel(axis.mapping.toPixel(value), dpr);
             if (px >= plot.left() && px <= plot.right())
             {
                 painter.drawLine(QPointF(px, plot.top()), QPointF(px, plot.bottom()));
@@ -147,10 +145,10 @@ void PlotRenderer::drawGrid(QPainter& painter) const
     };
     const auto horizontal = [&](const std::vector<double>& values, const AxisLayout& axis,
                                 const QColor& color) {
-        painter.setPen(hairline(color));
+        painter.setPen(hairlinePen(color));
         for (const double value : values)
         {
-            const double py = crisp(axis.mapping.toPixel(value), dpr);
+            const double py = crispPixel(axis.mapping.toPixel(value), dpr);
             if (py >= plot.top() && py <= plot.bottom())
             {
                 painter.drawLine(QPointF(plot.left(), py), QPointF(plot.right(), py));
@@ -335,15 +333,15 @@ void PlotRenderer::drawAxes(QPainter& painter) const
     const double  pixel = 1.0 / dpr;
     // The axis lines run along the first pixel row below the plot, the first pixel column left of
     // it and the first one right of it.
-    const double axisY  = crisp(plot.bottom(), dpr);
-    const double axisX  = crisp(plot.left() - pixel, dpr);
-    const double axisX2 = crisp(plot.right(), dpr);
-    painter.setPen(hairline(m_theme->axisLine));
+    const double axisY  = crispPixel(plot.bottom(), dpr);
+    const double axisX  = crispPixel(plot.left() - pixel, dpr);
+    const double axisX2 = crispPixel(plot.right(), dpr);
+    painter.setPen(hairlinePen(m_theme->axisLine));
 
     const auto xTicks = [&](const std::vector<double>& values, double length) {
         for (const double value : values)
         {
-            const double px = crisp(m_layout->x.mapping.toPixel(value), dpr);
+            const double px = crispPixel(m_layout->x.mapping.toPixel(value), dpr);
             if (px >= plot.left() - pixel && px <= plot.right() + pixel)
             {
                 painter.drawLine(QPointF(px, axisY), QPointF(px, axisY + length));
@@ -355,7 +353,7 @@ void PlotRenderer::drawAxes(QPainter& painter) const
                             double direction, double length) {
         for (const double value : values)
         {
-            const double py = crisp(axis.mapping.toPixel(value), dpr);
+            const double py = crispPixel(axis.mapping.toPixel(value), dpr);
             if (py >= plot.top() - pixel && py <= plot.bottom() + pixel)
             {
                 painter.drawLine(QPointF(x + (direction * length), py), QPointF(x, py));
@@ -473,7 +471,7 @@ void PlotRenderer::drawLegend(QPainter& painter)
     }
     const QRectF& box   = m_layout->legend;
     const double  pixel = 1.0 / m_layout->devicePixelRatio;
-    painter.setPen(hairline(m_theme->legendBorder));
+    painter.setPen(hairlinePen(m_theme->legendBorder));
     painter.setBrush(m_theme->legendBackground);
     painter.drawRoundedRect(box.adjusted(pixel / 2.0, pixel / 2.0, -pixel / 2.0, -pixel / 2.0),
                             kLegendRadius, kLegendRadius);
@@ -518,7 +516,7 @@ void drawDebugOverlay(QPainter& painter, const PlotLayout& layout, const RenderS
     const auto outline = [&](const QRectF& rect, const QColor& color) {
         if (!rect.isNull())
         {
-            painter.setPen(hairline(color));
+            painter.setPen(hairlinePen(color));
             painter.drawRect(rect);
         }
     };

@@ -1,23 +1,35 @@
 #include "rocketplot/PlotWidget.h"
 
+#include <QAction>
+#include <QContextMenuEvent>
+#include <QCursor>
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QGuiApplication>
 #include <QList>
+#include <QMenu>
 #include <QMouseEvent>
+#include <QNativeGestureEvent>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPalette>
+#include <QPixmap>
+#include <QPoint>
 #include <QPointF>
 #include <QPointer>
 #include <QRectF>
+#include <QResizeEvent>
 #include <QSize>
 #include <QString>
 #include <QStyleHints>
+#include <QTouchEvent>
 #include <QWheelEvent>
 #include <QWidget>
 #include <Qt>
+#include <cmath>
+#include <limits>
 #include <memory>
+#include <optional>
 #include <span>
 #include <utility>
 #include <vector>
@@ -25,13 +37,16 @@
 #include "InteractionController.h"
 #include "Logging.h"
 #include "MarkerPainter.h"
+#include "Overlays.h"
 #include "PlotLayout.h"
 #include "PlotRenderer.h"
 #include "TextPainter.h"
+#include "ViewHistory.h"
 #include "core/Autoscale.h"
 #include "core/AxisMapping.h"
 #include "core/SeriesData.h"
 #include "rocketplot/Axis.h"
+#include "rocketplot/InputBindings.h"
 #include "rocketplot/Legend.h"
 #include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotLink.h"
@@ -57,6 +72,12 @@ constexpr int kLegendAlpha = 230;
 
 struct PlotWidget::Private
 {
+    explicit Private(PlotWidget& plot)
+      : history([&plot] { return QList<PlotWidget*>{&plot}; },
+                [&plot] { Q_EMIT plot.historyChanged(); })
+    {
+    }
+
     Axis*                                  xAxis  = nullptr;
     Axis*                                  yAxis  = nullptr;
     Axis*                                  yAxis2 = nullptr;
@@ -71,6 +92,18 @@ struct PlotWidget::Private
     TextPainter                            text;
     QPointer<PlotLink>                     link;
     std::unique_ptr<InteractionController> interaction;
+    InputBindings                          bindings = InputBindings::defaults();
+    ViewHistory                            history;  // when not linked
+    bool                                   crosshair = false;
+    std::optional<QPointF>                 hover;    // the pointer over the plot area
+    std::optional<double>                  linkedX;  // a linked plot's crosshair
+
+    // The plot as last rendered, drawn again as long as nothing it shows changes (the crosshair
+    // and zoom box are drawn over it).
+    QPixmap     cache;
+    PlotLayout  cacheLayout;
+    RenderStats stats;
+    bool        dirty = true;
 
     // The current layout (with the link's margins).
     [[nodiscard]] PlotLayout layout(const PlotWidget& plot)
@@ -85,9 +118,20 @@ struct PlotWidget::Private
         return layoutPlot(plot, QRectF(plot.rect()), plot.font(), plot.devicePixelRatioF(), text,
                           constraints);
     }
+
+    // The layout on screen: the cached one while it is current.
+    [[nodiscard]] PlotLayout shownLayout(const PlotWidget& plot)
+    {
+        if (!dirty && cacheLayout.bounds == QRectF(plot.rect()) &&
+            cacheLayout.devicePixelRatio == plot.devicePixelRatioF())
+        {
+            return cacheLayout;
+        }
+        return layout(plot);
+    }
 };
 
-PlotWidget::PlotWidget(QWidget* parent) : QWidget(parent), m_impl(std::make_unique<Private>())
+PlotWidget::PlotWidget(QWidget* parent) : QWidget(parent), m_impl(std::make_unique<Private>(*this))
 {
     m_impl->xAxis  = new Axis(Qt::Horizontal, false, this);
     m_impl->yAxis  = new Axis(Qt::Vertical, false, this);
@@ -99,16 +143,27 @@ PlotWidget::PlotWidget(QWidget* parent) : QWidget(parent), m_impl(std::make_uniq
 
     for (const Axis* axis : {m_impl->xAxis, m_impl->yAxis, m_impl->yAxis2})
     {
-        connect(axis, &Axis::changed, this, [this] { update(); });
+        connect(axis, &Axis::changed, this, [this] { invalidate(); });
         connect(axis, &Axis::rangeChanged, this, &PlotWidget::viewChanged);
+        connect(axis, &Axis::rangeChanged, this, [this] {
+            if (m_impl->hover)
+            {
+                Q_EMIT crosshairMoved();  // other data is under it now
+            }
+        });
         connect(axis, &Axis::fitNeeded, this, [this] { applyAutoscale(); });
     }
-    // The y axes may fit what's visible in x; a linked plot follows this one's x axis.
+    // The y axes may fit what's visible in x; a linked plot follows this one's x axis (and
+    // crosshair).
     connect(m_impl->xAxis, &Axis::rangeChanged, this, [this] {
         refitY();
         if (PlotLink* current = m_impl->link.data(); current != nullptr)
         {
             current->syncFrom(this);
+        }
+        if (m_impl->hover)
+        {
+            syncCrosshair();  // a new x under the pointer
         }
     });
     connect(m_impl->xAxis, &Axis::autoscaleChanged, this, [this] {
@@ -117,11 +172,12 @@ PlotWidget::PlotWidget(QWidget* parent) : QWidget(parent), m_impl(std::make_uniq
             current->syncFrom(this);
         }
     });
-    connect(m_impl->legend, &Legend::changed, this, [this] { update(); });
+    connect(m_impl->legend, &Legend::changed, this, [this] { invalidate(); });
     connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this,
             [this] { updateSystemTheme(); });
 
     setAttribute(Qt::WA_OpaquePaintEvent);  // paintEvent fills every pixel
+    setAttribute(Qt::WA_AcceptTouchEvents);
     updateSystemTheme();
 }
 
@@ -139,7 +195,7 @@ SeriesType* PlotWidget::adopt(SeriesType* series, const QString& name)
     connect(series, &Series::dataChanged, this, &PlotWidget::seriesDataChanged);
     connect(series, &Series::changed, this, &PlotWidget::seriesStyleChanged);
     applyAutoscale();
-    update();
+    invalidate();
     Q_EMIT seriesAdded(series);
     return series;
 }
@@ -225,7 +281,7 @@ void PlotWidget::removeSeries(Series* series)
     Q_EMIT seriesRemoved(series);
     delete series;
     applyAutoscale();
-    update();
+    invalidate();
 }
 
 void PlotWidget::clearSeries()
@@ -239,13 +295,13 @@ void PlotWidget::clearSeries()
 void PlotWidget::seriesDataChanged()
 {
     applyAutoscale();
-    update();
+    invalidate();
 }
 
 void PlotWidget::seriesStyleChanged()
 {
     applyAutoscale();  // visibility changes what autoscale fits
-    update();
+    invalidate();
 }
 
 // Axes, legend, title
@@ -278,7 +334,27 @@ PlotLink* PlotWidget::link() const noexcept
 
 void PlotWidget::setLink(PlotLink* link)
 {
-    m_impl->link = link;
+    m_impl->link    = link;
+    m_impl->linkedX = std::nullopt;
+    m_impl->history.clear();  // a view history now covers other plots, or no longer does
+    invalidate();
+}
+
+void PlotWidget::invalidate()
+{
+    markDirty();
+    if (const PlotLink* current = m_impl->link.data(); current != nullptr)
+    {
+        for (PlotWidget* plot : current->plots())
+        {
+            plot->markDirty();
+        }
+    }
+}
+
+void PlotWidget::markDirty()
+{
+    m_impl->dirty = true;
     update();
 }
 
@@ -294,17 +370,198 @@ void PlotWidget::setTitle(const QString& title)
         return;
     }
     m_impl->title = title;
-    update();
+    invalidate();
     Q_EMIT titleChanged();
 }
 
+// View
+// ----------------------------------------------------------------------------------------------------------
+
 void PlotWidget::resetView()
 {
+    ViewHistory& views = history();
+    views.beginStep();
     for (Axis* axis : {m_impl->xAxis, m_impl->yAxis, m_impl->yAxis2})
     {
         axis->applyAutoscale(true);
     }
     applyAutoscale();
+    views.commitStep();
+}
+
+void PlotWidget::back()
+{
+    history().back();
+}
+
+void PlotWidget::forward()
+{
+    history().forward();
+}
+
+bool PlotWidget::canGoBack() const
+{
+    return history().canGoBack();
+}
+
+bool PlotWidget::canGoForward() const
+{
+    return history().canGoForward();
+}
+
+ViewHistory& PlotWidget::history() const
+{
+    if (PlotLink* current = m_impl->link.data(); current != nullptr)
+    {
+        return *current->m_history;
+    }
+    return m_impl->history;
+}
+
+// Interaction
+// ---------------------------------------------------------------------------------------------------
+
+const InputBindings& PlotWidget::inputBindings() const noexcept
+{
+    return m_impl->bindings;
+}
+
+void PlotWidget::setInputBindings(const InputBindings& bindings)
+{
+    m_impl->bindings = bindings;
+}
+
+bool PlotWidget::isCrosshairEnabled() const noexcept
+{
+    return m_impl->crosshair;
+}
+
+void PlotWidget::setCrosshairEnabled(bool enabled)
+{
+    if (enabled == m_impl->crosshair)
+    {
+        return;
+    }
+    if (!enabled)
+    {
+        setHoverPosition(std::nullopt);  // while still on: linked plots let go of it too
+    }
+    m_impl->crosshair = enabled;
+    m_impl->linkedX.reset();
+    setMouseTracking(enabled);
+    if (enabled && underMouse())
+    {
+        setHoverPosition(mapFromGlobal(QPointF(QCursor::pos())));
+    }
+    update();
+    Q_EMIT crosshairEnabledChanged();
+}
+
+std::optional<QPointF> PlotWidget::crosshairPosition() const
+{
+    if (!m_impl->crosshair)
+    {
+        return std::nullopt;
+    }
+    if (const std::optional<QPointF> hover = m_impl->hover)
+    {
+        const PlotLayout layout = m_impl->shownLayout(*this);
+        return QPointF(layout.x.mapping.toValue(hover->x()), layout.y.mapping.toValue(hover->y()));
+    }
+    if (m_impl->linkedX)
+    {
+        return QPointF(*m_impl->linkedX, std::numeric_limits<double>::quiet_NaN());
+    }
+    return std::nullopt;
+}
+
+void PlotWidget::setHoverPosition(std::optional<QPointF> position)
+{
+    if (!m_impl->crosshair)
+    {
+        return;
+    }
+    if (position && !m_impl->shownLayout(*this).plot.contains(*position))
+    {
+        position.reset();
+    }
+    if (position == m_impl->hover)
+    {
+        return;
+    }
+    m_impl->hover = position;
+    update();
+    updateCursor();
+    syncCrosshair();
+    Q_EMIT crosshairMoved();
+}
+
+void PlotWidget::setLinkedCrosshair(std::optional<double> x)
+{
+    if (x == m_impl->linkedX || !m_impl->crosshair)
+    {
+        return;
+    }
+    m_impl->linkedX = x;
+    if (!m_impl->hover)
+    {
+        update();
+        Q_EMIT crosshairMoved();
+    }
+}
+
+void PlotWidget::syncCrosshair()
+{
+    PlotLink* current = m_impl->link.data();
+    if (current == nullptr || !m_impl->crosshair)
+    {
+        return;
+    }
+    std::optional<double> x;
+    if (const std::optional<QPointF> hover = m_impl->hover)
+    {
+        x = m_impl->shownLayout(*this).x.mapping.toValue(hover->x());
+    }
+    current->syncCrosshair(this, x);
+}
+
+void PlotWidget::updateCursor()
+{
+    switch (m_impl->interaction->dragAction())
+    {
+        case PlotAction::PAN:
+            setCursor(Qt::ClosedHandCursor);
+            return;
+        case PlotAction::BOX_ZOOM:
+            setCursor(Qt::CrossCursor);
+            return;
+        default:
+            break;
+    }
+    if (m_impl->hover)
+    {
+        setCursor(Qt::CrossCursor);
+    }
+    else
+    {
+        unsetCursor();
+    }
+}
+
+void PlotWidget::showContextMenu(QPoint position, QPoint globalPosition)
+{
+    auto* menu = new QMenu(this);
+    menu->setAttribute(Qt::WA_DeleteOnClose);
+    menu->addAction(tr("Back"), this, &PlotWidget::back)->setEnabled(canGoBack());
+    menu->addAction(tr("Forward"), this, &PlotWidget::forward)->setEnabled(canGoForward());
+    menu->addAction(tr("Reset view"), this, &PlotWidget::resetView);
+    menu->addSeparator();
+    QAction* crosshair = menu->addAction(tr("Crosshair"));
+    crosshair->setCheckable(true);
+    crosshair->setChecked(isCrosshairEnabled());
+    connect(crosshair, &QAction::toggled, this, &PlotWidget::setCrosshairEnabled);
+    Q_EMIT contextMenuAboutToShow(menu, QPointF(position));
+    menu->popup(globalPosition);
 }
 
 void PlotWidget::applyAutoscale()
@@ -415,7 +672,7 @@ void PlotWidget::setThemeMode(ThemeMode mode)
         case ThemeMode::CUSTOM:
             break;
     }
-    update();
+    invalidate();
     Q_EMIT themeChanged();
 }
 
@@ -432,7 +689,7 @@ void PlotWidget::setTheme(const Theme& theme)
     }
     m_impl->themeMode = ThemeMode::CUSTOM;
     m_impl->theme     = theme;
-    update();
+    invalidate();
     Q_EMIT themeChanged();
 }
 
@@ -453,7 +710,7 @@ void PlotWidget::updateSystemTheme()
         return;
     }
     m_impl->theme = std::move(theme);
-    update();
+    invalidate();
     Q_EMIT themeChanged();
 }
 
@@ -515,21 +772,93 @@ QSize PlotWidget::minimumSizeHint() const
 // Events
 // --------------------------------------------------------------------------------------------------------
 
-void PlotWidget::paintEvent(QPaintEvent* /*event*/)
+bool PlotWidget::event(QEvent* event)
+{
+    switch (event->type())
+    {
+        case QEvent::TouchBegin:
+        case QEvent::TouchUpdate:
+        case QEvent::TouchEnd:
+        case QEvent::TouchCancel:
+            if (const auto* touch = dynamic_cast<QTouchEvent*>(event);
+                touch != nullptr && m_impl->interaction->touch(*touch))
+            {
+                event->accept();
+                return true;
+            }
+            break;
+        case QEvent::NativeGesture:
+            if (const auto* gesture = dynamic_cast<QNativeGestureEvent*>(event);
+                gesture != nullptr && m_impl->interaction->nativeGesture(*gesture))
+            {
+                event->accept();
+                return true;
+            }
+            break;
+        case QEvent::Show:
+        case QEvent::Hide:
+            invalidate();  // linked plots line up with the plots shown
+            break;
+        default:
+            break;
+    }
+    return QWidget::event(event);
+}
+
+void PlotWidget::renderCache()
 {
     QElapsedTimer timer;
     timer.start();
-    QPainter         painter(this);
-    const PlotLayout layout = m_impl->layout(*this);
-    RenderStats      stats;
-    PlotRenderer     renderer(*this, layout, m_impl->markers, m_impl->text);
-    renderer.render(painter, stats);
+    const double dpr = devicePixelRatioF();
+    const QSize  pixels(static_cast<int>(std::ceil(width() * dpr)),
+                        static_cast<int>(std::ceil(height() * dpr)));
+    if (m_impl->cache.size() != pixels)
+    {
+        m_impl->cache = QPixmap(pixels);
+    }
+    m_impl->cache.setDevicePixelRatio(dpr);
+    m_impl->cacheLayout = m_impl->layout(*this);
+    RenderStats stats;
+    {
+        QPainter     painter(&m_impl->cache);
+        PlotRenderer renderer(*this, m_impl->cacheLayout, m_impl->markers, m_impl->text);
+        renderer.render(painter, stats);
+    }
     stats.milliseconds = static_cast<double>(timer.nsecsElapsed()) / 1e6;
+    m_impl->stats      = std::move(stats);
+    m_impl->dirty      = false;
+    qCDebug(lcRender) << "frame" << m_impl->stats.milliseconds << "ms,"
+                      << m_impl->stats.series.size() << "series";
+}
+
+void PlotWidget::paintEvent(QPaintEvent* /*event*/)
+{
+    if (m_impl->dirty || m_impl->cacheLayout.bounds != QRectF(rect()) ||
+        m_impl->cache.devicePixelRatio() != devicePixelRatioF())
+    {
+        renderCache();
+    }
+    QPainter painter(this);
+    painter.drawPixmap(QPointF(), m_impl->cache);
+    const PlotLayout& layout = m_impl->cacheLayout;
+    if (layout.valid && m_impl->crosshair && (m_impl->hover || m_impl->linkedX))
+    {
+        drawCrosshair(painter, *this, layout, m_impl->hover, m_impl->linkedX);
+    }
+    if (const std::optional<QRectF> box = m_impl->interaction->zoomBox(); box && layout.valid)
+    {
+        drawZoomBox(painter, layout, m_impl->theme, *box);
+    }
     if (m_impl->debugOverlay)
     {
-        drawDebugOverlay(painter, layout, stats);
+        drawDebugOverlay(painter, layout, m_impl->stats);
     }
-    qCDebug(lcRender) << "frame" << stats.milliseconds << "ms," << stats.series.size() << "series";
+}
+
+void PlotWidget::resizeEvent(QResizeEvent* event)
+{
+    invalidate();
+    QWidget::resizeEvent(event);
 }
 
 void PlotWidget::mousePressEvent(QMouseEvent* event)
@@ -582,6 +911,21 @@ void PlotWidget::wheelEvent(QWheelEvent* event)
     QWidget::wheelEvent(event);
 }
 
+void PlotWidget::contextMenuEvent(QContextMenuEvent* event)
+{
+    if (m_impl->interaction->contextMenu(*event))
+    {
+        showContextMenu(event->pos(), event->globalPos());
+    }
+    event->accept();
+}
+
+void PlotWidget::leaveEvent(QEvent* event)
+{
+    m_impl->interaction->leave();
+    QWidget::leaveEvent(event);
+}
+
 void PlotWidget::changeEvent(QEvent* event)
 {
     if (event->type() == QEvent::PaletteChange || event->type() == QEvent::StyleChange)
@@ -590,7 +934,7 @@ void PlotWidget::changeEvent(QEvent* event)
     }
     else if (event->type() == QEvent::FontChange)
     {
-        update();
+        invalidate();
     }
     QWidget::changeEvent(event);
 }

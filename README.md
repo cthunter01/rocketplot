@@ -35,9 +35,13 @@ plot->xAxis()->setScaleType(rocketplot::ScaleType::DATE_TIME);
   multiplier, or SI prefixes), and Qt rich text in titles and labels (`v<sub>z</sub>`).
 - **Autoscale**: fit all the data, fit y to what's visible in the current x range, or follow the newest data
   as a scrolling strip chart.
-- **Linked plots**: `PlotLink` ties the x axes of stacked plots together and lines up their plot areas.
-- **Interaction**: drag to pan, wheel to zoom about the pointer (over an axis: only that axis; Ctrl: x only, Shift:
-  y only), double-click to autoscale again.
+- **Linked plots**: `PlotLink` ties the x axes of stacked plots together, lines up their plot areas, and shares
+  their crosshair and view history.
+- **Interaction**: drag to pan, Shift-drag to zoom to a box (a thin one zooms one axis), wheel to zoom about the
+  pointer (over an axis: only that axis; Ctrl: x only, Shift: y only), double-click to autoscale again. Trackpads
+  scroll to pan and pinch to zoom; touchscreens drag and pinch. Back and forward through the view history (the
+  mouse's side buttons, the context menu, or `back()`/`forward()`), a crosshair with its coordinates on the axes,
+  and a context menu you can add to. `InputBindings` remaps which gesture does what.
 - **Look**: light and dark themes that follow the application's palette, a colorblind-safe series palette,
   hairline grid, tabular tick labels. A debug overlay shows layout boxes, frame time and what each series drew.
 - MIT licensed; needs only Qt.

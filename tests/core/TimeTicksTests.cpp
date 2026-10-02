@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -14,6 +15,7 @@ namespace
 
 using rocketplot::Range;
 using rocketplot::core::formatDateTime;
+using rocketplot::core::formatTime;
 using rocketplot::core::localSeconds;
 using rocketplot::core::timeTicks;
 using rocketplot::core::UtcOffset;
@@ -152,6 +154,29 @@ TEST(TimeTicks, DegenerateInputs)
 {
     EXPECT_TRUE(timeTicks(Range{.min = kStart, .max = kStart}, 900.0, 80.0, 4.0).major.empty());
     EXPECT_TRUE(timeTicks(Range::empty(), 900.0, 80.0, 4.0).major.empty());
+}
+
+// 2026-03-28 14:30:15.256 UTC
+constexpr double kReadoutTime = kStart + (14 * kHour) + (30 * 60) + 15.256;
+
+TEST(TimeTicks, ReadoutsOfDaysAndMinutes)
+{
+    EXPECT_EQ(formatTime(kReadoutTime, kDay), "2026-03-28");
+    EXPECT_EQ(formatTime(kReadoutTime + (9 * kHour), kDay), "2026-03-28");  // 23:30: that day
+    EXPECT_EQ(formatTime(kReadoutTime, kHour), "2026-03-28 14:30");
+    EXPECT_EQ(formatTime(kReadoutTime, 60.0), "2026-03-28 14:30");
+    EXPECT_EQ(formatTime(kReadoutTime + 30.0, 60.0), "2026-03-28 14:31");
+}
+
+TEST(TimeTicks, ReadoutsOfSeconds)
+{
+    EXPECT_EQ(formatTime(kReadoutTime, 1.0), "2026-03-28 14:30:15");
+    EXPECT_EQ(formatTime(kReadoutTime, 0.03), "2026-03-28 14:30:15.26");
+    EXPECT_EQ(formatTime(kReadoutTime, 0.001), "2026-03-28 14:30:15.256");
+    // In a time zone two hours ahead.
+    const UtcOffset plusTwo = [](double) { return 2 * kHour; };
+    EXPECT_EQ(formatTime(kReadoutTime, 1.0, plusTwo), "2026-03-28 16:30:15");
+    EXPECT_EQ(formatTime(std::numeric_limits<double>::quiet_NaN(), 1.0), "");
 }
 
 }  // namespace

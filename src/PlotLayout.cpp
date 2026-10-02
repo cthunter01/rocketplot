@@ -452,6 +452,16 @@ core::Scale scaleOf(const Axis& axis)
     return axis.scaleType() == ScaleType::LOGARITHMIC ? core::Scale::LOG : core::Scale::LINEAR;
 }
 
+QString readoutLabel(const Axis& axis, const core::AxisMapping& mapping, double pixel)
+{
+    const double value      = mapping.toValue(pixel);
+    const double resolution = std::abs(mapping.toValue(pixel + 1.0) - value);
+    const bool   time       = axis.scaleType() == ScaleType::DATE_TIME;
+    return QString::fromStdString(
+        core::formatReadout(value, resolution, kindOf(axis), styleOf(axis),
+                            time ? utcOffsetOf(axis.timeZone()) : core::UtcOffset{}));
+}
+
 PlotLayout layoutPlot(const PlotWidget& plot, const QRectF& bounds, const QFont& font,
                       double devicePixelRatio, TextPainter& text, LayoutConstraints constraints)
 {

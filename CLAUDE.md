@@ -43,15 +43,19 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
 
 ## Layout
 - `include/rocketplot/`: public headers (`PlotWidget`, `Series`/`LineSeries`/`ScatterSeries`, `Axis`, `Legend`,
-  `PlotLink`, `Theme`, `enums.h`, `plottime.h`; Qt-free value types `Range`, `UniformX`, `NumericRange`).
+  `PlotLink`, `InputBindings`, `Theme`, `enums.h`, `plottime.h`; Qt-free value types `Range`, `UniformX`,
+  `NumericRange`).
   `export.h` is generated into `build/<preset>/include/rocketplot/`
 - `src/core/`: `rocketplot_core`, an OBJECT library with no Qt: series storage (`SeriesData`), min/max pyramid,
   decimation, line band outlines, clipping, axis mapping (linear/log), ticks (`TickGenerator` linear/log,
-  `TimeTicks` calendar), labels (`NumberFormatter`), `AxisTicks` (picks per axis kind), autoscale. Private headers
+  `TimeTicks` calendar), labels and readouts (`NumberFormatter`), `AxisTicks` (picks per axis kind), autoscale.
+  Private headers
 - `src/`: `rocketplot` (alias `rocketplot::rocketplot`): the widget layer. `PlotLayout` (where everything goes),
-  `PlotRenderer` (paints a layout; shared by screen and future exports), `InteractionController` (mouse bindings),
-  `PlotLink` (linked x axes), `TextPainter` (plain and rich text), `MarkerPainter`, `plottime.cpp`, `Logging`
-  (categories `rocketplot.render|input|data`)
+  `PlotRenderer` (paints a layout; shared by screen and future exports), `InteractionController` (mouse, wheel,
+  trackpad and touch input through the `InputBindings`), `ViewHistory` (back/forward), `Overlays` (crosshair and
+  zoom box, drawn over the widget's cached rendering), `PlotLink` (linked x axes, crosshair and history),
+  `TextPainter` (plain and rich text), `MarkerPainter`, `plottime.cpp`, `Logging` (categories
+  `rocketplot.render|input|data`)
 - `demo/`: `rocketplot_demo`, a gallery: one `pages/<Name>Page.cpp` per page, listed in `MainWindow.cpp` and
   `demo.qrc` (the code between `// [snippet]` markers is shown in the app)
 - `tests/core/`: `rocketplot_core_tests` (links the core objects); `tests/widgets/`: `rocketplot_tests` (offscreen Qt,

@@ -29,6 +29,12 @@ constexpr double kDay           = 86400.0;
 constexpr double kMonth         = 30.436875 * kDay;  // average Gregorian month
 constexpr double kYear          = 365.2425 * kDay;   // average Gregorian year
 constexpr int    kMonthsPerYear = 12;
+// formatTime(): the resolutions from which it writes days, minutes and seconds, and its finest
+// digits of the second (microseconds; a double holds epoch seconds to about 0.2 µs).
+constexpr double kHalfDay     = kDay / 2.0;
+constexpr double kHalfMinute  = kMinute / 2.0;
+constexpr double kHalfSecond  = 0.5;
+constexpr int    kMaxDecimals = 6;
 
 constexpr std::array<std::string_view, 12> kMonthNames = {
     "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -490,6 +496,38 @@ TimeTicks timeTicks(Range utcRange, double lengthPx, double minSpacingPx, double
 double localSeconds(int year, int month, int day, int hour, int minute, double second)
 {
     return localDay(year, month, day) + (hour * kHour) + (minute * kMinute) + second;
+}
+
+std::string formatTime(double utcSeconds, double resolution, const UtcOffset& utcOffset)
+{
+    if (!std::isfinite(utcSeconds))
+    {
+        return {};
+    }
+    const double local = Clock(utcOffset).toLocal(utcSeconds);
+    resolution         = std::isfinite(resolution) ? std::abs(resolution) : 0.0;
+    if (resolution >= kHalfDay)
+    {
+        // The day the time falls in.
+        const Civil civil = civilOf(local);
+        return std::format("{}-{:02}-{:02}", civil.year, civil.month, civil.day);
+    }
+    if (resolution >= kHalfMinute)
+    {
+        const std::string text = formatDateTime(std::round(local / kMinute) * kMinute);
+        return text.substr(0, text.size() - 3);  // without ":00"
+    }
+    if (resolution >= kHalfSecond)
+    {
+        return formatDateTime(std::round(local));
+    }
+    // Digits of the second down to the resolution's leading digit (0.03 → 2).
+    const int decimals =
+        resolution > 0.0
+            ? std::clamp(static_cast<int>(-std::floor(std::log10(resolution))), 1, kMaxDecimals)
+            : kMaxDecimals;
+    const double scale = std::pow(10.0, decimals);
+    return formatDateTime(std::round(local * scale) / scale, decimals);
 }
 
 std::string formatDateTime(double localSeconds, int decimals)

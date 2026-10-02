@@ -9,6 +9,7 @@ namespace
 {
 
 using rocketplot::Range;
+using rocketplot::core::formatReadout;
 using rocketplot::core::makeTicks;
 using rocketplot::core::NumberStyle;
 using rocketplot::core::TickKind;
@@ -68,6 +69,14 @@ TEST(AxisTicks, TimeContextGetsTheZoneName)
         .zoneName     = "UTC",
     });
     EXPECT_EQ(ticks.annotation, "2023-11-14 UTC");
+}
+
+TEST(AxisTicks, ReadoutsOfEachKind)
+{
+    EXPECT_EQ(formatReadout(2.71828, 0.01, TickKind::LINEAR, NumberStyle::AUTO), "2.72");
+    EXPECT_EQ(formatReadout(2500.0, 1.0, TickKind::LOG, NumberStyle::SI), "2.500k");
+    EXPECT_EQ(formatReadout(1774656000.0 + 61.0, 1.0, TickKind::TIME, NumberStyle::AUTO),
+              "2026-03-28 00:01:01");
 }
 
 }  // namespace

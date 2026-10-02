@@ -40,6 +40,12 @@ struct TimeTicks
 [[nodiscard]] double localSeconds(int year, int month, int day, int hour = 0, int minute = 0,
                                   double second = 0.0);
 
+/// A time on its own, such as a crosshair's readout, written to @p resolution seconds (e.g. the
+/// time one pixel spans) in local time: "2026-03-28" for half a day or more, then "2026-03-28
+/// 14:30", "2026-03-28 14:30:15" and "2026-03-28 14:30:15.25" (up to microseconds).
+[[nodiscard]] std::string formatTime(double utcSeconds, double resolution,
+                                     const UtcOffset& utcOffset = {});
+
 /// "2026-03-28 14:30:15.250" for local seconds, with @p decimals digits of the second.
 [[nodiscard]] std::string formatDateTime(double localSeconds, int decimals = 0);
 

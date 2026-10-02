@@ -84,6 +84,11 @@ struct PlotLayout
 /// The scale an axis maps values with.
 [[nodiscard]] core::Scale scaleOf(const Axis& axis);
 
+/// The value at @p pixel of an axis laid out as @p mapping, written in full to the precision a
+/// pixel resolves there (for the crosshair's tags).
+[[nodiscard]] QString readoutLabel(const Axis& axis, const core::AxisMapping& mapping,
+                                   double pixel);
+
 // Geometry shared by layout and drawing.
 inline constexpr double kLegendPadding   = 8.0;
 inline constexpr double kLegendSwatch    = 24.0;
