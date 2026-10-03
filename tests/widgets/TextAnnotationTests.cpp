@@ -114,25 +114,21 @@ TEST_F(TextAnnotationTest, AnOffsetMovesItAwayWithAnArrowBack)
 
 TEST_F(TextAnnotationTest, ItsBackgroundKeepsItReadableOverData)
 {
+    // A broad line, and text whose top-left corner is on it.
     auto* data = m_plot.addLine(std::vector<double>{0, 10}, std::vector<double>{5, 5});
-    data->setLineWidth(4.0);
+    data->setLineWidth(20.0);
     TextAnnotation* note = m_plot.addText(5.0, 5.0, "Apogee");
-    // The line's pixels along the row through the middle of the text.
-    const auto lineShows = [&] {
-        const QImage image = render();
-        const QPoint point = pixelAt(5.0, 5.0);
-        int          count = 0;
-        for (int x = point.x() - 15; x <= point.x() + 15; ++x)
-        {
-            count += image.pixelColor(x, point.y()) == data->color() ? 1 : 0;
-        }
-        return count;
-    };
-    EXPECT_EQ(lineShows(), 0);
+    note->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    note->setOffset(QPointF(0.0, -8.0));
+    // In the margin the text's box leaves around the text, whatever the font: left of its first
+    // letter and clear of the box's round corners.
+    const QPoint margin = pixelAt(5.0, 5.0) + QPoint(2, -2);
+    EXPECT_NE(render().pixelColor(margin), data->color());  // the box covers the line
     note->setBackgroundVisible(false);
-    EXPECT_GT(lineShows(), 5);
+    EXPECT_EQ(render().pixelColor(margin), data->color());
+    note->setBackgroundVisible(true);
     note->setLayer(rocketplot::AnnotationLayer::BELOW_SERIES);
-    EXPECT_EQ(lineShows(), 31);  // under the line now
+    EXPECT_EQ(render().pixelColor(margin), data->color());  // under the line now
 }
 
 TEST_F(TextAnnotationTest, NothingToDrawWithoutTextOrAPlace)

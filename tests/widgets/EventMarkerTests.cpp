@@ -59,6 +59,15 @@ protected:
         }
         return kNoFlag;
     }
+
+    // The row where the flag of the event at @p x starts, whichever side of its line it flies on (a
+    // wide label near the right edge flies to the left, and how wide a label is depends on the
+    // platform's fonts). kNoFlag if there is none.
+    [[nodiscard]] int flagRow(const QImage& image, double x, const QColor& color) const
+    {
+        const int right = flagTop(image, columnOf(x) + 3, color);
+        return right != kNoFlag ? right : flagTop(image, columnOf(x) - 3, color);
+    }
 };
 
 TEST(EventMarker, Defaults)
@@ -111,23 +120,23 @@ TEST_F(EventMarkerTest, WithoutALabelThereIsOnlyTheLine)
 
 TEST_F(EventMarkerTest, FlagsTooCloseToShareARowAreStaggered)
 {
-    addEvent(4.0, "Main engine cutoff", Qt::cyan);
-    EventMarker* second = addEvent(4.2, "Stage separation", Qt::magenta);
-    const int    column = columnOf(4.2) + 3;  // just inside the second flag, under the first
+    // A few pixels apart: in the same row, the second flag would cover the first.
+    addEvent(4.0, "MECO", Qt::cyan);
+    EventMarker* second = addEvent(4.05, "SEP", Qt::magenta);
     const QImage both   = render();
-    const int    first  = flagTop(both, column, Qt::cyan);
+    const int    first  = flagRow(both, 4.0, Qt::cyan);
     ASSERT_NE(first, kNoFlag);
-    EXPECT_GT(flagTop(both, column, Qt::magenta), first + 8);  // a row further down
+    EXPECT_GT(flagRow(both, 4.05, Qt::magenta), first + 8);  // a row further down
 
     // Far enough apart, they share the top row.
-    second->setX(8.0);
-    EXPECT_EQ(flagTop(render(), columnOf(8.0) + 3, Qt::magenta), first);
+    second->setX(7.0);
+    EXPECT_EQ(flagRow(render(), 7.0, Qt::magenta), first);
     // As they do once zoomed in.
-    second->setX(4.2);
-    m_plot.xAxis()->setRange(3.9, 4.4);
+    second->setX(4.05);
+    m_plot.xAxis()->setRange(3.99, 4.09);
     const QImage zoomed = render();
-    EXPECT_EQ(flagTop(zoomed, columnOf(4.0) + 3, Qt::cyan), first);
-    EXPECT_EQ(flagTop(zoomed, columnOf(4.2) + 3, Qt::magenta), first);
+    EXPECT_EQ(flagRow(zoomed, 4.0, Qt::cyan), first);
+    EXPECT_EQ(flagRow(zoomed, 4.05, Qt::magenta), first);
 }
 
 TEST_F(EventMarkerTest, AFlagAtTheRightEdgeFliesToTheLeft)
@@ -171,15 +180,15 @@ TEST_F(EventMarkerTest, AnEventTheAxisCannotPlaceIsNotDrawn)
 TEST_F(EventMarkerTest, TheFlagTextStandsOutOnItsColor)
 {
     // A dark flag gets light text, a light one dark text.
-    addEvent(2.0, "WWWWWWWW", QColor(0x20, 0x20, 0x20));
-    addEvent(6.0, "WWWWWWWW", QColor(0xff, 0xf0, 0xa0));
+    addEvent(2.0, "WW", QColor(0x20, 0x20, 0x20));
+    addEvent(6.0, "WW", QColor(0xff, 0xf0, 0xa0));
     const QImage image    = render();
     const QRect  plot     = m_plot.plotArea().toRect();
     const auto   lightest = [&](int left) {
         float lightness = 0.0F;
         for (int y = plot.top(); y < plot.top() + 24; ++y)
         {
-            for (int x = left + 5; x < left + 60; ++x)
+            for (int x = left + 5; x < left + 20; ++x)
             {
                 lightness = std::max(lightness, image.pixelColor(x, y).lightnessF());
             }
@@ -190,7 +199,7 @@ TEST_F(EventMarkerTest, TheFlagTextStandsOutOnItsColor)
         float lightness = 1.0F;
         for (int y = plot.top() + 4; y < plot.top() + 16; ++y)
         {
-            for (int x = left + 5; x < left + 60; ++x)
+            for (int x = left + 5; x < left + 20; ++x)
             {
                 lightness = std::min(lightness, image.pixelColor(x, y).lightnessF());
             }
