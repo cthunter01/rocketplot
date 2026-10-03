@@ -29,6 +29,8 @@ struct ROCKETPLOT_EXPORT Theme
     QColor tagText;
     QColor zoomBoxBorder;  ///< The box dragged out to zoom
     QColor zoomBoxFill;
+    QColor annotation;  ///< Reference lines, shaded spans and event markers without a color of
+                        ///< their own (text annotations use the text color)
 
     /// Series colors, given out in this order. A plot with more series than colors starts over.
     QList<QColor> seriesColors;
@@ -37,11 +39,17 @@ struct ROCKETPLOT_EXPORT Theme
     double markerSize = 8.0;  ///< Default marker diameter
     double markerRingWidth =
         2.0;  ///< Background-colored ring around markers, so overlapping ones stay apart
-    double tickLength      = 5.0;
-    double minorTickLength = 3.0;
-    double tickFontScale   = 0.9;
-    double labelFontScale  = 1.0;
-    double titleFontScale  = 1.2;
+    double errorBarWidth       = 1.5;   ///< Line width of error bars
+    double errorCapSize        = 6.0;   ///< Width of the caps at the ends of error bars
+    double bandOpacity         = 0.15;  ///< Of error bands, which are filled in the series color
+    double annotationLineWidth = 1.0;   ///< Reference lines, event markers and arrows
+    double spanOpacity         = 0.12;  ///< Of shaded spans, which are filled in their color
+    double tickLength          = 5.0;
+    double minorTickLength     = 3.0;
+    double tickFontScale       = 0.9;
+    double annotationFontScale = 0.9;  ///< Annotation text and labels
+    double labelFontScale      = 1.0;
+    double titleFontScale      = 1.2;
 
     /// The color for the series that was given color index @p index.
     [[nodiscard]] QColor seriesColor(qsizetype index) const;

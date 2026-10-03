@@ -164,6 +164,20 @@ void Occupancy::addPoints(const std::vector<PixelPoint>& points, double size)
     }
 }
 
+void Occupancy::addBox(PixelBox box)
+{
+    if (!isRecorded() || box.right < m_area.left || box.left > m_area.right)
+    {
+        return;
+    }
+    m_summed               = false;
+    const std::size_t last = columnOf(box.right);
+    for (std::size_t column = columnOf(box.left); column <= last; ++column)
+    {
+        markColumn(column, box.top, box.bottom);
+    }
+}
+
 void Occupancy::sum() const
 {
     const std::size_t stride = m_columns + 1;

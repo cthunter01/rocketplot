@@ -25,7 +25,27 @@ struct ColumnGrid
     double      left  = 0.0;
     double      width = 1.0;
     std::size_t count = 0;
+
+    /// The left edge and the center of a column.
+    [[nodiscard]] double edge(std::size_t column) const noexcept
+    {
+        return left + (static_cast<double>(column) * width);
+    }
+    [[nodiscard]] double center(std::size_t column) const noexcept
+    {
+        return edge(column) + (width / 2.0);
+    }
+    /// The column containing @p x; the first or last one for an x beside the grid.
+    [[nodiscard]] std::size_t columnAt(double x) const noexcept;
 };
+
+/// Writes the outline of what covers columns [begin, end) of @p spans (none of them empty) to
+/// @p polygons: closed polygons (Polyline runs) of up to 16 columns each, which QPainter fills
+/// much faster than one polygon over all of them. Each runs along the tops through the column
+/// centers and back along the bottoms, so slanted edges stay antialiased; neighboring pieces meet
+/// at a column's edge, without a seam.
+void outlineColumns(const ColumnGrid& grid, std::span<const ColumnSpan> spans, std::size_t begin,
+                    std::size_t end, Polyline& polygons);
 
 /// Draws thick lines through dense data as filled outlines instead of strokes.
 ///
@@ -51,8 +71,6 @@ public:
 
 private:
     void cover(PixelPoint a, PixelPoint b, const ColumnGrid& grid, double halfWidth);
-    void addPolygons(const ColumnGrid& grid, std::size_t begin, std::size_t end,
-                     Polyline& polygons) const;
 
     std::vector<ColumnSpan> m_spans;
 };

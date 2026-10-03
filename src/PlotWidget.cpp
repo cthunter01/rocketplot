@@ -52,15 +52,19 @@
 #include "core/Autoscale.h"
 #include "core/AxisMapping.h"
 #include "core/Occupancy.h"
-#include "core/SeriesData.h"
+#include "rocketplot/Annotation.h"
 #include "rocketplot/Axis.h"
+#include "rocketplot/EventMarker.h"
 #include "rocketplot/InputBindings.h"
 #include "rocketplot/Legend.h"
 #include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotLink.h"
 #include "rocketplot/Range.h"
+#include "rocketplot/ReferenceLine.h"
 #include "rocketplot/ScatterSeries.h"
 #include "rocketplot/Series.h"
+#include "rocketplot/ShadedSpan.h"
+#include "rocketplot/TextAnnotation.h"
 #include "rocketplot/Theme.h"
 #include "rocketplot/UniformX.h"
 #include "rocketplot/enums.h"
@@ -75,6 +79,16 @@ constexpr QSize kSizeHint{640, 400};
 constexpr QSize kMinimumSizeHint{160, 120};
 // Alpha of the legend box when the theme's background comes from the widget palette.
 constexpr int kLegendAlpha = 230;
+
+// The part of @p range a log axis can show: its positive ends.
+Range positivePart(Range range)
+{
+    if (!(range.max > 0.0))
+    {
+        return Range::empty();
+    }
+    return {.min = range.min > 0.0 ? range.min : range.max, .max = range.max};
+}
 
 }  // namespace
 
@@ -97,6 +111,7 @@ struct PlotWidget::Private
     std::unique_ptr<InteractionController> interaction;
     QPointer<PlotLink>                     link;
     QList<Series*>                         series;
+    QList<Annotation*>                     annotations;
     QString                                title;
     InputBindings                          bindings = InputBindings::defaults();
     std::optional<double>                  linkedX;  // a linked plot's crosshair
@@ -332,6 +347,85 @@ void PlotWidget::seriesStyleChanged()
 {
     applyAutoscale();  // visibility changes what autoscale fits
     invalidate();
+}
+
+// Annotations
+// ---------------------------------------------------------------------------------------------------
+
+template <class AnnotationType>
+AnnotationType* PlotWidget::adoptAnnotation(AnnotationType* annotation)
+{
+    m_impl->annotations.append(annotation);
+    connect(annotation, &Annotation::changed, this, [this] {
+        applyAutoscale();  // it may be one that autoscale makes room for
+        invalidate();
+    });
+    invalidate();
+    Q_EMIT annotationAdded(annotation);
+    return annotation;
+}
+
+ReferenceLine* PlotWidget::addHorizontalLine(double y, const QString& label)
+{
+    auto* line = new ReferenceLine(this, Qt::Horizontal, y);
+    line->setLabel(label);
+    return adoptAnnotation(line);
+}
+
+ReferenceLine* PlotWidget::addVerticalLine(double x, const QString& label)
+{
+    auto* line = new ReferenceLine(this, Qt::Vertical, x);
+    line->setLabel(label);
+    return adoptAnnotation(line);
+}
+
+ShadedSpan* PlotWidget::addHorizontalSpan(double yMin, double yMax, const QString& label)
+{
+    auto* span = new ShadedSpan(this, Qt::Horizontal, Range{.min = yMin, .max = yMax});
+    span->setLabel(label);
+    return adoptAnnotation(span);
+}
+
+ShadedSpan* PlotWidget::addVerticalSpan(double xMin, double xMax, const QString& label)
+{
+    auto* span = new ShadedSpan(this, Qt::Vertical, Range{.min = xMin, .max = xMax});
+    span->setLabel(label);
+    return adoptAnnotation(span);
+}
+
+TextAnnotation* PlotWidget::addText(double x, double y, const QString& text)
+{
+    return adoptAnnotation(new TextAnnotation(this, QPointF(x, y), text));
+}
+
+EventMarker* PlotWidget::addEvent(double x, const QString& label)
+{
+    return adoptAnnotation(new EventMarker(this, x, label));
+}
+
+QList<Annotation*> PlotWidget::annotations() const
+{
+    return m_impl->annotations;
+}
+
+void PlotWidget::removeAnnotation(Annotation* annotation)
+{
+    if (!m_impl->annotations.removeOne(annotation))
+    {
+        return;
+    }
+    Q_EMIT annotationRemoved(annotation);
+    delete annotation;
+    applyAutoscale();
+    invalidate();
+}
+
+void PlotWidget::clearAnnotations()
+{
+    while (!m_impl->annotations.isEmpty())
+    {
+        removeAnnotation(m_impl->annotations.back());
+    }
 }
 
 // Axes, legend, title
@@ -787,15 +881,50 @@ void PlotWidget::applyAutoscale()
     refitY();
 }
 
-Range PlotWidget::xDataBounds(bool positiveOnly) const
+Range PlotWidget::xDataBounds(bool positiveOnly, bool withAnnotations) const
 {
     Range bounds = Range::empty();
     for (const Series* series : std::as_const(m_impl->series))
     {
         if (series->isVisible())
         {
-            bounds =
-                bounds.united(positiveOnly ? series->data().xPositiveBounds() : series->xBounds());
+            bounds = bounds.united(series->fitBoundsX(positiveOnly));
+        }
+    }
+    if (!withAnnotations)
+    {
+        return bounds;
+    }
+    for (const Annotation* annotation : std::as_const(m_impl->annotations))
+    {
+        if (annotation->isVisible() && annotation->isIncludedInAutoscale())
+        {
+            const Range extent = annotation->xExtent();
+            bounds             = bounds.united(positiveOnly ? positivePart(extent) : extent);
+        }
+    }
+    return bounds;
+}
+
+Range PlotWidget::yDataBounds(const Axis& axis, bool positiveOnly, bool visibleOnly) const
+{
+    const Range xRange = m_impl->xAxis->range();
+    Range       bounds = Range::empty();
+    for (const Series* series : std::as_const(m_impl->series))
+    {
+        if (series->isVisible() && series->isOnSecondaryYAxis() == axis.isSecondary())
+        {
+            bounds = bounds.united(visibleOnly ? series->fitBoundsYWithin(xRange, positiveOnly)
+                                               : series->fitBoundsY(positiveOnly));
+        }
+    }
+    for (const Annotation* annotation : std::as_const(m_impl->annotations))
+    {
+        if (annotation->isVisible() && annotation->isIncludedInAutoscale() &&
+            annotation->isOnSecondaryYAxis() == axis.isSecondary())
+        {
+            const Range extent = annotation->yExtent();
+            bounds             = bounds.united(positiveOnly ? positivePart(extent) : extent);
         }
     }
     return bounds;
@@ -808,11 +937,14 @@ void PlotWidget::refitX()
     {
         return;
     }
-    const core::Scale scale  = scaleOf(axis);
-    const bool        log    = scale == core::Scale::LOG;
-    const PlotLink*   link   = m_impl->link.data();
-    const Range       bounds = link != nullptr ? link->xDataBounds(log) : xDataBounds(log);
-    if (axis.autoscaleMode() == AutoscaleMode::FOLLOW_LATEST && !log)
+    const core::Scale scale = scaleOf(axis);
+    const bool        log   = scale == core::Scale::LOG;
+    // Following the newest data means the data: an annotation further on isn't the newest of it.
+    const bool      follow = axis.autoscaleMode() == AutoscaleMode::FOLLOW_LATEST && !log;
+    const PlotLink* link   = m_impl->link.data();
+    const Range     bounds =
+        link != nullptr ? link->xDataBounds(log, !follow) : xDataBounds(log, !follow);
+    if (follow)
     {
         axis.applyRange(core::followRange(bounds, axis.followWindow(), axis.autoscaleMargin()));
     }
@@ -824,7 +956,6 @@ void PlotWidget::refitX()
 
 void PlotWidget::refitY()
 {
-    const Range xRange = m_impl->xAxis->range();
     for (Axis* axis : {m_impl->yAxis, m_impl->yAxis2})
     {
         if (!axis->autoscale())
@@ -832,25 +963,8 @@ void PlotWidget::refitY()
             continue;
         }
         const core::Scale scale   = scaleOf(*axis);
-        const bool        log     = scale == core::Scale::LOG;
         const bool        visible = axis->autoscaleMode() != AutoscaleMode::FIT_ALL;
-        Range             bounds  = Range::empty();
-        for (const Series* series : std::as_const(m_impl->series))
-        {
-            if (!series->isVisible() || series->isOnSecondaryYAxis() != axis->isSecondary())
-            {
-                continue;
-            }
-            const core::SeriesData& seriesData = series->data();
-            if (visible)
-            {
-                bounds = bounds.united(seriesData.yBoundsWithin(xRange, log));
-            }
-            else
-            {
-                bounds = bounds.united(log ? seriesData.yPositiveBounds() : seriesData.yBounds());
-            }
-        }
+        const Range       bounds  = yDataBounds(*axis, scale == core::Scale::LOG, visible);
         // Fitting what's visible: with nothing in view, stay put rather than jump to a default.
         if (visible && !bounds.isValid())
         {

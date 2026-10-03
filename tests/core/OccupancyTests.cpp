@@ -85,6 +85,20 @@ TEST(Occupancy, PointsAndLoneSamples)
         occupancy.coverage({.left = 100.0, .top = 0.0, .right = 250.0, .bottom = 200.0}), 0.0);
 }
 
+TEST(Occupancy, Boxes)
+{
+    Occupancy occupancy;
+    occupancy.reset(kArea);
+    occupancy.addBox({.left = 100.0, .top = 40.0, .right = 200.0, .bottom = 80.0});
+    EXPECT_DOUBLE_EQ(
+        occupancy.coverage({.left = 100.0, .top = 40.0, .right = 200.0, .bottom = 80.0}), 1.0);
+    EXPECT_DOUBLE_EQ(occupancy.coverage({.left = 0.0, .top = 0.0, .right = 96.0, .bottom = 200.0}),
+                     0.0);
+    occupancy.addBox({.left = 500.0, .top = 0.0, .right = 600.0, .bottom = 200.0});  // outside
+    EXPECT_DOUBLE_EQ(
+        occupancy.coverage({.left = 300.0, .top = 0.0, .right = 400.0, .bottom = 200.0}), 0.0);
+}
+
 TEST(Occupancy, IgnoresWhatIsOutside)
 {
     Occupancy occupancy;

@@ -46,6 +46,10 @@ constexpr double kRadius        = 4.0;
 constexpr double kRowRadius     = 3.0;
 constexpr double kHiddenOpacity = 0.35;
 constexpr double kMaxSwatchLine = 3.0;
+// A swatch's errors: the height of a patch of band, the length of a bar and the width of its caps.
+constexpr double kSwatchBand = 10.0;
+constexpr double kSwatchBar  = 14.0;
+constexpr double kSwatchCap  = 5.0;
 // A BEST legend moves only to a spot where it covers less data by this share of its area (a line
 // crossing it covers a few percent).
 constexpr double kStickiness = 0.01;
@@ -107,9 +111,38 @@ LegendAnchor bestAnchor(const QRectF& plotArea, QSizeF size, const core::Occupan
     return previous && previousCoverage <= bestCoverage + kStickiness ? *previous : best;
 }
 
-// A line (for line series) with the series' marker across the middle.
+// What a series' errors look like, behind its line and marker: a patch of its band, or a bar with
+// caps.
+void drawErrorSwatch(QPainter& painter, const Series& series, const Theme& theme, QPointF center)
+{
+    if (!series.hasXErrors() && !series.hasYErrors())
+    {
+        return;
+    }
+    QColor color = series.color();
+    if (series.hasYErrors() && series.errorStyle() == ErrorStyle::BAND && series.isSortedByX())
+    {
+        color.setAlphaF(
+            static_cast<float>(static_cast<double>(color.alphaF()) * series.bandOpacity()));
+        painter.fillRect(QRectF(center.x() - (kSwatch / 2.0), center.y() - (kSwatchBand / 2.0),
+                                kSwatch, kSwatchBand),
+                         color);
+        return;
+    }
+    // Upright for y errors, lying down for x errors alone.
+    const QPointF reach =
+        series.hasYErrors() ? QPointF(0.0, kSwatchBar / 2.0) : QPointF(kSwatchBar / 2.0, 0.0);
+    const QPointF cap = QPointF(reach.y(), reach.x()) * (kSwatchCap / kSwatchBar);
+    painter.setPen(QPen(color, theme.errorBarWidth, Qt::SolidLine, Qt::FlatCap));
+    painter.drawLine(center - reach, center + reach);
+    painter.drawLine(center - reach - cap, center - reach + cap);
+    painter.drawLine(center + reach - cap, center + reach + cap);
+}
+
+// A line (for line series) with the series' marker across the middle, over its errors.
 void drawSwatch(QPainter& painter, const Series& series, const Theme& theme, QPointF center)
 {
+    drawErrorSwatch(painter, series, theme, center);
     if (const auto* line = qobject_cast<const LineSeries*>(&series))
     {
         QPen pen = line->pen();

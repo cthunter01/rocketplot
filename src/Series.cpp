@@ -3,6 +3,7 @@
 #include <QColor>
 #include <QObject>
 #include <QString>
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <memory>
@@ -12,6 +13,7 @@
 #include <vector>
 
 #include "Logging.h"
+#include "core/ErrorData.h"
 #include "core/SeriesData.h"
 #include "rocketplot/Axis.h"
 #include "rocketplot/PlotWidget.h"
@@ -22,8 +24,13 @@
 namespace rocketplot
 {
 
-Series::Series(PlotWidget* plot, Marker marker)
-  : QObject(plot), m_plot(plot), m_data(std::make_unique<core::SeriesData>()), m_marker(marker)
+Series::Series(PlotWidget* plot, Marker marker, ErrorStyle errorStyle)
+  : QObject(plot),
+    m_plot(plot),
+    m_data(std::make_unique<core::SeriesData>()),
+    m_errors(std::make_unique<core::ErrorData>()),
+    m_marker(marker),
+    m_errorStyle(errorStyle)
 {
 }
 
@@ -196,31 +203,31 @@ bool Series::isView() const noexcept
 void Series::setData(std::vector<double>&& x, std::vector<double>&& y)
 {
     m_data->setOwned(std::move(x), std::move(y));
-    dataWasChanged();
+    dataWasReplaced();
 }
 
 void Series::setData(UniformX x, std::vector<double>&& y)
 {
     m_data->setOwned(x, std::move(y));
-    dataWasChanged();
+    dataWasReplaced();
 }
 
 void Series::setDataView(std::span<const double> x, std::span<const double> y)
 {
     m_data->setView(x, y);
-    dataWasChanged();
+    dataWasReplaced();
 }
 
 void Series::setDataView(UniformX x, std::span<const double> y)
 {
     m_data->setView(x, y);
-    dataWasChanged();
+    dataWasReplaced();
 }
 
 void Series::notifyDataChanged()
 {
     m_data->refresh();
-    dataWasChanged();
+    dataWasReplaced();
 }
 
 void Series::append(double x, double y)
@@ -236,7 +243,7 @@ void Series::append(double y)
 void Series::clear()
 {
     m_data->clear();
-    dataWasChanged();
+    dataWasReplaced();
 }
 
 void Series::appendPoints(std::span<const double> x, std::span<const double> y)
@@ -250,6 +257,154 @@ void Series::appendSamples(std::span<const double> y)
     m_data->append(y);
     dataWasChanged();
 }
+
+void Series::applyXErrors(std::span<const double> minus, std::span<const double> plus)
+{
+    m_errors->setX(*m_data, minus, plus);
+    Q_EMIT dataChanged();
+}
+
+void Series::applyYErrors(std::span<const double> minus, std::span<const double> plus)
+{
+    m_errors->setY(*m_data, minus, plus);
+    Q_EMIT dataChanged();
+}
+
+void Series::clearErrors()
+{
+    if (m_errors->empty())
+    {
+        return;
+    }
+    m_errors->clear();
+    Q_EMIT dataChanged();
+}
+
+bool Series::hasXErrors() const noexcept
+{
+    return m_errors->hasX();
+}
+
+bool Series::hasYErrors() const noexcept
+{
+    return m_errors->hasY();
+}
+
+Range Series::xErrorRange(std::size_t index) const noexcept
+{
+    if (index < m_errors->xLow().size())
+    {
+        return {.min = m_errors->xLow()[index], .max = m_errors->xHigh()[index]};
+    }
+    return {.min = x(index), .max = x(index)};
+}
+
+Range Series::yErrorRange(std::size_t index) const noexcept
+{
+    if (index < m_errors->yLow().size())
+    {
+        return {.min = m_errors->yLow()[index], .max = m_errors->yHigh()[index]};
+    }
+    return {.min = y(index), .max = y(index)};
+}
+
+void Series::setErrorStyle(ErrorStyle style)
+{
+    if (style == m_errorStyle)
+    {
+        return;
+    }
+    m_errorStyle = style;
+    Q_EMIT changed();
+}
+
+double Series::errorCapSize() const
+{
+    return m_errorCapSize.value_or(m_plot->theme().errorCapSize);
+}
+
+void Series::setErrorCapSize(double size)
+{
+    if (!std::isfinite(size) || size < 0.0)
+    {
+        qCWarning(lcData) << "Series::setErrorCapSize: ignoring" << size;
+        return;
+    }
+    if (m_errorCapSize == size)
+    {
+        return;
+    }
+    m_errorCapSize = size;
+    Q_EMIT changed();
+}
+
+void Series::resetErrorCapSize()
+{
+    if (!m_errorCapSize)
+    {
+        return;
+    }
+    m_errorCapSize.reset();
+    Q_EMIT changed();
+}
+
+double Series::bandOpacity() const
+{
+    return m_bandOpacity.value_or(m_plot->theme().bandOpacity);
+}
+
+void Series::setBandOpacity(double opacity)
+{
+    if (!std::isfinite(opacity))
+    {
+        qCWarning(lcData) << "Series::setBandOpacity: ignoring" << opacity;
+        return;
+    }
+    opacity = std::clamp(opacity, 0.0, 1.0);
+    if (m_bandOpacity == opacity)
+    {
+        return;
+    }
+    m_bandOpacity = opacity;
+    Q_EMIT changed();
+}
+
+void Series::resetBandOpacity()
+{
+    if (!m_bandOpacity)
+    {
+        return;
+    }
+    m_bandOpacity.reset();
+    Q_EMIT changed();
+}
+
+Range Series::fitBoundsX(bool positiveOnly) const
+{
+    return positiveOnly ? m_data->xPositiveBounds().united(m_errors->xPositiveBounds())
+                        : m_data->xBounds().united(m_errors->xBounds());
+}
+
+Range Series::fitBoundsY(bool positiveOnly) const
+{
+    return positiveOnly ? m_data->yPositiveBounds().united(m_errors->yPositiveBounds())
+                        : m_data->yBounds().united(m_errors->yBounds());
+}
+
+Range Series::fitBoundsYWithin(Range xRange, bool positiveOnly) const
+{
+    return m_data->yBoundsWithin(xRange, positiveOnly)
+        .united(m_errors->yBoundsWithin(*m_data, xRange, positiveOnly));
+}
+
+void Series::dataWasReplaced()
+{
+    m_errors->clear();
+    pointsReplaced();
+    dataWasChanged();
+}
+
+void Series::pointsReplaced() { }
 
 void Series::dataWasChanged()
 {

@@ -14,7 +14,7 @@
 namespace rocketplot
 {
 
-LineSeries::LineSeries(PlotWidget* plot) : Series(plot, Marker::NONE) { }
+LineSeries::LineSeries(PlotWidget* plot) : Series(plot, Marker::NONE, ErrorStyle::BAND) { }
 
 LineSeries::~LineSeries() = default;
 

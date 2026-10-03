@@ -24,6 +24,25 @@ enum class Marker : std::uint8_t
 };
 Q_ENUM_NS(Marker)
 
+/// How a series shows the errors of its points (Series::setYErrors(), Series::setXErrors()).
+enum class ErrorStyle : std::uint8_t
+{
+    BARS,  ///< A whisker with caps through each point (the default for scatter series). Where the
+           ///< points of a series sorted by x are too close together to tell their bars apart, the
+           ///< y errors are drawn as a band instead
+    BAND,  ///< y errors as a shaded band around the series (the default for lines); x errors still
+           ///< as bars. Needs x sorted: otherwise bars are drawn
+};
+Q_ENUM_NS(ErrorStyle)
+
+/// Whether an annotation is drawn under or over the series.
+enum class AnnotationLayer : std::uint8_t
+{
+    BELOW_SERIES,  ///< Over the grid, under the data (the default for shaded spans)
+    ABOVE_SERIES,  ///< Over the data (the default for lines, text and event markers)
+};
+Q_ENUM_NS(AnnotationLayer)
+
 /// Where the legend sits inside the plot area.
 enum class LegendAnchor : std::uint8_t
 {

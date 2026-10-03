@@ -3,9 +3,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <utility>
 #include <vector>
 
 #include "core/AxisMapping.h"
+#include "rocketplot/Range.h"
 
 namespace rocketplot::core
 {
@@ -64,6 +66,10 @@ enum class DecimationMode : std::uint8_t
     PIXEL_SKIP,  ///< Unsorted x: every point, minus repeats of the previous point's pixel
 };
 
+/// A pixel column with at most this many points is drawn point for point: a min/max summary would
+/// not be shorter.
+inline constexpr std::size_t kRawPointsPerColumn = 4;
+
 struct DecimationResult
 {
     DecimationMode mode       = DecimationMode::RAW;
@@ -81,10 +87,22 @@ struct DecimationResult
 DecimationResult decimateLine(const SeriesData& data, const AxisMapping& x, const AxisMapping& y,
                               double columnWidth, Polyline& out);
 
+/// The index range [first, last) of a series sorted by x that a line through the @p visible x range
+/// needs: the visible points plus one either side, so the line reaches the plot's edges. Infinite x
+/// values (gaps at the ends of sorted data) are left out.
+[[nodiscard]] std::pair<std::size_t, std::size_t> visibleIndexRange(const SeriesData& data,
+                                                                    Range             visible);
+
 /// Fills @p out with the pixel position of every finite point of @p data inside @p box, with at
 /// most one point per @p cellSize × @p cellSize cell (markers drawn there would look the same).
 /// Sorted series only visit the x range of the box. Returns the number of points visited.
+///
+/// @p indices, when given, receives the index of each point in @p out. @p sizes are the points'
+/// own marker sizes, if they have them: a point whose size isn't positive is hidden, so it is left
+/// out (points beyond the end of @p sizes are kept).
 std::size_t decimateScatter(const SeriesData& data, const AxisMapping& x, const AxisMapping& y,
-                            PixelBox box, double cellSize, std::vector<PixelPoint>& out);
+                            PixelBox box, double cellSize, std::vector<PixelPoint>& out,
+                            std::vector<std::size_t>* indices = nullptr,
+                            std::span<const double>   sizes   = {});
 
 }  // namespace rocketplot::core

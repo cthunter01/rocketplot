@@ -2,8 +2,10 @@
 <RCC version="1.0">
     <!-- Each gallery page shows its own source code from here (the part between its snippet markers). -->
     <qresource prefix="/sources">
+        <file alias="AnnotationsPage.cpp">pages/AnnotationsPage.cpp</file>
         <file alias="BasicLinesPage.cpp">pages/BasicLinesPage.cpp</file>
         <file alias="DateTimePage.cpp">pages/DateTimePage.cpp</file>
+        <file alias="ErrorBarsPage.cpp">pages/ErrorBarsPage.cpp</file>
         <file alias="GapsPage.cpp">pages/GapsPage.cpp</file>
         <file alias="InteractionPage.cpp">pages/InteractionPage.cpp</file>
         <file alias="LargeDataPage.cpp">pages/LargeDataPage.cpp</file>
@@ -12,6 +14,7 @@
         <file alias="LiveAppendPage.cpp">pages/LiveAppendPage.cpp</file>
         <file alias="LogScalePage.cpp">pages/LogScalePage.cpp</file>
         <file alias="NumberFormatsPage.cpp">pages/NumberFormatsPage.cpp</file>
+        <file alias="PointStylesPage.cpp">pages/PointStylesPage.cpp</file>
         <file alias="ScatterPage.cpp">pages/ScatterPage.cpp</file>
         <file alias="TwoAxesPage.cpp">pages/TwoAxesPage.cpp</file>
         <file alias="UniformSamplingPage.cpp">pages/UniformSamplingPage.cpp</file>

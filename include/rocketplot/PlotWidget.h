@@ -32,14 +32,19 @@ class QWheelEvent;
 namespace rocketplot
 {
 
+class Annotation;
 class Axis;
+class EventMarker;
 class InputBindings;
 class InteractionController;
 class Legend;
 class PlotLink;
 class LineSeries;
+class ReferenceLine;
 class ScatterSeries;
 class Series;
+class ShadedSpan;
+class TextAnnotation;
 class ViewHistory;
 struct LegendEntry;
 
@@ -61,8 +66,18 @@ struct LegendEntry;
 /// context menu) step through the views the user went through. setInputBindings() changes which
 /// gesture does what.
 ///
-/// Series are owned by the plot. Data rules (copy vs view, UniformX, gaps, exceptions) are
+/// Series are owned by the plot. Data rules (copy vs view, UniformX, gaps, errors, exceptions) are
 /// described on Series.
+///
+/// Annotations mark up the data: lines at a limit, shaded spans, text with an arrow, named events.
+/// The plot owns them too.
+///
+/// @code
+/// plot->addHorizontalLine(4.5, "Structural limit");
+/// plot->addVerticalSpan(150.0, 160.0, "Coast");
+/// plot->addEvent(150.0, "MECO");
+/// plot->addText(78.0, 31.4, "Max Q")->setOffset({40.0, -30.0});
+/// @endcode
 class ROCKETPLOT_EXPORT PlotWidget : public QWidget
 {
     Q_OBJECT
@@ -143,6 +158,30 @@ public:
     void removeSeries(Series* series);
     /// Removes and deletes every series.
     void clearSeries();
+
+    // Annotations
+    // ----------------------------------------------------------------------------------------------
+
+    /// A line across the plot at @p y (on yAxis(); Annotation::setYAxis() changes that).
+    ReferenceLine* addHorizontalLine(double y, const QString& label = {});
+    /// A line across the plot at @p x.
+    ReferenceLine* addVerticalLine(double x, const QString& label = {});
+    /// A shaded region across the plot between two y values.
+    ShadedSpan* addHorizontalSpan(double yMin, double yMax, const QString& label = {});
+    /// A shaded region across the plot between two x values.
+    ShadedSpan* addVerticalSpan(double xMin, double xMax, const QString& label = {});
+    /// Text at the point (@p x, @p y); TextAnnotation::setOffset() moves it away from the point
+    /// and draws an arrow to it.
+    TextAnnotation* addText(double x, double y, const QString& text);
+    /// A named event at @p x: a vertical line with a flag at the top.
+    EventMarker* addEvent(double x, const QString& label);
+
+    /// Every annotation, in the order added (later ones are drawn on top within their layer).
+    [[nodiscard]] QList<Annotation*> annotations() const;
+    /// Removes and deletes @p annotation (if it belongs to this plot).
+    void removeAnnotation(Annotation* annotation);
+    /// Removes and deletes every annotation.
+    void clearAnnotations();
 
     // Axes, legend, title
     // --------------------------------------------------------------------------------------
@@ -238,6 +277,9 @@ Q_SIGNALS:
     void seriesAdded(rocketplot::Series* series);
     /// Emitted just before @p series is deleted.
     void seriesRemoved(rocketplot::Series* series);
+    void annotationAdded(rocketplot::Annotation* annotation);
+    /// Emitted just before @p annotation is deleted.
+    void annotationRemoved(rocketplot::Annotation* annotation);
 
 protected:
     bool event(QEvent* event) override;
@@ -259,13 +301,15 @@ private:
 
     template <class SeriesType>
     SeriesType* adopt(SeriesType* series, const QString& name);
-    void        seriesDataChanged();
-    void        seriesStyleChanged();
-    void        applyAutoscale();
-    void        refitX();
-    void        refitY();
-    void        updateSystemTheme();
-    void        setLink(PlotLink* link);
+    template <class AnnotationType>
+    AnnotationType* adoptAnnotation(AnnotationType* annotation);
+    void            seriesDataChanged();
+    void            seriesStyleChanged();
+    void            applyAutoscale();
+    void            refitX();
+    void            refitY();
+    void            updateSystemTheme();
+    void            setLink(PlotLink* link);
     // Repaints after a change to what the plot shows (the cached rendering is redrawn); linked
     // plots repaint too, as their margins may follow.
     void invalidate();
@@ -289,8 +333,12 @@ private:
     void                             isolateSeries(Series* series);
     void                             showEntryMenu(Series* series, QPoint globalPosition);
     [[nodiscard]] QIcon              markerIcon(const Series& series, Marker shape) const;
-    // Bounds of the visible series' x values (only positive ones for a log axis).
-    [[nodiscard]] Range xDataBounds(bool positiveOnly) const;
+    // Bounds of the x values autoscale fits (only positive ones for a log axis): the visible
+    // series' points and errors, and with @p withAnnotations the annotations that ask to be
+    // included.
+    [[nodiscard]] Range xDataBounds(bool positiveOnly, bool withAnnotations) const;
+    // The same for the y values on @p axis; within the current x range if @p visibleOnly.
+    [[nodiscard]] Range yDataBounds(const Axis& axis, bool positiveOnly, bool visibleOnly) const;
     // The margins left and right of the plot area that this plot's labels need.
     [[nodiscard]] std::pair<double, double> naturalMargins() const;
     [[nodiscard]] qsizetype                 nextColorIndex();

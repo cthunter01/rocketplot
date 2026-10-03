@@ -256,6 +256,34 @@ TEST(Decimator, ScatterKeepsOnePointPerCell)
     }
 }
 
+TEST(Decimator, ScatterReportsWhichPointsItKept)
+{
+    SeriesData data;
+    data.setOwned(std::vector<double>{100, 100.5, 500, 5000, 900},
+                  std::vector<double>{0, 0.5, 10, 0, -20});
+    const PixelBox           box{.left = 0.0, .top = -500.0, .right = 100.0, .bottom = 500.0};
+    std::vector<PixelPoint>  points;
+    std::vector<std::size_t> indices{99};
+    decimateScatter(data, kX, kY, box, 5.0, points, &indices);
+    // The second shares the first's cell; the fourth is outside the box.
+    EXPECT_EQ(indices, (std::vector<std::size_t>{0, 2, 4}));
+    ASSERT_EQ(points.size(), 3U);
+    EXPECT_DOUBLE_EQ(points[1].x, 50.0);
+}
+
+TEST(Decimator, ScatterLeavesOutHiddenPoints)
+{
+    SeriesData data;
+    data.setOwned(std::vector<double>{100, 100.5, 500, 900}, std::vector<double>{0, 0.5, 10, -20});
+    const PixelBox            box{.left = 0.0, .top = -500.0, .right = 100.0, .bottom = 500.0};
+    std::vector<PixelPoint>   points;
+    std::vector<std::size_t>  indices;
+    const std::vector<double> sizes{0.0, 8.0, kNaN};  // none for the last point: it is kept
+    decimateScatter(data, kX, kY, box, 5.0, points, &indices, sizes);
+    // The hidden first point doesn't take the cell from the second.
+    EXPECT_EQ(indices, (std::vector<std::size_t>{1, 3}));
+}
+
 TEST(Decimator, ScatterOnSortedDataOnlyVisitsTheBox)
 {
     SeriesData data;

@@ -6,6 +6,9 @@ add_executable(rocketplot_core_tests
     core/AxisMappingTests.cpp
     core/AxisTicksTests.cpp
     core/DecimatorTests.cpp
+    core/ErrorDataTests.cpp
+    core/ErrorGeometryTests.cpp
+    core/LabelStaggerTests.cpp
     core/LineBandTests.cpp
     core/MinMaxPyramidTests.cpp
     core/NumberFormatterTests.cpp
@@ -22,11 +25,18 @@ rocketplot_configure_target(rocketplot_core_tests)
 # and QSignalSpy; the assertions are GoogleTest's.
 add_executable(rocketplot_tests
     widgets/main.cpp
+    widgets/AnnotationTests.cpp
+    widgets/EventMarkerTests.cpp
     widgets/InputBindingsTests.cpp
     widgets/LegendTests.cpp
     widgets/PlotLinkTests.cpp
     widgets/PlotWidgetTests.cpp
+    widgets/ReferenceLineTests.cpp
+    widgets/RenderedPlotTest.h
+    widgets/ScatterSeriesTests.cpp
     widgets/SeriesTests.cpp
+    widgets/ShadedSpanTests.cpp
+    widgets/TextAnnotationTests.cpp
     widgets/interaction_tests.cpp
     widgets/plottime_tests.cpp)
 target_link_libraries(rocketplot_tests PRIVATE rocketplot::rocketplot Qt6::Test GTest::gtest)

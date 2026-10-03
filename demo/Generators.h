@@ -16,6 +16,10 @@ namespace rocketplot::demo
 [[nodiscard]] std::vector<double> randomWalk(std::size_t count, double stepSize,
                                              std::uint64_t seed);
 
+/// Values spread evenly at random between @p low and @p high.
+[[nodiscard]] std::vector<double> uniform(std::size_t count, double low, double high,
+                                          std::uint64_t seed);
+
 /// Normally distributed values.
 [[nodiscard]] std::vector<double> gaussian(std::size_t count, double mean, double sigma,
                                            std::uint64_t seed);

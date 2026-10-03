@@ -5,7 +5,8 @@
 #include <QPainterPath>
 #include <QPixmap>
 #include <QPointF>
-#include <QString>
+#include <QRgb>
+#include <cstddef>
 #include <span>
 
 #include "core/Decimator.h"
@@ -42,14 +43,39 @@ struct MarkerStyle
 class MarkerPainter
 {
 public:
+    void draw(QPainter& painter, std::span<const core::PixelPoint> centers,
+              const MarkerStyle& style);
+    /// Draws markers that have their own @p sizes and @p colors (one per center; an empty span
+    /// means @p style's for all of them). On a raster device, sizes and colors are rounded to steps
+    /// too small to see, so that markers share pixmaps.
     void        draw(QPainter& painter, std::span<const core::PixelPoint> centers,
+                     std::span<const double> sizes, std::span<const QRgb> colors,
                      const MarkerStyle& style);
     static void draw(QPainter& painter, QPointF center, const MarkerStyle& style);
 
 private:
+    // What a pre-rendered marker looks like.
+    struct SpriteKey
+    {
+        Marker shape            = Marker::NONE;
+        double size             = 0.0;
+        QRgb   color            = 0;
+        QRgb   ring             = 0;
+        double ringWidth        = 0.0;
+        double devicePixelRatio = 1.0;
+
+        friend bool   operator==(const SpriteKey&, const SpriteKey&) = default;
+        friend size_t qHash(const SpriteKey& key, size_t seed = 0) noexcept
+        {
+            return qHashMulti(seed, static_cast<int>(key.shape), key.size, key.color, key.ring,
+                              key.ringWidth, key.devicePixelRatio);
+        }
+    };
+
     [[nodiscard]] const QPixmap& sprite(const MarkerStyle& style, double devicePixelRatio);
 
-    QHash<QString, QPixmap> m_sprites;
+    QHash<SpriteKey, QPixmap> m_sprites;
+    qsizetype                 m_spriteBytes = 0;  // of the sprites' pixels
 };
 
 }  // namespace rocketplot

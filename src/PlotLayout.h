@@ -11,6 +11,7 @@
 namespace rocketplot
 {
 
+class Annotation;
 class Axis;
 class PlotWidget;
 class Series;
@@ -56,14 +57,16 @@ struct PlotLayout
     QFont labelFont;
     QFont titleFont;
     QFont legendFont;
+    QFont annotationFont;
 
     /// The margins left and right of the plot area that this plot's content needs, before
     /// constraints.
     double naturalLeft  = 0.0;
     double naturalRight = 0.0;
 
-    /// The y layout a series is drawn against.
+    /// The y layout a series is drawn against, or an annotation's y values are on.
     [[nodiscard]] const AxisLayout& yFor(const Series& series) const;
+    [[nodiscard]] const AxisLayout& yFor(const Annotation& annotation) const;
 };
 
 /// Lays out @p plot in @p bounds, using @p font as the base font.

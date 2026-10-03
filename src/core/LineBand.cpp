@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <span>
 #include <utility>
 
 #include "core/Decimator.h"
@@ -71,19 +72,18 @@ private:
     double     m_offset = 0.0;
 };
 
-// The column containing x, clamped to the grid.
-std::size_t columnAt(const ColumnGrid& grid, double x)
+}  // namespace
+
+std::size_t ColumnGrid::columnAt(double x) const noexcept
 {
-    const double column = std::floor((x - grid.left) / grid.width);
+    const double column = std::floor((x - left) / width);
     if (!(column > 0.0))
     {
         return 0;
     }
-    return std::min(grid.count - 1,
-                    static_cast<std::size_t>(std::min(column, static_cast<double>(grid.count))));
+    return std::min(count - 1,
+                    static_cast<std::size_t>(std::min(column, static_cast<double>(count))));
 }
-
-}  // namespace
 
 void LineBand::cover(PixelPoint a, PixelPoint b, const ColumnGrid& grid, double halfWidth)
 {
@@ -98,8 +98,8 @@ void LineBand::cover(PixelPoint a, PixelPoint b, const ColumnGrid& grid, double 
     // Where the capsule reaches lowest and highest: under the endpoint with the larger (smaller) y.
     const double      xOfMaxY = a.y >= b.y ? a.x : b.x;
     const double      xOfMinY = a.y >= b.y ? b.x : a.x;
-    const std::size_t first   = columnAt(grid, a.x - halfWidth);
-    const std::size_t last    = columnAt(grid, b.x + halfWidth);
+    const std::size_t first   = grid.columnAt(a.x - halfWidth);
+    const std::size_t last    = grid.columnAt(b.x + halfWidth);
     for (std::size_t column = first; column <= last; ++column)
     {
         const double columnLeft = grid.left + (static_cast<double>(column) * grid.width);
@@ -134,8 +134,8 @@ void LineBand::outline(const Polyline& line, const ColumnGrid& grid, double half
             continue;
         }
         const auto [left, right] = std::ranges::minmax(run, {}, &PixelPoint::x);
-        const std::size_t first  = columnAt(grid, left.x - halfWidth);
-        const std::size_t last   = columnAt(grid, right.x + halfWidth);
+        const std::size_t first  = grid.columnAt(left.x - halfWidth);
+        const std::size_t last   = grid.columnAt(right.x + halfWidth);
         std::fill(m_spans.begin() + static_cast<std::ptrdiff_t>(first),
                   m_spans.begin() + static_cast<std::ptrdiff_t>(last) + 1, ColumnSpan{});
         cover(run.front(), run.front(), grid, halfWidth);  // a lone point is a dot
@@ -167,20 +167,16 @@ void LineBand::outline(const Polyline& line, const ColumnGrid& grid, double half
                 m_spans[column] = m_spans[column - 1];
             }
         }
-        addPolygons(grid, begin, end, polygons);
+        outlineColumns(grid, m_spans, begin, end, polygons);
     }
 }
 
-void LineBand::addPolygons(const ColumnGrid& grid, std::size_t begin, std::size_t end,
-                           Polyline& polygons) const
+void outlineColumns(const ColumnGrid& grid, std::span<const ColumnSpan> spans, std::size_t begin,
+                    std::size_t end, Polyline& polygons)
 {
-    const auto edge = [&](std::size_t column) {
-        return grid.left + (static_cast<double>(column) * grid.width);
-    };
-    const auto center  = [&](std::size_t column) { return edge(column) + (grid.width / 2.0); };
     const auto halfway = [&](std::size_t column) {
-        const ColumnSpan& a = m_spans[column - 1];
-        const ColumnSpan& b = m_spans[column];
+        const ColumnSpan& a = spans[column - 1];
+        const ColumnSpan& b = spans[column];
         return ColumnSpan{.top = (a.top + b.top) / 2.0, .bottom = (a.bottom + b.bottom) / 2.0};
     };
     // Each piece: along the tops through the column centers, then back along the bottoms. The outer
@@ -189,20 +185,20 @@ void LineBand::addPolygons(const ColumnGrid& grid, std::size_t begin, std::size_
     for (std::size_t pieceBegin = begin; pieceBegin < end; pieceBegin += kColumnsPerPolygon)
     {
         const std::size_t pieceEnd = std::min(end, pieceBegin + kColumnsPerPolygon);
-        const ColumnSpan  start    = pieceBegin == begin ? m_spans[begin] : halfway(pieceBegin);
-        const ColumnSpan  finish   = pieceEnd == end ? m_spans[end - 1] : halfway(pieceEnd);
-        polygons.add({.x = edge(pieceBegin), .y = start.top});
+        const ColumnSpan  start    = pieceBegin == begin ? spans[begin] : halfway(pieceBegin);
+        const ColumnSpan  finish   = pieceEnd == end ? spans[end - 1] : halfway(pieceEnd);
+        polygons.add({.x = grid.edge(pieceBegin), .y = start.top});
         for (std::size_t column = pieceBegin; column < pieceEnd; ++column)
         {
-            polygons.add({.x = center(column), .y = m_spans[column].top});
+            polygons.add({.x = grid.center(column), .y = spans[column].top});
         }
-        polygons.add({.x = edge(pieceEnd), .y = finish.top});
-        polygons.add({.x = edge(pieceEnd), .y = finish.bottom});
+        polygons.add({.x = grid.edge(pieceEnd), .y = finish.top});
+        polygons.add({.x = grid.edge(pieceEnd), .y = finish.bottom});
         for (std::size_t column = pieceEnd; column-- > pieceBegin;)
         {
-            polygons.add({.x = center(column), .y = m_spans[column].bottom});
+            polygons.add({.x = grid.center(column), .y = spans[column].bottom});
         }
-        polygons.add({.x = edge(pieceBegin), .y = start.bottom});
+        polygons.add({.x = grid.edge(pieceBegin), .y = start.bottom});
         polygons.endRun();
     }
 }

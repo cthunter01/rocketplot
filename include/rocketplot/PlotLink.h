@@ -65,8 +65,9 @@ private:
     void syncCrosshair(const PlotWidget* source, std::optional<double> x);
     // Redraws every plot (their margins may change).
     void updateAll();
-    // Bounds of every plot's x data, for a shared autoscale.
-    [[nodiscard]] Range xDataBounds(bool positiveOnly) const;
+    // Bounds of what every plot's x autoscale fits (see PlotWidget::xDataBounds()), for a shared
+    // autoscale.
+    [[nodiscard]] Range xDataBounds(bool positiveOnly, bool withAnnotations) const;
     // The widest left and right margins any of the plots needs.
     [[nodiscard]] std::pair<double, double> alignedMargins() const;
 

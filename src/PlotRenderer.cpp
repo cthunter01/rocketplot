@@ -4,24 +4,31 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QFontMetricsF>
+#include <QLineF>
 #include <QList>
 #include <QLocale>
 #include <QPainter>
 #include <QPen>
 #include <QPointF>
 #include <QRectF>
+#include <QRgb>
 #include <QString>
 #include <QStringList>
 #include <Qt>
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <span>
 #include <vector>
 
+#include "AnnotationPainter.h"
 #include "MarkerPainter.h"
 #include "PlotLayout.h"
 #include "TextPainter.h"
+#include "core/AxisMapping.h"
 #include "core/Decimator.h"
+#include "core/ErrorData.h"
+#include "core/ErrorGeometry.h"
 #include "core/LineBand.h"
 #include "core/Occupancy.h"
 #include "core/PolylineClipper.h"
@@ -29,6 +36,7 @@
 #include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/Range.h"
+#include "rocketplot/ScatterSeries.h"
 #include "rocketplot/Series.h"
 #include "rocketplot/Theme.h"
 #include "rocketplot/enums.h"
@@ -48,6 +56,10 @@ constexpr double      kMinDotRadius   = 2.0;
 constexpr double kFadedOpacity = 0.25;
 // Labels are centered on their tick in a box this wide (wider than any label).
 constexpr double kLabelBoxWidth = 400.0;
+// Error bars closer together than this can't be told apart: a series sorted by x then shows its
+// y errors as a band. Others draw one bar per cell of at least kMinBarCell pixels.
+constexpr double kMinBarSpacing = 4.0;
+constexpr double kMinBarCell    = 3.0;
 
 core::PixelBox expanded(const QRectF& rect, double margin)
 {
@@ -79,6 +91,21 @@ QString modeName(const SeriesStats& stats)
             break;
     }
     return mode + (stats.band ? QStringLiteral(", band") : QStringLiteral(", stroked"));
+}
+
+// What was drawn of a series' errors, for the debug overlay; empty for none.
+QString errorsName(const SeriesStats& stats)
+{
+    QString name;
+    if (stats.errorBand)
+    {
+        name += QStringLiteral(", error band");
+    }
+    if (stats.errorBars > 0)
+    {
+        name += QStringLiteral(", %1 error bars").arg(QLocale().toString(stats.errorBars));
+    }
+    return name;
 }
 
 }  // namespace
@@ -116,7 +143,15 @@ void PlotRenderer::render(QPainter& painter, RenderStats& stats, const RenderOpt
     }
     painter.setRenderHint(QPainter::Antialiasing, true);
     drawGrid(painter);
+    painter.save();
+    painter.setClipRect(m_layout->plot);
+    drawAnnotations(painter, *m_plot, *m_layout, *m_text, AnnotationLayer::BELOW_SERIES,
+                    m_options.occupancy);
     drawSeries(painter, stats);
+    drawAnnotations(painter, *m_plot, *m_layout, *m_text, AnnotationLayer::ABOVE_SERIES,
+                    m_options.occupancy);
+    drawAnnotationLabels(painter, *m_plot, *m_layout, *m_text, m_options.occupancy);
+    painter.restore();
     drawAxes(painter);
     drawLabels(painter);
 }
@@ -182,7 +217,6 @@ void PlotRenderer::drawGrid(QPainter& painter) const
 void PlotRenderer::drawSeries(QPainter& painter, RenderStats& stats)
 {
     painter.save();
-    painter.setClipRect(m_layout->plot);
     const QList<Series*> all         = m_plot->series();
     const Series*        highlighted = m_options.highlighted;
     if (highlighted != nullptr && !all.contains(highlighted))
@@ -225,9 +259,15 @@ void PlotRenderer::drawSeries(QPainter& painter, RenderStats& stats)
 
 void PlotRenderer::drawLine(QPainter& painter, const LineSeries& series, SeriesStats& stats)
 {
-    const double                 dpr         = m_layout->devicePixelRatio;
-    const double                 columnWidth = 1.0 / dpr;
-    const core::AxisMapping&     y           = m_layout->yFor(series).mapping;
+    const double             dpr         = m_layout->devicePixelRatio;
+    const double             columnWidth = 1.0 / dpr;
+    const core::AxisMapping& y           = m_layout->yFor(series).mapping;
+    // The errors: a band under the line, bars over it.
+    const ErrorPlan errors = errorPlan(series);
+    if (errors.band)
+    {
+        drawErrorBand(painter, series, stats);
+    }
     const core::DecimationResult result =
         core::decimateLine(series.data(), m_layout->x.mapping, y, columnWidth, m_line);
     stats.mode          = result.mode;
@@ -253,6 +293,10 @@ void PlotRenderer::drawLine(QPainter& painter, const LineSeries& series, SeriesS
     {
         strokeLine(painter, series);
         stats.drawnPoints = m_clipped.pointCount();
+    }
+    if (errors.bars)
+    {
+        drawErrorBars(painter, series, errors.barsWithY, stats);
     }
 
     // Markers only once the points are apart: closer than half a marker, they would merge into a
@@ -285,18 +329,22 @@ void PlotRenderer::fillBand(QPainter& painter, const LineSeries& series, double 
     };
     m_lineBand.outline(m_clipped, grid, halfWidth, m_band);
 
+    fillPolygons(painter, m_band, series.color());
+}
+
+void PlotRenderer::fillPolygons(QPainter& painter, const core::Polyline& polygons,
+                                const QColor& color)
+{
     painter.setPen(Qt::NoPen);
-    painter.setBrush(series.color());
-    std::vector<QPointF> vertices;
-    for (std::size_t r = 0; r < m_band.runCount(); ++r)
+    painter.setBrush(color);
+    for (std::size_t r = 0; r < polygons.runCount(); ++r)
     {
-        const auto polygon = m_band.run(r);
-        vertices.clear();
-        for (const core::PixelPoint& point : polygon)
+        m_vertices.clear();
+        for (const core::PixelPoint& point : polygons.run(r))
         {
-            vertices.emplace_back(point.x, point.y);
+            m_vertices.emplace_back(point.x, point.y);
         }
-        painter.drawPolygon(vertices.data(), static_cast<int>(vertices.size()));
+        painter.drawPolygon(m_vertices.data(), static_cast<int>(m_vertices.size()));
     }
     painter.setBrush(Qt::NoBrush);
 }
@@ -337,7 +385,23 @@ void PlotRenderer::strokeLine(QPainter& painter, const LineSeries& series) const
 
 void PlotRenderer::drawScatter(QPainter& painter, const Series& series, SeriesStats& stats)
 {
-    const MarkerStyle style = markerStyle(series, *m_theme);
+    const ErrorPlan errors = errorPlan(series);
+    if (errors.band)
+    {
+        drawErrorBand(painter, series, stats);
+    }
+    if (errors.bars)
+    {
+        drawErrorBars(painter, series, errors.barsWithY, stats);
+    }
+
+    const MarkerStyle style   = markerStyle(series, *m_theme);
+    const auto*       scatter = qobject_cast<const ScatterSeries*>(&series);
+    if (scatter != nullptr && (scatter->hasSizes() || scatter->hasColors()))
+    {
+        drawStyledScatter(painter, *scatter, style, stats);
+        return;
+    }
     // Markers less than a quarter of their size apart look the same as one: draw one per such cell.
     const double cell = std::max(1.0 / m_layout->devicePixelRatio, style.size / 4.0);
     stats.visiblePoints =
@@ -349,6 +413,147 @@ void PlotRenderer::drawScatter(QPainter& painter, const Series& series, SeriesSt
     {
         m_options.occupancy->addPoints(m_points, style.size);
     }
+}
+
+void PlotRenderer::drawStyledScatter(QPainter& painter, const ScatterSeries& series,
+                                     const MarkerStyle& style, SeriesStats& stats)
+{
+    const std::span<const double> sizes  = series.sizes();
+    const std::span<const QRgb>   colors = series.colors();
+    // Markers with their own sizes or colors differ, so only those on the same pixel are drawn as
+    // one. The largest reaches into the plot from furthest outside it.
+    const double reach = std::max(style.size, series.m_largestSize);
+    stats.visiblePoints =
+        core::decimateScatter(series.data(), m_layout->x.mapping, m_layout->yFor(series).mapping,
+                              expanded(m_layout->plot, reach), 1.0 / m_layout->devicePixelRatio,
+                              m_points, &m_indices, sizes);
+    stats.drawnPoints = m_points.size();
+    // Each drawn point's own size and color; the series' for points added since they were set.
+    m_sizes.clear();
+    m_colors.clear();
+    for (const std::size_t index : m_indices)
+    {
+        if (!sizes.empty())
+        {
+            m_sizes.push_back(index < sizes.size() ? sizes[index] : style.size);
+        }
+        if (!colors.empty())
+        {
+            m_colors.push_back(index < colors.size() ? colors[index] : style.color.rgba());
+        }
+    }
+    m_markers->draw(painter, m_points, m_sizes, m_colors, style);
+    if (m_options.occupancy == nullptr)
+    {
+        return;
+    }
+    for (std::size_t i = 0; i < m_points.size(); ++i)
+    {
+        const double half = (m_sizes.empty() ? style.size : m_sizes[i]) / 2.0;
+        m_options.occupancy->addBox({
+            .left   = m_points[i].x - half,
+            .top    = m_points[i].y - half,
+            .right  = m_points[i].x + half,
+            .bottom = m_points[i].y + half,
+        });
+    }
+}
+
+PlotRenderer::ErrorPlan PlotRenderer::errorPlan(const Series& series) const
+{
+    const core::ErrorData& errors = series.errors();
+    if (errors.empty())
+    {
+        return {};
+    }
+    const bool sorted = series.isSortedByX();
+    bool       dense  = false;
+    if (sorted)
+    {
+        const auto [first, last] =
+            core::visibleIndexRange(series.data(), m_layout->x.mapping.range());
+        dense = static_cast<double>(last - first) * kMinBarSpacing > m_layout->plot.width();
+    }
+    const bool band = errors.hasY() && sorted && (dense || series.errorStyle() == ErrorStyle::BAND);
+    const bool barsWithY = errors.hasY() && !band;
+    return {
+        .band      = band,
+        .bars      = !dense && (errors.hasX() || barsWithY),
+        .barsWithY = barsWithY,
+    };
+}
+
+void PlotRenderer::drawErrorBand(QPainter& painter, const Series& series, SeriesStats& stats)
+{
+    // The plot's pixel columns and one either side, so the band runs to the plot's edges.
+    const QRectF&          plot        = m_layout->plot;
+    const double           columnWidth = 1.0 / m_layout->devicePixelRatio;
+    const core::ColumnGrid grid{
+        .left  = plot.left() - columnWidth,
+        .width = columnWidth,
+        .count = static_cast<std::size_t>(std::ceil(plot.width() / columnWidth)) + 2,
+    };
+    core::decimateErrorBand(series.data(), series.errors(), m_layout->x.mapping,
+                            m_layout->yFor(series).mapping, grid, plot.top() - kLineClipMargin,
+                            plot.bottom() + kLineClipMargin, m_errorBand);
+    QColor fill = series.color();
+    fill.setAlphaF(static_cast<float>(static_cast<double>(fill.alphaF()) * series.bandOpacity()));
+    fillPolygons(painter, m_errorBand, fill);
+    stats.errorBand = true;
+}
+
+void PlotRenderer::drawErrorBars(QPainter& painter, const Series& series, bool withY,
+                                 SeriesStats& stats)
+{
+    const double cap   = series.errorCapSize();
+    const double width = m_theme->errorBarWidth;
+    // Bars are cut off outside the plot, far enough out that the caps drawn there don't show. One
+    // per cell the size of a cap: closer together, bars cover each other's.
+    core::collectErrorBars(series.data(), series.errors(), m_layout->x.mapping,
+                           m_layout->yFor(series).mapping, expanded(m_layout->plot, cap + width),
+                           std::max(kMinBarCell, cap), withY, m_errorBars);
+    m_lines.clear();
+    const double half = cap / 2.0;
+    for (const core::ErrorBar& bar : m_errorBars)
+    {
+        const double x = bar.center.x;
+        const double y = bar.center.y;
+        if (bar.top < bar.bottom)
+        {
+            m_lines.emplace_back(x, bar.top, x, bar.bottom);
+            // A cap at each end that isn't the point itself (no error on that side).
+            for (const double end : {bar.top, bar.bottom})
+            {
+                if (cap > 0.0 && end != y)
+                {
+                    m_lines.emplace_back(x - half, end, x + half, end);
+                }
+            }
+        }
+        if (bar.left < bar.right)
+        {
+            m_lines.emplace_back(bar.left, y, bar.right, y);
+            for (const double end : {bar.left, bar.right})
+            {
+                if (cap > 0.0 && end != x)
+                {
+                    m_lines.emplace_back(end, y - half, end, y + half);
+                }
+            }
+        }
+        if (m_options.occupancy != nullptr)
+        {
+            m_options.occupancy->addBox({
+                .left   = std::min(bar.left, x - half),
+                .top    = std::min(bar.top, y - half),
+                .right  = std::max(bar.right, x + half),
+                .bottom = std::max(bar.bottom, y + half),
+            });
+        }
+    }
+    painter.setPen(QPen(series.color(), width, Qt::SolidLine, Qt::FlatCap));
+    painter.drawLines(m_lines.data(), static_cast<int>(m_lines.size()));
+    stats.errorBars = m_errorBars.size();
 }
 
 void PlotRenderer::drawAxes(QPainter& painter) const
@@ -550,10 +755,11 @@ void drawDebugOverlay(QPainter& painter, const PlotLayout& layout, const RenderS
                          .arg(name, locale.toString(series.totalPoints));
             continue;
         }
-        lines << QStringLiteral("%1: %2 pts, %3 visible → %4 drawn (%5)")
+        lines << QStringLiteral("%1: %2 pts, %3 visible → %4 drawn (%5%6)")
                      .arg(name, locale.toString(series.totalPoints),
                           locale.toString(series.visiblePoints),
-                          locale.toString(series.drawnPoints), modeName(series));
+                          locale.toString(series.drawnPoints), modeName(series),
+                          errorsName(series));
     }
 
     QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);

@@ -21,6 +21,8 @@ struct DemoPage
 
 DemoPage basicLinesPage();
 DemoPage scatterPage();
+DemoPage pointStylesPage();
+DemoPage errorBarsPage();
 DemoPage gapsPage();
 DemoPage uniformSamplingPage();
 DemoPage logScalePage();
@@ -30,6 +32,7 @@ DemoPage numberFormatsPage();
 DemoPage linkedPlotsPage();
 DemoPage interactionPage();
 DemoPage legendPage();
+DemoPage annotationsPage();
 DemoPage largeDataPage();
 DemoPage liveAppendPage();
 

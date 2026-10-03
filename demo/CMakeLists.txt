@@ -7,8 +7,10 @@ add_executable(rocketplot_demo
     MainWindow.h
     demo.qrc
     main.cpp
+    pages/AnnotationsPage.cpp
     pages/BasicLinesPage.cpp
     pages/DateTimePage.cpp
+    pages/ErrorBarsPage.cpp
     pages/GapsPage.cpp
     pages/InteractionPage.cpp
     pages/LargeDataPage.cpp
@@ -17,6 +19,7 @@ add_executable(rocketplot_demo
     pages/LiveAppendPage.cpp
     pages/LogScalePage.cpp
     pages/NumberFormatsPage.cpp
+    pages/PointStylesPage.cpp
     pages/ScatterPage.cpp
     pages/TwoAxesPage.cpp
     pages/UniformSamplingPage.cpp)

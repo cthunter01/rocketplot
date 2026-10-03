@@ -36,6 +36,18 @@ std::vector<double> randomWalk(std::size_t count, double stepSize, std::uint64_t
     return values;
 }
 
+std::vector<double> uniform(std::size_t count, double low, double high, std::uint64_t seed)
+{
+    std::mt19937_64                        engine(seed);
+    std::uniform_real_distribution<double> value(low, high);
+    std::vector<double>                    values(count);
+    for (double& v : values)
+    {
+        v = value(engine);
+    }
+    return values;
+}
+
 std::vector<double> gaussian(std::size_t count, double mean, double sigma, std::uint64_t seed)
 {
     std::mt19937_64                  engine(seed);

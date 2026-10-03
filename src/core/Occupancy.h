@@ -24,6 +24,8 @@ public:
     void addPolyline(const Polyline& line, double width);
     /// Records markers @p size pixels across at @p points.
     void addPoints(const std::vector<PixelPoint>& points, double size);
+    /// Records everything inside @p box (a label, an error bar, one marker).
+    void addBox(PixelBox box);
 
     /// How much of @p box data covers, from 0 (none) to 1 (all of it).
     [[nodiscard]] double coverage(PixelBox box) const;

@@ -20,9 +20,6 @@ namespace rocketplot::core
 namespace
 {
 
-// A column with at most this many points is drawn point for point: a min/max summary would not be
-// shorter.
-constexpr std::size_t kRawPointsPerColumn = 4;
 // The scatter occupancy grid is capped at this many cells (8 MB); larger boxes use coarser cells.
 constexpr double kMaxScatterCells = 64.0 * 1024.0 * 1024.0;
 
@@ -118,27 +115,6 @@ void addColumn(const SeriesData& data, std::size_t first, std::size_t last, Line
     }
 }
 
-// The index range of a sorted series that a line through the visible x range needs: the visible
-// points plus one either side, so the line reaches the plot's edges. Infinite x values can only sit
-// at the ends of sorted data; they are gaps, so they are left out.
-std::pair<std::size_t, std::size_t> visibleIndices(const SeriesData& data, Range visible)
-{
-    const std::size_t n     = data.size();
-    std::size_t       start = data.lowerBound(visible.min);
-    std::size_t       stop  = data.upperBound(visible.max);
-    start                   = start > 0 ? start - 1 : 0;
-    stop                    = stop < n ? stop + 1 : n;
-    while (start < stop && !std::isfinite(data.x(start)))
-    {
-        ++start;
-    }
-    while (stop > start && !std::isfinite(data.x(stop - 1)))
-    {
-        --stop;
-    }
-    return {start, stop};
-}
-
 // Unsorted x: every finite point, except one that falls in the same pixel cell as the point before
 // it (the segment between them stays inside that cell, so it draws nothing new).
 DecimationResult decimateUnsorted(const SeriesData& data, const AxisMapping& x,
@@ -200,6 +176,24 @@ std::span<const PixelPoint> Polyline::run(std::size_t index) const noexcept
     return std::span<const PixelPoint>(m_points).subspan(begin, end - begin);
 }
 
+std::pair<std::size_t, std::size_t> visibleIndexRange(const SeriesData& data, Range visible)
+{
+    const std::size_t n     = data.size();
+    std::size_t       start = data.lowerBound(visible.min);
+    std::size_t       stop  = data.upperBound(visible.max);
+    start                   = start > 0 ? start - 1 : 0;
+    stop                    = stop < n ? stop + 1 : n;
+    while (start < stop && !std::isfinite(data.x(start)))
+    {
+        ++start;
+    }
+    while (stop > start && !std::isfinite(data.x(stop - 1)))
+    {
+        --stop;
+    }
+    return {start, stop};
+}
+
 DecimationResult decimateLine(const SeriesData& data, const AxisMapping& x, const AxisMapping& y,
                               double columnWidth, Polyline& out)
 {
@@ -217,7 +211,7 @@ DecimationResult decimateLine(const SeriesData& data, const AxisMapping& x, cons
     }
 
     const Range visible            = x.range();
-    const auto [start, stop]       = visibleIndices(data, visible);
+    const auto [start, stop]       = visibleIndexRange(data, visible);
     const std::size_t visibleCount = stop - start;
     const double      columns      = std::max(1.0, std::ceil(x.pixelLength() / columnWidth));
     if (static_cast<double>(visibleCount) <= static_cast<double>(kRawPointsPerColumn) * columns)
@@ -258,9 +252,14 @@ DecimationResult decimateLine(const SeriesData& data, const AxisMapping& x, cons
 }
 
 std::size_t decimateScatter(const SeriesData& data, const AxisMapping& x, const AxisMapping& y,
-                            PixelBox box, double cellSize, std::vector<PixelPoint>& out)
+                            PixelBox box, double cellSize, std::vector<PixelPoint>& out,
+                            std::vector<std::size_t>* indices, std::span<const double> sizes)
 {
     out.clear();
+    if (indices != nullptr)
+    {
+        indices->clear();
+    }
     const double width  = box.right - box.left;
     const double height = box.bottom - box.top;
     if (data.empty() || !(width > 0.0) || !(height > 0.0) || !(cellSize > 0.0))
@@ -292,6 +291,10 @@ std::size_t decimateScatter(const SeriesData& data, const AxisMapping& x, const 
         {
             continue;
         }
+        if (i < sizes.size() && !(sizes[i] > 0.0))
+        {
+            continue;  // a hidden marker doesn't take the cell from one that shows
+        }
         const auto        col  = static_cast<std::size_t>((p.x - box.left) / cellSize);
         const auto        row  = static_cast<std::size_t>((p.y - box.top) / cellSize);
         const std::size_t cell = (row * cols) + col;
@@ -301,6 +304,10 @@ std::size_t decimateScatter(const SeriesData& data, const AxisMapping& x, const 
         }
         occupied[cell] = true;
         out.push_back(p);
+        if (indices != nullptr)
+        {
+            indices->push_back(i);
+        }
     }
     return last - first;
 }

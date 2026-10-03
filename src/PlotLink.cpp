@@ -152,12 +152,12 @@ void PlotLink::updateAll()
     }
 }
 
-Range PlotLink::xDataBounds(bool positiveOnly) const
+Range PlotLink::xDataBounds(bool positiveOnly, bool withAnnotations) const
 {
     Range bounds = Range::empty();
     for (const PlotWidget* plot : m_plots)
     {
-        bounds = bounds.united(plot->xDataBounds(positiveOnly));
+        bounds = bounds.united(plot->xDataBounds(positiveOnly, withAnnotations));
     }
     return bounds;
 }

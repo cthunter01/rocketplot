@@ -19,6 +19,7 @@
 #include "core/AxisTicks.h"
 #include "core/NumberFormatter.h"
 #include "core/TimeTicks.h"
+#include "rocketplot/Annotation.h"
 #include "rocketplot/Axis.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/Series.h"
@@ -189,7 +190,8 @@ void setFonts(PlotLayout& layout, const QFont& font, const Theme& theme)
     layout.labelFont = scaledFont(font, theme.labelFontScale);
     layout.titleFont = scaledFont(font, theme.titleFontScale);
     layout.titleFont.setWeight(QFont::DemiBold);
-    layout.legendFont = layout.labelFont;
+    layout.legendFont     = layout.labelFont;
+    layout.annotationFont = scaledFont(font, theme.annotationFontScale);
 }
 
 double tickLabelHeight(const PlotLayout& layout)
@@ -390,6 +392,11 @@ void placeAxes(const PlotWidget& plot, PlotLayout& layout, const Vertical& verti
 const AxisLayout& PlotLayout::yFor(const Series& series) const
 {
     return series.isOnSecondaryYAxis() ? y2 : y;
+}
+
+const AxisLayout& PlotLayout::yFor(const Annotation& annotation) const
+{
+    return annotation.isOnSecondaryYAxis() ? y2 : y;
 }
 
 core::Scale scaleOf(const Axis& axis)

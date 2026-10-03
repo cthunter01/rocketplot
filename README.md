@@ -23,6 +23,16 @@ plot->addLine(rocketplot::UniformX{.start = 0.0, .step = 1.0 / 1000.0}, samples,
 // A second unit on the right; timestamps (seconds since the epoch) as dates and times.
 plot->addLine(time, velocity, "Velocity")->setYAxis(plot->yAxis2());
 plot->xAxis()->setScaleType(rocketplot::ScaleType::DATE_TIME);
+
+// Uncertainty: a band around a line, bars on scatter points.
+plot->addLine(time, estimate, "Estimate")->setYErrors(sigma);
+plot->addScatter(pressure, thrust, "Test firings")->setYErrors(below, above);
+
+// Mark it up: a limit, a phase, an event, a note with an arrow.
+plot->addHorizontalLine(4.5, "Structural limit");
+plot->addVerticalSpan(150.0, 160.0, "Coast");
+plot->addEvent(150.0, "MECO");
+plot->addText(78.0, 31.4, "Max Q")->setOffset({40.0, -30.0});
 ```
 
 - **Data**: copied in from any range of numbers (`int`, `float`, `std::int16_t`, ...), moved in from an rvalue
@@ -30,6 +40,13 @@ plot->xAxis()->setScaleType(rocketplot::ScaleType::DATE_TIME);
   NaN and infinite values are gaps.
 - **Large data**: sorted series are drawn from their visible range only, as the extremes of each pixel column,
   read from a precomputed min/max pyramid. 10 million points pan and zoom at interactive frame rates.
+- **Errors**: any series takes errors along x and y, the same or different below and above. Lines draw y errors
+  as a band and scatter series as bars with caps (either can do both); bars too dense to tell apart become a
+  band, read from min/max pyramids like the data. Autoscale makes room for them.
+- **Scatter**: seven marker shapes, and a size and color per point for a third and fourth value.
+- **Annotations**: reference lines with labels, shaded spans, text with an arrow to the point it is about, and
+  event markers whose flags are staggered so neighbors don't cover each other. They move with the data; autoscale
+  makes room for the ones you say.
 - **Axes**: linear, logarithmic and date/time scales (calendar-aware ticks and concise labels in any time zone),
   a secondary y axis on the right, minor ticks and grid, short labels (a common offset like `+1.7×10⁹`, a `×10ⁿ`
   multiplier, or SI prefixes), and Qt rich text in titles and labels (`v<sub>z</sub>`).

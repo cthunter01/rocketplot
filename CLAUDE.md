@@ -43,25 +43,27 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
 
 ## Layout
 - `include/rocketplot/`: public headers (`PlotWidget`, `Series`/`LineSeries`/`ScatterSeries`, `Axis`, `Legend`,
-  `PlotLink`, `InputBindings`, `Theme`, `enums.h`, `plottime.h`; Qt-free value types `Range`, `UniformX`,
-  `NumericRange`).
+  `Annotation`/`ReferenceLine`/`ShadedSpan`/`TextAnnotation`/`EventMarker`, `PlotLink`, `InputBindings`, `Theme`,
+  `enums.h`, `plottime.h`; Qt-free value types `Range`, `UniformX`, `NumericRange`).
   `export.h` is generated into `build/<preset>/include/rocketplot/`
 - `src/core/`: `rocketplot_core`, an OBJECT library with no Qt: series storage (`SeriesData`), min/max pyramid,
-  decimation, line band outlines, clipping, axis mapping (linear/log), ticks (`TickGenerator` linear/log,
-  `TimeTicks` calendar), labels and readouts (`NumberFormatter`), `AxisTicks` (picks per axis kind), autoscale.
-  Private headers
+  decimation, line band outlines, clipping, errors (`ErrorData` holds the ends of the bars, `ErrorGeometry` turns
+  them into bars and band outlines), `LabelStagger` (rows for event flags), axis mapping (linear/log), ticks (`TickGenerator` linear/log, `TimeTicks` calendar), labels and readouts
+  (`NumberFormatter`), `AxisTicks` (picks per axis kind), autoscale. Private headers
 - `src/`: `rocketplot` (alias `rocketplot::rocketplot`): the widget layer. `PlotLayout` (where everything goes),
   `PlotRenderer` (paints a layout; shared by screen and future exports), `InteractionController` (mouse, wheel,
   trackpad and touch input through the `InputBindings`), `ViewHistory` (back/forward), `LegendLayout` (legend
   placement, values and drawing), `Occupancy` (where data was drawn, for the legend's BEST spot), `Overlays`
-  (crosshair and zoom box), `PlotLink` (linked x axes, crosshair and history), `TextPainter` (plain and rich
+  (crosshair and zoom box), `AnnotationPainter` (annotations are part of the cached rendering: under the series,
+  over them, then their labels), `PlotLink` (linked x axes, crosshair and history), `TextPainter` (plain and rich
   text), `MarkerPainter`, `plottime.cpp`, `Logging` (categories `rocketplot.render|input|data`). The legend,
   crosshair and zoom box are drawn over the widget's cached rendering: call `PlotWidget::invalidate()` when what
   the plot shows changes, `update()` for overlays only
 - `demo/`: `rocketplot_demo`, a gallery: one `pages/<Name>Page.cpp` per page, listed in `MainWindow.cpp` and
   `demo.qrc` (the code between `// [snippet]` markers is shown in the app)
 - `tests/core/`: `rocketplot_core_tests` (links the core objects); `tests/widgets/`: `rocketplot_tests` (offscreen Qt,
-  own `main.cpp`). Class tests: `MyClassTests.cpp`; other tests: `*_tests.cpp`
+  own `main.cpp`). Class tests: `MyClassTests.cpp`; other tests: `*_tests.cpp`. Tests of what gets drawn use the
+  `RenderedPlotTest` fixture (fixed size, theme and axes) and compare a rendering with and without the thing
 - `cmake/ProjectOptions.cmake`: `rocketplot_configure_target()` (warnings, sanitizers, coverage, tidy) and
   `rocketplot_configure_qt_target()` (that plus moc, `QT_NO_KEYWORDS` and a Qt 6.8 deprecation cap)
 - `cmake/Dependencies.cmake`: Qt (find_package) and third-party libraries via FetchContent

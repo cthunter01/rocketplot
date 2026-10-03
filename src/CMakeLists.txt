@@ -8,6 +8,9 @@ add_library(rocketplot_core OBJECT
     core/AxisMapping.cpp
     core/AxisTicks.cpp
     core/Decimator.cpp
+    core/ErrorData.cpp
+    core/ErrorGeometry.cpp
+    core/LabelStagger.cpp
     core/LineBand.cpp
     core/MinMaxPyramid.cpp
     core/NumberFormatter.cpp
@@ -39,7 +42,11 @@ generate_export_header(rocketplot
 
 target_sources(rocketplot
     PRIVATE
+        Annotation.cpp
+        AnnotationPainter.cpp
+        AnnotationPainter.h
         Axis.cpp
+        EventMarker.cpp
         InputBindings.cpp
         InteractionController.cpp
         InteractionController.h
@@ -59,8 +66,11 @@ target_sources(rocketplot
         PlotLink.cpp
         PlotRenderer.h
         PlotWidget.cpp
+        ReferenceLine.cpp
         ScatterSeries.cpp
         Series.cpp
+        ShadedSpan.cpp
+        TextAnnotation.cpp
         TextPainter.cpp
         TextPainter.h
         Theme.cpp
@@ -71,7 +81,9 @@ target_sources(rocketplot
         FILE_SET HEADERS
         BASE_DIRS ${PROJECT_SOURCE_DIR}/include ${PROJECT_BINARY_DIR}/include
         FILES
+            ${PROJECT_SOURCE_DIR}/include/rocketplot/Annotation.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/Axis.h
+            ${PROJECT_SOURCE_DIR}/include/rocketplot/EventMarker.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/InputBindings.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/Legend.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/LineSeries.h
@@ -79,8 +91,11 @@ target_sources(rocketplot
             ${PROJECT_SOURCE_DIR}/include/rocketplot/PlotLink.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/PlotWidget.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/Range.h
+            ${PROJECT_SOURCE_DIR}/include/rocketplot/ReferenceLine.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/ScatterSeries.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/Series.h
+            ${PROJECT_SOURCE_DIR}/include/rocketplot/ShadedSpan.h
+            ${PROJECT_SOURCE_DIR}/include/rocketplot/TextAnnotation.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/Theme.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/UniformX.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/enums.h

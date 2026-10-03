@@ -20,8 +20,9 @@ namespace rocketplot
 
 namespace core
 {
+class ErrorData;
 class SeriesData;
-}
+}  // namespace core
 
 class Axis;
 class PlotWidget;
@@ -38,9 +39,14 @@ class PlotWidget;
 /// y is all there is). Points with a NaN or infinite x or y are gaps: lines break there, and
 /// autoscale ignores them.
 ///
-/// Data functions throw std::invalid_argument when x and y differ in size. append() throws
-/// std::logic_error on a view, or with the wrong kind of x (x values for a UniformX series, or none
-/// for one with an x array).
+/// Points can have errors along x and y (setXErrors(), setYErrors()), drawn as bars or as a band
+/// (ErrorStyle). Autoscale makes room for them. Errors belong to the points the series has when
+/// they are set: replacing the data (setData(), setDataView(), notifyDataChanged(), clear())
+/// removes them, and points appended later have none until the errors are set again.
+///
+/// Data functions throw std::invalid_argument when x and y differ in size, or errors and points in
+/// number. append() throws std::logic_error on a view, or with the wrong kind of x (x values for a
+/// UniformX series, or none for one with an x array).
 class ROCKETPLOT_EXPORT Series : public QObject
 {
     Q_OBJECT
@@ -52,6 +58,11 @@ class ROCKETPLOT_EXPORT Series : public QObject
         double markerSize READ markerSize WRITE setMarkerSize RESET resetMarkerSize NOTIFY changed)
     Q_PROPERTY(
         bool onSecondaryYAxis READ isOnSecondaryYAxis WRITE setOnSecondaryYAxis NOTIFY changed)
+    Q_PROPERTY(rocketplot::ErrorStyle errorStyle READ errorStyle WRITE setErrorStyle NOTIFY changed)
+    Q_PROPERTY(double errorCapSize READ errorCapSize WRITE setErrorCapSize RESET resetErrorCapSize
+                   NOTIFY changed)
+    Q_PROPERTY(double bandOpacity READ bandOpacity WRITE setBandOpacity RESET resetBandOpacity
+                   NOTIFY changed)
 
 public:
     ~Series() override;
@@ -178,14 +189,99 @@ public:
     /// Removes every point, leaving an empty series with an x array.
     void clear();
 
+    // Errors
+    // ---------------------------------------------------------------------------------------------------
+
+    /// Gives each point an error along y: point i may lie anywhere from y[i] - error[i] to
+    /// y[i] + error[i]. @p error has one value per point, copied; signs are ignored, and a NaN is
+    /// no error.
+    template <NumericRange E>
+    void setYErrors(const E& error)
+    {
+        if constexpr (detail::ContiguousDoubles<E>)
+        {
+            applyYErrors(std::span<const double>(error), std::span<const double>(error));
+        }
+        else
+        {
+            const std::vector<double> errors = detail::toDoubleVector(error);
+            applyYErrors(errors, errors);
+        }
+    }
+    /// Errors that differ below and above: from y[i] - minus[i] to y[i] + plus[i].
+    template <NumericRange M, NumericRange P>
+    void setYErrors(const M& minus, const P& plus)
+    {
+        if constexpr (detail::ContiguousDoubles<M> && detail::ContiguousDoubles<P>)
+        {
+            applyYErrors(std::span<const double>(minus), std::span<const double>(plus));
+        }
+        else
+        {
+            const std::vector<double> below = detail::toDoubleVector(minus);
+            const std::vector<double> above = detail::toDoubleVector(plus);
+            applyYErrors(below, above);
+        }
+    }
+    /// The same along x: from x[i] - error[i] to x[i] + error[i]. Always drawn as bars.
+    template <NumericRange E>
+    void setXErrors(const E& error)
+    {
+        if constexpr (detail::ContiguousDoubles<E>)
+        {
+            applyXErrors(std::span<const double>(error), std::span<const double>(error));
+        }
+        else
+        {
+            const std::vector<double> errors = detail::toDoubleVector(error);
+            applyXErrors(errors, errors);
+        }
+    }
+    template <NumericRange M, NumericRange P>
+    void setXErrors(const M& minus, const P& plus)
+    {
+        if constexpr (detail::ContiguousDoubles<M> && detail::ContiguousDoubles<P>)
+        {
+            applyXErrors(std::span<const double>(minus), std::span<const double>(plus));
+        }
+        else
+        {
+            const std::vector<double> below = detail::toDoubleVector(minus);
+            const std::vector<double> above = detail::toDoubleVector(plus);
+            applyXErrors(below, above);
+        }
+    }
+    /// Removes the errors along both axes.
+    void               clearErrors();
+    [[nodiscard]] bool hasXErrors() const noexcept;
+    [[nodiscard]] bool hasYErrors() const noexcept;
+    /// The ends of the error bar of point @p index (< size()); both are the point's own x or y
+    /// where it has no error.
+    [[nodiscard]] Range xErrorRange(std::size_t index) const noexcept;
+    [[nodiscard]] Range yErrorRange(std::size_t index) const noexcept;
+
+    /// How the errors are drawn: by default lines get a band and scatter series bars.
+    [[nodiscard]] ErrorStyle errorStyle() const noexcept { return m_errorStyle; }
+    void                     setErrorStyle(ErrorStyle style);
+    /// Width of the caps at the ends of error bars in device-independent pixels (0: no caps); by
+    /// default the theme's.
+    [[nodiscard]] double errorCapSize() const;
+    void                 setErrorCapSize(double size);
+    void                 resetErrorCapSize();
+    /// How opaque the error band is, from 0 to 1 (it is filled in the series color); by default
+    /// the theme's.
+    [[nodiscard]] double bandOpacity() const;
+    void                 setBandOpacity(double opacity);
+    void                 resetBandOpacity();
+
 Q_SIGNALS:
     /// A style property changed (name, visibility, color, marker, ...).
     void changed();
-    /// The data was replaced, appended to or notified as changed.
+    /// The data was replaced, appended to or notified as changed, or its errors were.
     void dataChanged();
 
 protected:
-    explicit Series(PlotWidget* plot, Marker marker);
+    explicit Series(PlotWidget* plot, Marker marker, ErrorStyle errorStyle);
 
 private:
     friend class PlotRenderer;
@@ -193,11 +289,22 @@ private:
 
     void appendPoints(std::span<const double> x, std::span<const double> y);
     void appendSamples(std::span<const double> y);
+    void applyXErrors(std::span<const double> minus, std::span<const double> plus);
+    void applyYErrors(std::span<const double> minus, std::span<const double> plus);
     void dataWasChanged();
+    // The points were replaced (not added to): what belonged to the old ones goes.
+    void                                  dataWasReplaced();
+    virtual void                          pointsReplaced();
     [[nodiscard]] const core::SeriesData& data() const noexcept { return *m_data; }
+    [[nodiscard]] const core::ErrorData&  errors() const noexcept { return *m_errors; }
+    // What autoscale fits: the points with their error bars.
+    [[nodiscard]] Range fitBoundsX(bool positiveOnly) const;
+    [[nodiscard]] Range fitBoundsY(bool positiveOnly) const;
+    [[nodiscard]] Range fitBoundsYWithin(Range xRange, bool positiveOnly) const;
 
     PlotWidget*                       m_plot;
     std::unique_ptr<core::SeriesData> m_data;
+    std::unique_ptr<core::ErrorData>  m_errors;
     QString                           m_name;
     bool                              m_visible = true;
     std::optional<QColor>             m_color;
@@ -205,6 +312,9 @@ private:
     Marker                            m_marker;
     std::optional<double>             m_markerSize;
     bool                              m_secondaryYAxis = false;
+    ErrorStyle                        m_errorStyle;
+    std::optional<double>             m_errorCapSize;
+    std::optional<double>             m_bandOpacity;
 };
 
 }  // namespace rocketplot

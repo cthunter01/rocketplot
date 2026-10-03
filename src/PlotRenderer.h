@@ -1,17 +1,20 @@
 #pragma once
 
+#include <QLineF>
+#include <QPointF>
+#include <QRgb>
 #include <QString>
 #include <cstddef>
 #include <vector>
 
 #include "core/Decimator.h"
+#include "core/ErrorGeometry.h"
 #include "core/LineBand.h"
 #include "core/Occupancy.h"
 
 class QColor;
 class QPainter;
 class QPen;
-class QPointF;
 class QRectF;
 
 namespace rocketplot
@@ -19,6 +22,7 @@ namespace rocketplot
 
 class LineSeries;
 class MarkerPainter;
+struct MarkerStyle;
 class PlotWidget;
 class ScatterSeries;
 class Series;
@@ -36,6 +40,8 @@ struct SeriesStats
     std::size_t          visiblePoints = 0;      ///< Points decimation looked at
     std::size_t          drawnPoints   = 0;      ///< Vertices or markers handed to QPainter
     bool                 band          = false;  ///< A line drawn as a filled outline (dense data)
+    std::size_t          errorBars     = 0;      ///< Error bars drawn
+    bool                 errorBand     = false;  ///< y errors drawn as a band
 };
 
 struct RenderStats
@@ -54,9 +60,9 @@ struct RenderOptions
     core::Occupancy* occupancy = nullptr;
 };
 
-/// Paints a plot with a precomputed layout: background, grid, series, axes and labels (the legend
-/// is drawn over it, see LegendLayout.h). It only reads the plot, so the same code can paint the
-/// widget or (later) an image or vector export.
+/// Paints a plot with a precomputed layout: background, grid, annotations, series, axes and labels
+/// (the legend is drawn over it, see LegendLayout.h). It only reads the plot, so the same code can
+/// paint the widget or (later) an image or vector export.
 class PlotRenderer
 {
 public:
@@ -70,8 +76,22 @@ private:
     void drawSeries(QPainter& painter, RenderStats& stats);
     void drawLine(QPainter& painter, const LineSeries& series, SeriesStats& stats);
     void fillBand(QPainter& painter, const LineSeries& series, double columnWidth);
+    // Fills each run of @p polygons in @p color.
+    void fillPolygons(QPainter& painter, const core::Polyline& polygons, const QColor& color);
     void strokeLine(QPainter& painter, const LineSeries& series) const;
     void drawScatter(QPainter& painter, const Series& series, SeriesStats& stats);
+    void drawStyledScatter(QPainter& painter, const ScatterSeries& series, const MarkerStyle& style,
+                           SeriesStats& stats);
+    // How a series' errors are drawn in this frame.
+    struct ErrorPlan
+    {
+        bool band      = false;  // the y errors as a band
+        bool bars      = false;  // bars: of the x errors, and of the y errors if barsWithY
+        bool barsWithY = false;
+    };
+    [[nodiscard]] ErrorPlan errorPlan(const Series& series) const;
+    void drawErrorBand(QPainter& painter, const Series& series, SeriesStats& stats);
+    void drawErrorBars(QPainter& painter, const Series& series, bool withY, SeriesStats& stats);
     void drawAxes(QPainter& painter) const;
     void drawLabels(QPainter& painter) const;
 
@@ -86,6 +106,13 @@ private:
     core::Polyline                m_band;
     core::LineBand                m_lineBand;
     std::vector<core::PixelPoint> m_points;
+    std::vector<std::size_t>      m_indices;  // of m_points, for markers with their own style
+    std::vector<double>           m_sizes;
+    std::vector<QRgb>             m_colors;
+    core::Polyline                m_errorBand;
+    std::vector<QPointF>          m_vertices;
+    std::vector<core::ErrorBar>   m_errorBars;
+    std::vector<QLineF>           m_lines;
 };
 
 /// The center of the device pixel that contains @p value (in logical coordinates): a 1-device-pixel
