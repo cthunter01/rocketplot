@@ -70,7 +70,8 @@ int main(int argc, char* argv[])
         parser.addHelpOption();
         const QCommandLineOption theme(
             QStringList{QStringLiteral("theme")},
-            QStringLiteral("Start with this plot theme: system, light or dark."),
+            QStringLiteral(
+                "Start with this plot theme: system, light, dark, high-contrast or print."),
             QStringLiteral("theme"), QStringLiteral("system"));
         const QCommandLineOption screenshots(
             QStringList{QStringLiteral("screenshots")},
@@ -90,6 +91,14 @@ int main(int argc, char* argv[])
         else if (themeName == QLatin1String("dark"))
         {
             window.selectTheme(rocketplot::ThemeMode::DARK);
+        }
+        else if (themeName == QLatin1String("high-contrast"))
+        {
+            window.selectTheme(rocketplot::ThemeMode::HIGH_CONTRAST);
+        }
+        else if (themeName == QLatin1String("print"))
+        {
+            window.selectTheme(rocketplot::ThemeMode::PRINT);
         }
         window.resize(kWidth, kHeight);
         window.show();

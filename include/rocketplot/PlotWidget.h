@@ -7,12 +7,15 @@
 #include <QSize>
 #include <QString>
 #include <QWidget>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <span>
+#include <string_view>
 #include <utility>
 #include <vector>
 
+#include "rocketplot/ExportOptions.h"
 #include "rocketplot/NumericRange.h"
 #include "rocketplot/Range.h"
 #include "rocketplot/Theme.h"
@@ -23,9 +26,11 @@
 class QContextMenuEvent;
 class QEvent;
 class QIcon;
+class QImage;
 class QMenu;
 class QMouseEvent;
 class QPaintEvent;
+class QPainter;
 class QResizeEvent;
 class QWheelEvent;
 
@@ -68,6 +73,10 @@ struct LegendEntry;
 ///
 /// Series are owned by the plot. Data rules (copy vs view, UniformX, gaps, errors, exceptions) are
 /// described on Series.
+///
+/// A plot can be exported as it looks, without what follows the pointer: as an image at any size
+/// and sharpness, as an SVG or PDF drawing, onto the clipboard, or its data as CSV (see
+/// ExportOptions). The context menu has entries for these.
 ///
 /// Annotations mark up the data: lines at a limit, shaded spans, text with an arrow, named events.
 /// The plot owns them too.
@@ -244,6 +253,43 @@ public:
     [[nodiscard]] bool debugOverlay() const noexcept;
     void               setDebugOverlay(bool enabled);
 
+    // Output
+    // ---------------------------------------------------------------------------------------------------
+
+    /// The plot as an image: what the widget shows, without the crosshair, the zoom box and the
+    /// highlight of a legend entry pointed at. Null if it can't be made (too large).
+    [[nodiscard]] QImage renderToImage(const ExportOptions& options = {}) const;
+    /// Draws the same into @p rect of @p painter: a page being printed, a figure of several plots.
+    void paint(QPainter& painter, const QRectF& rect) const;
+
+    /// Writes the plot to @p fileName in the format its suffix names: .svg, .pdf, .csv (or .tsv,
+    /// separated by tabs), and for an image any format Qt can write (.png, .jpg, .bmp, ...). False
+    /// if the file can't be written or the format isn't known.
+    [[nodiscard]] bool exportTo(const QString& fileName, const ExportOptions& options = {}) const;
+    /// Writes the plot as an image, in the format the suffix of @p fileName names.
+    [[nodiscard]] bool exportImage(const QString&       fileName,
+                                   const ExportOptions& options = {}) const;
+    /// Writes the plot as an SVG drawing. Text stays text, and dense data is thinned to what a
+    /// screen would show (one column of extremes per device-independent pixel). The data is
+    /// clipped to the plot area with a clip path (SVG 1.1), which browsers and drawing programs
+    /// honor; QtSvg's own renderer does not, and shows lines and markers at the edge of the plot
+    /// running a few pixels past the axes.
+    [[nodiscard]] bool exportSvg(const QString& fileName, const ExportOptions& options = {}) const;
+    /// Writes the plot as a PDF document of one page, the size of the plot.
+    [[nodiscard]] bool exportPdf(const QString& fileName, const ExportOptions& options = {}) const;
+    /// Puts the plot on the clipboard as an image.
+    void copyToClipboard(const ExportOptions& options = {}) const;
+
+    /// The data in view as CSV text: the points of the visible series whose x is within the x
+    /// axis's range, with a header row of the x axis's label and the series' names. Series on one
+    /// time base share an x column; one with other x values has its own. Errors are written as the
+    /// ends of their bars. Numbers are written in full, with a decimal point whatever the locale (a
+    /// DATE_TIME axis's as seconds since the epoch, as they are stored), and gaps (NaN) as empty
+    /// cells.
+    [[nodiscard]] QString toCsv(QChar separator = QLatin1Char(',')) const;
+    /// Writes toCsv() to a file (UTF-8), without holding it all in memory.
+    [[nodiscard]] bool exportCsv(const QString& fileName, QChar separator = QLatin1Char(',')) const;
+
     // Geometry
     // -------------------------------------------------------------------------------------------------
 
@@ -324,6 +370,12 @@ private:
     void updateCursor();
     void showContextMenu(QPoint position, QPoint globalPosition);
     void renderCache();
+    // Exports: the plot as it is exported, laid out in @p bounds; the size an export is laid out
+    // in; the CSV text, a piece at a time; and the context menu's "Export…".
+    void paintExport(QPainter& painter, const QRectF& bounds, double devicePixelRatio) const;
+    [[nodiscard]] QSize exportSize(const ExportOptions& options) const;
+    void writeCsv(QChar separator, const std::function<void(std::string_view)>& write) const;
+    void exportWithDialog();
     // The legend: what the pointer is on (as last drawn, and if the legend is interactive), what
     // that highlights, and what clicking and its menu do.
     [[nodiscard]] const LegendEntry* legendEntryAt(QPointF position) const;

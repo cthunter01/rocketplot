@@ -96,7 +96,8 @@ MainWindow::MainWindow(QWidget* parent)
         basicLinesPage(), scatterPage(),         pointStylesPage(), errorBarsPage(),
         gapsPage(),       uniformSamplingPage(), logScalePage(),    dateTimePage(),
         twoAxesPage(),    numberFormatsPage(),   linkedPlotsPage(), interactionPage(),
-        legendPage(),     annotationsPage(),     largeDataPage(),   liveAppendPage(),
+        legendPage(),     annotationsPage(),     exportPage(),      largeDataPage(),
+        liveAppendPage(),
     },
     m_list(new QListWidget(this)),
     m_pageLayout(new QVBoxLayout),
@@ -111,6 +112,9 @@ MainWindow::MainWindow(QWidget* parent)
     m_theme->addItem(QStringLiteral("System"), QVariant::fromValue(ThemeMode::SYSTEM));
     m_theme->addItem(QStringLiteral("Light"), QVariant::fromValue(ThemeMode::LIGHT));
     m_theme->addItem(QStringLiteral("Dark"), QVariant::fromValue(ThemeMode::DARK));
+    m_theme->addItem(QStringLiteral("High contrast"),
+                     QVariant::fromValue(ThemeMode::HIGH_CONTRAST));
+    m_theme->addItem(QStringLiteral("Print"), QVariant::fromValue(ThemeMode::PRINT));
     toolBar->addWidget(m_theme);
     toolBar->addSeparator();
     m_overlay = toolBar->addAction(QStringLiteral("Debug overlay"));

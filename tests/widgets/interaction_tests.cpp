@@ -441,9 +441,16 @@ TEST_F(InteractionTest, ContextMenuHasTheViewActions)
     QMenu* menu = openMenu();
     ASSERT_NE(menu, nullptr);
     EXPECT_EQ(aboutToShow.count(), 1);
-    EXPECT_EQ(actionTexts(*menu), (QStringList{"Back", "Forward", "Reset view", "Crosshair"}));
+    EXPECT_EQ(actionTexts(*menu),
+              (QStringList{"Back", "Forward", "Reset view", "Crosshair", "Copy image", "Export…"}));
     EXPECT_FALSE(menu->actions().front()->isEnabled());  // nothing to go back to
-    QAction* crosshair = menu->actions().back();
+    // By name: triggering Export… instead would wait for a file dialog that nobody answers.
+    QAction* crosshair = nullptr;
+    for (QAction* action : menu->actions())
+    {
+        crosshair = action->text() == "Crosshair" ? action : crosshair;
+    }
+    ASSERT_NE(crosshair, nullptr);
     crosshair->trigger();
     EXPECT_TRUE(m_plot.isCrosshairEnabled());
     menu->close();

@@ -1,5 +1,10 @@
 # rocketplot
 
+[![Latest release](https://img.shields.io/github/v/release/cthunter01/rocketplot)](https://github.com/cthunter01/rocketplot/releases/latest)
+[![CI](https://github.com/cthunter01/rocketplot/actions/workflows/ci.yml/badge.svg)](https://github.com/cthunter01/rocketplot/actions/workflows/ci.yml)
+![Linux, macOS, Windows](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-informational)
+![C++23](https://img.shields.io/badge/C%2B%2B-23-blue)
+
 A Qt 6 widget for plotting numeric data in C++ applications: any number of data sets on shared axes, with a
 legend, taken straight from `std::vector` (or any range of numbers), and smooth to pan and zoom with millions of
 points per series. A demo application shows off what it does and is where new features get worked out.
@@ -33,6 +38,11 @@ plot->addHorizontalLine(4.5, "Structural limit");
 plot->addVerticalSpan(150.0, 160.0, "Coast");
 plot->addEvent(150.0, "MECO");
 plot->addText(78.0, 31.4, "Max Q")->setOffset({40.0, -30.0});
+
+// Take it out: a sharp image for a report, a drawing, the data in view.
+plot->exportImage("ascent.png", {.size = {600, 400}, .dpi = 300.0});
+plot->exportPdf("ascent.pdf", {.theme = rocketplot::Theme::print()});
+plot->exportCsv("ascent.csv");
 ```
 
 - **Data**: copied in from any range of numbers (`int`, `float`, `std::int16_t`, ...), moved in from an rvalue
@@ -62,8 +72,13 @@ plot->addText(78.0, 31.4, "Max Q")->setOffset({40.0, -30.0});
 - **Legend**: goes where it hides the least data, or where you drag it. Click an entry to hide its series,
   double-click to show it alone, point at it to bring its series forward, right-click it to change its color,
   width or marker. With the crosshair on, each entry reads its series at the pointer.
-- **Look**: light and dark themes that follow the application's palette, a colorblind-safe series palette,
-  hairline grid, tabular tick labels. A debug overlay shows layout boxes, frame time and what each series drew.
+- **Export**: an image at any size and sharpness (a 600 × 400 plot at 300 dpi), SVG and PDF drawings with text
+  kept as text, the clipboard, and the data in view as CSV. An export looks like the widget, without the
+  crosshair, or takes a theme of its own: print-ready figures from a dark window. The context menu has Copy
+  image and Export… .
+- **Look**: light and dark themes that follow the application's palette, plus high-contrast and print themes; a
+  colorblind-safe series palette, hairline grid, tabular tick labels. A debug overlay shows layout boxes, frame
+  time and what each series drew.
 - MIT licensed; needs only Qt.
 
 Run the demo to see it: `build/clang-debug/bin/rocketplot_demo` after building.
@@ -77,9 +92,10 @@ target_link_libraries(my_app PRIVATE rocketplot::rocketplot)
 Or build it with your project through `FetchContent` or `add_subdirectory()`.
 
 ## Requirements
-- Qt 6.8 or later (Widgets). On Linux, from the distribution (Arch: `qt6-base`); on macOS and Windows, from the
-  [Qt online installer](https://www.qt.io/download-qt-installer) or [aqt](https://github.com/miurahr/aqtinstall),
-  with its prefix in `CMAKE_PREFIX_PATH` (e.g. in a `CMakeUserPresets.json`)
+- Qt 6.8 or later (Widgets and SVG). On Linux, from the distribution (Arch: `qt6-base qt6-svg`); on macOS and
+  Windows, from the [Qt online installer](https://www.qt.io/download-qt-installer) or
+  [aqt](https://github.com/miurahr/aqtinstall), with its prefix in `CMAKE_PREFIX_PATH` (e.g. in a
+  `CMakeUserPresets.json`)
 - CMake 3.28+ and Ninja
 - A C++23 compiler with `<print>`:
   - Linux: GCC 14+ or Clang 18+

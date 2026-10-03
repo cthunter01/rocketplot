@@ -18,6 +18,8 @@ constexpr int kBorderAlpha = 26;
 // 5:1 against the background, and against the background-colored text on an event's flag.
 constexpr int kCrosshairAlpha = 153;
 constexpr int kZoomFillAlpha  = 31;
+// The high-contrast zoom box: white, filled at 25%.
+constexpr int kHighContrastFillAlpha = 64;
 
 }  // namespace
 
@@ -79,6 +81,59 @@ Theme Theme::dark()
         QColor(0x39, 0x87, 0xe5), QColor(0xd9, 0x59, 0x26), QColor(0x19, 0x9e, 0x70),
         QColor(0xc9, 0x85, 0x00), QColor(0xd5, 0x51, 0x81), QColor(0x00, 0x83, 0x00),
         QColor(0x90, 0x85, 0xe9), QColor(0xe6, 0x67, 0x67),
+    };
+    return theme;
+}
+
+Theme Theme::highContrast()
+{
+    // dark()'s series colors pass the same checks on black as on its own background; everything
+    // else is as far from the background as it gets.
+    Theme theme               = dark();
+    theme.background          = QColor(0x00, 0x00, 0x00);
+    theme.text                = QColor(0xff, 0xff, 0xff);
+    theme.secondaryText       = QColor(0xff, 0xff, 0xff);
+    theme.axisLine            = QColor(0xff, 0xff, 0xff);
+    theme.gridLine            = QColor(0x5c, 0x5c, 0x5c);
+    theme.minorGridLine       = QColor(0x38, 0x38, 0x38);
+    theme.legendBackground    = QColor(0x00, 0x00, 0x00);
+    theme.legendBorder        = QColor(0xff, 0xff, 0xff);
+    theme.crosshair           = QColor(0xff, 0xff, 0xff);
+    theme.tagBackground       = QColor(0xff, 0xff, 0xff);
+    theme.tagText             = QColor(0x00, 0x00, 0x00);
+    theme.zoomBoxBorder       = QColor(0xff, 0xff, 0xff);
+    theme.zoomBoxFill         = QColor(0xff, 0xff, 0xff, kHighContrastFillAlpha);
+    theme.annotation          = QColor(0xd0, 0xd0, 0xd0);
+    theme.lineWidth           = 2.5;
+    theme.markerSize          = 9.0;
+    theme.errorBarWidth       = 2.0;
+    theme.bandOpacity         = 0.3;
+    theme.annotationLineWidth = 1.5;
+    theme.spanOpacity         = 0.25;
+    return theme;
+}
+
+Theme Theme::print()
+{
+    Theme theme            = light();
+    theme.background       = QColor(0xff, 0xff, 0xff);
+    theme.text             = QColor(0x00, 0x00, 0x00);
+    theme.secondaryText    = QColor(0x26, 0x26, 0x26);
+    theme.axisLine         = QColor(0x4d, 0x4d, 0x4d);
+    theme.gridLine         = QColor(0xd0, 0xd0, 0xd0);
+    theme.minorGridLine    = QColor(0xe8, 0xe8, 0xe8);
+    theme.legendBackground = QColor(0xff, 0xff, 0xff);
+    theme.legendBorder     = QColor(0x80, 0x80, 0x80);
+    theme.crosshair        = QColor(0x26, 0x26, 0x26, kCrosshairAlpha);
+    theme.tagBackground    = QColor(0x26, 0x26, 0x26);
+    theme.tagText          = QColor(0xff, 0xff, 0xff);
+    theme.annotation       = QColor(0x59, 0x59, 0x59);
+    // light()'s hues in the same order; aqua, yellow and magenta take their darker steps
+    // (dark()'s), which makes every color at least 3:1 against white.
+    theme.seriesColors = {
+        QColor(0x2a, 0x78, 0xd6), QColor(0xeb, 0x68, 0x34), QColor(0x19, 0x9e, 0x70),
+        QColor(0xc9, 0x85, 0x00), QColor(0xd5, 0x51, 0x81), QColor(0x00, 0x83, 0x00),
+        QColor(0x4a, 0x3a, 0xa7), QColor(0xe3, 0x49, 0x48),
     };
     return theme;
 }

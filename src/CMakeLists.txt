@@ -7,6 +7,7 @@ add_library(rocketplot_core OBJECT
     core/Autoscale.cpp
     core/AxisMapping.cpp
     core/AxisTicks.cpp
+    core/CsvWriter.cpp
     core/Decimator.cpp
     core/ErrorData.cpp
     core/ErrorGeometry.cpp
@@ -60,6 +61,8 @@ target_sources(rocketplot
         MarkerPainter.h
         Overlays.cpp
         Overlays.h
+        PlotExport.cpp
+        PlotExport.h
         PlotLayout.cpp
         PlotLayout.h
         PlotRenderer.cpp
@@ -84,6 +87,7 @@ target_sources(rocketplot
             ${PROJECT_SOURCE_DIR}/include/rocketplot/Annotation.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/Axis.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/EventMarker.h
+            ${PROJECT_SOURCE_DIR}/include/rocketplot/ExportOptions.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/InputBindings.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/Legend.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/LineSeries.h
@@ -104,7 +108,9 @@ target_sources(rocketplot
 
 target_link_libraries(rocketplot
     PUBLIC Qt6::Widgets
-    PRIVATE $<BUILD_INTERFACE:rocketplot_core>)   # its objects become part of rocketplot; nothing to export
+    PRIVATE
+        Qt6::Svg                              # only the SVG export uses it: no public header includes it
+        $<BUILD_INTERFACE:rocketplot_core>)   # its objects become part of rocketplot; nothing to export
 target_compile_features(rocketplot PUBLIC cxx_std_23)
 if(NOT ROCKETPLOT_BUILD_SHARED)
     target_compile_definitions(rocketplot PUBLIC ROCKETPLOT_STATIC_DEFINE)

@@ -1,19 +1,28 @@
 #include "rocketplot/PlotWidget.h"
 
 #include <QAction>
+#include <QChar>
+#include <QClipboard>
 #include <QColor>
 #include <QColorDialog>
 #include <QContextMenuEvent>
 #include <QCursor>
+#include <QDir>
 #include <QElapsedTimer>
 #include <QEvent>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QGuiApplication>
+#include <QIODevice>
 #include <QIcon>
+#include <QImage>
 #include <QList>
 #include <QLocale>
 #include <QMenu>
+#include <QMessageBox>
 #include <QMouseEvent>
 #include <QNativeGestureEvent>
+#include <QPaintDevice>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPalette>
@@ -23,6 +32,7 @@
 #include <QPointer>
 #include <QRectF>
 #include <QResizeEvent>
+#include <QSaveFile>
 #include <QSize>
 #include <QString>
 #include <QStyleHints>
@@ -33,10 +43,13 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <span>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -45,16 +58,19 @@
 #include "Logging.h"
 #include "MarkerPainter.h"
 #include "Overlays.h"
+#include "PlotExport.h"
 #include "PlotLayout.h"
 #include "PlotRenderer.h"
 #include "TextPainter.h"
 #include "ViewHistory.h"
 #include "core/Autoscale.h"
 #include "core/AxisMapping.h"
+#include "core/CsvWriter.h"
 #include "core/Occupancy.h"
 #include "rocketplot/Annotation.h"
 #include "rocketplot/Axis.h"
 #include "rocketplot/EventMarker.h"
+#include "rocketplot/ExportOptions.h"
 #include "rocketplot/InputBindings.h"
 #include "rocketplot/Legend.h"
 #include "rocketplot/LineSeries.h"
@@ -79,6 +95,38 @@ constexpr QSize kSizeHint{640, 400};
 constexpr QSize kMinimumSizeHint{160, 120};
 // Alpha of the legend box when the theme's background comes from the widget palette.
 constexpr int kLegendAlpha = 230;
+
+// The resolution at which an image has one pixel per device-independent pixel.
+constexpr double kBaseDpi = 96.0;
+
+// Draws with another theme for as long as it lives, if given one: exports can ask for a theme of
+// their own. The plot is not told and doesn't repaint.
+class ThemeOverride
+{
+public:
+    ThemeOverride(Theme& target, const std::optional<Theme>& theme) : m_target(&target)
+    {
+        if (theme)
+        {
+            m_saved = std::exchange(target, *theme);
+        }
+    }
+    ~ThemeOverride()
+    {
+        if (m_saved)
+        {
+            *m_target = std::move(*m_saved);
+        }
+    }
+    ThemeOverride(const ThemeOverride&)            = delete;
+    ThemeOverride& operator=(const ThemeOverride&) = delete;
+    ThemeOverride(ThemeOverride&&)                 = delete;
+    ThemeOverride& operator=(ThemeOverride&&)      = delete;
+
+private:
+    Theme*               m_target;
+    std::optional<Theme> m_saved;
+};
 
 // The part of @p range a log axis can show: its positive ends.
 Range positivePart(Range range)
@@ -138,8 +186,9 @@ struct PlotWidget::Private
     bool                        crosshair    = false;
     bool                        dirty        = true;
 
-    // The current layout (with the link's margins).
-    [[nodiscard]] PlotLayout layout(const PlotWidget& plot)
+    // The layout in @p bounds (with the link's margins).
+    [[nodiscard]] PlotLayout layoutIn(const PlotWidget& plot, const QRectF& bounds,
+                                      double devicePixelRatio)
     {
         LayoutConstraints constraints;
         const PlotLink*   current = link.data();
@@ -148,8 +197,13 @@ struct PlotWidget::Private
             const auto [left, right] = current->alignedMargins();
             constraints              = {.minLeft = left, .minRight = right};
         }
-        return layoutPlot(plot, QRectF(plot.rect()), plot.font(), plot.devicePixelRatioF(), text,
-                          constraints);
+        return layoutPlot(plot, bounds, plot.font(), devicePixelRatio, text, constraints);
+    }
+
+    // The widget's current layout.
+    [[nodiscard]] PlotLayout layout(const PlotWidget& plot)
+    {
+        return layoutIn(plot, QRectF(plot.rect()), plot.devicePixelRatioF());
     }
 
     // The layout on screen: the cached one while it is current.
@@ -700,6 +754,9 @@ void PlotWidget::showContextMenu(QPoint position, QPoint globalPosition)
     crosshair->setCheckable(true);
     crosshair->setChecked(isCrosshairEnabled());
     connect(crosshair, &QAction::toggled, this, &PlotWidget::setCrosshairEnabled);
+    menu->addSeparator();
+    menu->addAction(tr("Copy image"), this, [this] { copyToClipboard(); });
+    menu->addAction(tr("Export…"), this, &PlotWidget::exportWithDialog);
     Q_EMIT contextMenuAboutToShow(menu, QPointF(position));
     menu->popup(globalPosition);
 }
@@ -1000,6 +1057,12 @@ void PlotWidget::setThemeMode(ThemeMode mode)
         case ThemeMode::DARK:
             m_impl->theme = Theme::dark();
             break;
+        case ThemeMode::HIGH_CONTRAST:
+            m_impl->theme = Theme::highContrast();
+            break;
+        case ThemeMode::PRINT:
+            m_impl->theme = Theme::print();
+            break;
         case ThemeMode::CUSTOM:
             break;
     }
@@ -1059,6 +1122,207 @@ void PlotWidget::setDebugOverlay(bool enabled)
     m_impl->debugOverlay = enabled;
     update();
     Q_EMIT debugOverlayChanged();
+}
+
+// Output
+// --------------------------------------------------------------------------------------------------------
+
+void PlotWidget::paintExport(QPainter& painter, const QRectF& bounds, double devicePixelRatio) const
+{
+    const PlotLayout layout = m_impl->layoutIn(*this, bounds, devicePixelRatio);
+    core::Occupancy  occupancy;
+    RenderStats      stats;
+    const bool       best = m_impl->legend->anchor() == LegendAnchor::BEST;
+    PlotRenderer     renderer(*this, layout, m_impl->markers, m_impl->text);
+    renderer.render(painter, stats,
+                    {.highlighted = nullptr, .occupancy = best ? &occupancy : nullptr});
+    // The legend where it hides the least in this layout, staying where it is on screen if that is
+    // about as good.
+    const LegendLayout legend = layoutLegend(*this, layout, m_impl->text,
+                                             {
+                                                 .crosshairX    = std::nullopt,
+                                                 .minValueWidth = 0.0,
+                                                 .occupancy     = &occupancy,
+                                                 .previousBest  = m_impl->bestAnchor,
+                                             });
+    drawLegend(painter, *this, layout, legend, m_impl->text, nullptr);
+}
+
+QSize PlotWidget::exportSize(const ExportOptions& options) const
+{
+    return options.size.isEmpty() ? size() : options.size;
+}
+
+void PlotWidget::paint(QPainter& painter, const QRectF& rect) const
+{
+    const QPaintDevice* device = painter.device();
+    painter.save();
+    paintExport(painter, rect, device != nullptr ? device->devicePixelRatioF() : 1.0);
+    painter.restore();
+}
+
+QImage PlotWidget::renderToImage(const ExportOptions& options) const
+{
+    const ThemeOverride theme(m_impl->theme, options.theme);
+    const double pixelRatio = options.dpi > 0.0 ? options.dpi / kBaseDpi : devicePixelRatioF();
+    return paintImage(exportSize(options), pixelRatio,
+                      [this](QPainter& painter, const QRectF& bounds, double ratio) {
+                          paintExport(painter, bounds, ratio);
+                      });
+}
+
+bool PlotWidget::exportImage(const QString& fileName, const ExportOptions& options) const
+{
+    const QImage image = renderToImage(options);
+    if (image.isNull() || !image.save(fileName))
+    {
+        qCWarning(lcRender) << "PlotWidget::exportImage: cannot write" << fileName;
+        return false;
+    }
+    return true;
+}
+
+bool PlotWidget::exportSvg(const QString& fileName, const ExportOptions& options) const
+{
+    const ThemeOverride theme(m_impl->theme, options.theme);
+    const bool          written =
+        writeSvg(fileName, exportSize(options), logicalDpiY(), plainText(m_impl->title),
+                 [this](QPainter& painter, const QRectF& bounds, double ratio) {
+                     paintExport(painter, bounds, ratio);
+                 });
+    if (!written)
+    {
+        qCWarning(lcRender) << "PlotWidget::exportSvg: cannot write" << fileName;
+    }
+    return written;
+}
+
+bool PlotWidget::exportPdf(const QString& fileName, const ExportOptions& options) const
+{
+    const ThemeOverride theme(m_impl->theme, options.theme);
+    const bool          written =
+        writePdf(fileName, exportSize(options), logicalDpiY(), plainText(m_impl->title),
+                 [this](QPainter& painter, const QRectF& bounds, double ratio) {
+                     paintExport(painter, bounds, ratio);
+                 });
+    if (!written)
+    {
+        qCWarning(lcRender) << "PlotWidget::exportPdf: cannot write" << fileName;
+    }
+    return written;
+}
+
+bool PlotWidget::exportTo(const QString& fileName, const ExportOptions& options) const
+{
+    const QString suffix = QFileInfo(fileName).suffix().toLower();
+    if (suffix == QLatin1String("svg"))
+    {
+        return exportSvg(fileName, options);
+    }
+    if (suffix == QLatin1String("pdf"))
+    {
+        return exportPdf(fileName, options);
+    }
+    if (suffix == QLatin1String("csv"))
+    {
+        return exportCsv(fileName);
+    }
+    if (suffix == QLatin1String("tsv"))
+    {
+        return exportCsv(fileName, QLatin1Char('\t'));
+    }
+    return exportImage(fileName, options);
+}
+
+void PlotWidget::copyToClipboard(const ExportOptions& options) const
+{
+    const QImage image = renderToImage(options);
+    if (!image.isNull())
+    {
+        QGuiApplication::clipboard()->setImage(image);
+    }
+}
+
+void PlotWidget::writeCsv(QChar separator, const std::function<void(std::string_view)>& write) const
+{
+    std::vector<core::CsvSeries> table;
+    qsizetype                    number = 0;
+    for (const Series* series : std::as_const(m_impl->series))
+    {
+        ++number;
+        if (!series->isVisible())
+        {
+            continue;
+        }
+        const QString name =
+            series->name().isEmpty() ? tr("Series %1").arg(number) : plainText(series->name());
+        table.push_back({
+            .name   = name.toStdString(),
+            .data   = &series->data(),
+            .errors = &series->errors(),
+        });
+    }
+    const QString label = plainText(m_impl->xAxis->label());
+    core::writeCsv(
+        {
+            .series    = table,
+            .xRange    = m_impl->xAxis->range(),
+            .xName     = label.isEmpty() ? std::string("x") : label.toStdString(),
+            .separator = separator.toLatin1() != 0 ? separator.toLatin1() : ',',
+        },
+        write);
+}
+
+QString PlotWidget::toCsv(QChar separator) const
+{
+    std::string text;
+    writeCsv(separator, [&text](std::string_view piece) { text += piece; });
+    return QString::fromStdString(text);
+}
+
+bool PlotWidget::exportCsv(const QString& fileName, QChar separator) const
+{
+    // Complete or not at all: a failed export leaves no half-written file.
+    QSaveFile file(fileName);
+    bool      written = file.open(QIODevice::WriteOnly);
+    if (written)
+    {
+        writeCsv(separator, [&](std::string_view piece) {
+            written = written && file.write(piece.data(), static_cast<qint64>(piece.size())) ==
+                                     static_cast<qint64>(piece.size());
+        });
+        written = written && file.commit();
+    }
+    if (!written)
+    {
+        qCWarning(lcData) << "PlotWidget::exportCsv: cannot write" << fileName;
+    }
+    return written;
+}
+
+void PlotWidget::exportWithDialog()
+{
+    QString filter;
+    QString fileName = QFileDialog::getSaveFileName(
+        this, tr("Export plot"), QString(),
+        tr("PNG image (*.png);;JPEG image (*.jpg);;SVG drawing (*.svg);;PDF document (*.pdf);;"
+           "CSV data (*.csv)"),
+        &filter);
+    if (fileName.isEmpty())
+    {
+        return;
+    }
+    if (QFileInfo(fileName).suffix().isEmpty())
+    {
+        // A name typed without a suffix gets the one of the kind of file chosen: "(*.png)".
+        const qsizetype dot = filter.lastIndexOf(QLatin1Char('.'));
+        fileName += filter.mid(dot).chopped(1);
+    }
+    if (!exportTo(fileName))
+    {
+        QMessageBox::warning(this, tr("Export plot"),
+                             tr("Could not write %1.").arg(QDir::toNativeSeparators(fileName)));
+    }
 }
 
 // Geometry

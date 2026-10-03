@@ -7,6 +7,7 @@
 #include <QLineF>
 #include <QList>
 #include <QLocale>
+#include <QPaintEngine>
 #include <QPainter>
 #include <QPen>
 #include <QPointF>
@@ -144,7 +145,8 @@ void PlotRenderer::render(QPainter& painter, RenderStats& stats, const RenderOpt
     painter.setRenderHint(QPainter::Antialiasing, true);
     drawGrid(painter);
     painter.save();
-    painter.setClipRect(m_layout->plot);
+    // Within whatever clip the painter came with: PlotWidget::paint() draws into others' drawings.
+    painter.setClipRect(m_layout->plot, Qt::IntersectClip);
     drawAnnotations(painter, *m_plot, *m_layout, *m_text, AnnotationLayer::BELOW_SERIES,
                     m_options.occupancy);
     drawSeries(painter, stats);
@@ -272,8 +274,14 @@ void PlotRenderer::drawLine(QPainter& painter, const LineSeries& series, SeriesS
         core::decimateLine(series.data(), m_layout->x.mapping, y, columnWidth, m_line);
     stats.mode          = result.mode;
     stats.visiblePoints = result.visiblePoints;
-    core::clipPolyline(m_line, expanded(m_layout->plot, kLineClipMargin + series.lineWidth()),
-                       m_clipped);
+    // In a drawing (SVG, PDF) lines are cut as close to the plot as their width allows: a viewer
+    // that ignores clip paths, as QtSvg's does, then shows them running on a few pixels past the
+    // axes rather than many.
+    const QPaintEngine* engine = painter.paintEngine();
+    const bool          raster = engine == nullptr || engine->type() == QPaintEngine::Raster;
+    core::clipPolyline(
+        m_line, expanded(m_layout->plot, (raster ? kLineClipMargin : 0.0) + series.lineWidth()),
+        m_clipped);
     if (m_options.occupancy != nullptr)
     {
         m_options.occupancy->addPolyline(m_clipped, series.lineWidth());

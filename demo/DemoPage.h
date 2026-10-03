@@ -33,6 +33,7 @@ DemoPage linkedPlotsPage();
 DemoPage interactionPage();
 DemoPage legendPage();
 DemoPage annotationsPage();
+DemoPage exportPage();
 DemoPage largeDataPage();
 DemoPage liveAppendPage();
 

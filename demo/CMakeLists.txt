@@ -11,6 +11,7 @@ add_executable(rocketplot_demo
     pages/BasicLinesPage.cpp
     pages/DateTimePage.cpp
     pages/ErrorBarsPage.cpp
+    pages/ExportPage.cpp
     pages/GapsPage.cpp
     pages/InteractionPage.cpp
     pages/LargeDataPage.cpp

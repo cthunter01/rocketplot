@@ -94,7 +94,10 @@ void LineBand::cover(PixelPoint a, PixelPoint b, const ColumnGrid& grid, double 
     const Capsule capsule(a, b, halfWidth);
     // Lines at least a column wide are sampled at column centers, so they get their true width in
     // columns; thinner ones over (nearly) the whole column, so they never vanish between centers.
-    const double margin = std::min(halfWidth, grid.width / 2.0);
+    // (As a reach either side of the center, exactly 0 for the wider lines: computed from the
+    // column's two edges, the interval would come out empty by a rounding error for column widths
+    // that aren't a power of two, a device pixel ratio of 1.25 or 3.125 say.)
+    const double reach = (grid.width / 2.0) - std::min(halfWidth, grid.width / 2.0);
     // Where the capsule reaches lowest and highest: under the endpoint with the larger (smaller) y.
     const double      xOfMaxY = a.y >= b.y ? a.x : b.x;
     const double      xOfMinY = a.y >= b.y ? b.x : a.x;
@@ -102,9 +105,9 @@ void LineBand::cover(PixelPoint a, PixelPoint b, const ColumnGrid& grid, double 
     const std::size_t last    = grid.columnAt(b.x + halfWidth);
     for (std::size_t column = first; column <= last; ++column)
     {
-        const double columnLeft = grid.left + (static_cast<double>(column) * grid.width);
-        const double from       = std::max(columnLeft + margin, a.x - halfWidth);
-        const double to         = std::min(columnLeft + grid.width - margin, b.x + halfWidth);
+        const double center = grid.center(column);
+        const double from   = std::max(center - reach, a.x - halfWidth);
+        const double to     = std::min(center + reach, b.x + halfWidth);
         if (from > to)
         {
             continue;

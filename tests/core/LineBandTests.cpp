@@ -125,6 +125,28 @@ TEST(LineBand, ThinLinesCoverEveryColumnTheyCross)
     EXPECT_FALSE(band.spans()[10].empty());  // misses the column center, still drawn
 }
 
+TEST(LineBand, EveryColumnIsCoveredWhateverTheColumnWidth)
+{
+    // Device pixel ratios such as 1.25, 1.5 and 3.125 make columns whose width has no exact binary
+    // form. A level line across them still covers every column, at its own height.
+    for (const double pixelRatio : {1.0, 1.25, 1.5, 2.0, 3.125})
+    {
+        const ColumnGrid grid{.left = 59.68, .width = 1.0 / pixelRatio, .count = 2000};
+        const double     right = grid.edge(grid.count);
+        LineBand         band;
+        Polyline         polygons;
+        band.outline(line({{.x = 0.0, .y = 40.0}, {.x = right + 10.0, .y = 40.0}}), grid, 1.0,
+                     polygons);
+        std::size_t wrong = 0;
+        for (std::size_t column = 0; column < grid.count; ++column)
+        {
+            const auto& span = band.spans()[column];
+            wrong += span.top == 39.0 && span.bottom == 41.0 ? 0 : 1;
+        }
+        EXPECT_EQ(wrong, 0U) << "pixel ratio " << pixelRatio;
+    }
+}
+
 TEST(LineBand, OnePolygonPerRun)
 {
     Polyline input;

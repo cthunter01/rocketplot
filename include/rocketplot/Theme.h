@@ -56,6 +56,12 @@ struct ROCKETPLOT_EXPORT Theme
 
     [[nodiscard]] static Theme light();
     [[nodiscard]] static Theme dark();
+    /// White on black with nothing translucent, stronger grid lines and heavier lines and markers,
+    /// for low vision and bright rooms. The series colors are dark()'s.
+    [[nodiscard]] static Theme highContrast();
+    /// For paper: black on pure white, with axes and grid dark enough to print and darker steps of
+    /// the series colors that would be faint on white (aqua, yellow, magenta).
+    [[nodiscard]] static Theme print();
 
     friend bool operator==(const Theme&, const Theme&) = default;
 };

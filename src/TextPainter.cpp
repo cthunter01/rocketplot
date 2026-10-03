@@ -11,6 +11,7 @@
 #include <QSizeF>
 #include <QString>
 #include <QTextDocument>
+#include <QTextDocumentFragment>
 #include <Qt>
 #include <memory>
 #include <utility>
@@ -49,6 +50,11 @@ QPointF alignedTopLeft(const QSizeF& size, const QRectF& box, Qt::Alignment alig
 }
 
 }  // namespace
+
+QString plainText(const QString& text)
+{
+    return Qt::mightBeRichText(text) ? QTextDocumentFragment::fromHtml(text).toPlainText() : text;
+}
 
 TextPainter::TextPainter()  = default;
 TextPainter::~TextPainter() = default;

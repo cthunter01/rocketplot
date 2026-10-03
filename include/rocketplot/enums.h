@@ -66,7 +66,9 @@ enum class ThemeMode : std::uint8_t
     SYSTEM,  ///< Light or dark to match the widget's palette, following changes (the default)
     LIGHT,   ///< Theme::light()
     DARK,    ///< Theme::dark()
-    CUSTOM,  ///< The theme given to PlotWidget::setTheme()
+    HIGH_CONTRAST,  ///< Theme::highContrast()
+    PRINT,          ///< Theme::print()
+    CUSTOM,         ///< The theme given to PlotWidget::setTheme()
 };
 Q_ENUM_NS(ThemeMode)
 

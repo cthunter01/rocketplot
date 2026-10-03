@@ -5,6 +5,7 @@ add_executable(rocketplot_core_tests
     core/AutoscaleTests.cpp
     core/AxisMappingTests.cpp
     core/AxisTicksTests.cpp
+    core/CsvWriterTests.cpp
     core/DecimatorTests.cpp
     core/ErrorDataTests.cpp
     core/ErrorGeometryTests.cpp
@@ -37,9 +38,12 @@ add_executable(rocketplot_tests
     widgets/SeriesTests.cpp
     widgets/ShadedSpanTests.cpp
     widgets/TextAnnotationTests.cpp
+    widgets/ThemeTests.cpp
+    widgets/export_tests.cpp
     widgets/interaction_tests.cpp
     widgets/plottime_tests.cpp)
-target_link_libraries(rocketplot_tests PRIVATE rocketplot::rocketplot Qt6::Test GTest::gtest)
+# Qt6::Svg: the export tests read an exported SVG drawing back.
+target_link_libraries(rocketplot_tests PRIVATE rocketplot::rocketplot Qt6::Svg Qt6::Test GTest::gtest)
 rocketplot_configure_qt_target(rocketplot_tests)
 if(WIN32)
     # Windows finds DLLs on PATH only: put Qt's bin directory there for test discovery and runs (CMake 3.29+).
