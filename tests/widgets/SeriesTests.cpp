@@ -144,6 +144,31 @@ TEST(Series, Defaults)
     EXPECT_EQ(scatter->color(), plot.theme().seriesColor(1));
 }
 
+TEST(Series, KeepsItsColorWhenAnotherIsRemoved)
+{
+    PlotWidget plot;
+    plot.setThemeMode(rocketplot::ThemeMode::LIGHT);
+    LineSeries*       first  = plot.addLine(std::vector<double>{1});
+    const LineSeries* second = plot.addLine(std::vector<double>{1});
+
+    plot.removeSeries(first);
+
+    EXPECT_EQ(second->color(), plot.theme().seriesColor(1));
+    EXPECT_EQ(plot.addLine(std::vector<double>{1})->color(), plot.theme().seriesColor(2));
+}
+
+TEST(Series, AnEmptiedPlotStartsItsColorsOver)
+{
+    PlotWidget plot;
+    plot.setThemeMode(rocketplot::ThemeMode::LIGHT);
+    plot.addLine(std::vector<double>{1});
+    plot.addLine(std::vector<double>{1});
+
+    plot.clearSeries();
+
+    EXPECT_EQ(plot.addLine(std::vector<double>{1})->color(), plot.theme().seriesColor(0));
+}
+
 TEST(Series, PenRoundTrip)
 {
     PlotWidget       plot;

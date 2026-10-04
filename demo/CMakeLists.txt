@@ -1,18 +1,27 @@
-# rocketplot_demo: a gallery of feature pages; each page also shows its own source (embedded through demo.qrc).
-add_executable(rocketplot_demo
+# rocketplot_demo_lib: the demo without its main(): the gallery window and its pages, the property inspector, the
+# telemetry simulator and the reader of delimited text. A library of its own so that the tests can link it
+# (tests/demo/). It is not installed: the demo executable has it inside.
+add_library(rocketplot_demo_lib STATIC
+    DataImportWidget.cpp
+    DataImportWidget.h
+    DelimitedText.cpp
+    DelimitedText.h
     DemoPage.h
     Generators.cpp
     Generators.h
     MainWindow.cpp
     MainWindow.h
-    demo.qrc
-    main.cpp
+    PropertyInspector.cpp
+    PropertyInspector.h
+    TelemetrySimulator.cpp
+    TelemetrySimulator.h
     pages/AnnotationsPage.cpp
     pages/BasicLinesPage.cpp
     pages/DateTimePage.cpp
     pages/ErrorBarsPage.cpp
     pages/ExportPage.cpp
     pages/GapsPage.cpp
+    pages/ImportPage.cpp
     pages/InteractionPage.cpp
     pages/LargeDataPage.cpp
     pages/LegendPage.cpp
@@ -22,10 +31,20 @@ add_executable(rocketplot_demo
     pages/NumberFormatsPage.cpp
     pages/PointStylesPage.cpp
     pages/ScatterPage.cpp
+    pages/StatePage.cpp
+    pages/TelemetryPage.cpp
     pages/TwoAxesPage.cpp
     pages/UniformSamplingPage.cpp)
-target_link_libraries(rocketplot_demo PRIVATE rocketplot::rocketplot)
-target_include_directories(rocketplot_demo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})   # pages/ include "DemoPage.h"
+target_link_libraries(rocketplot_demo_lib PUBLIC rocketplot::rocketplot)
+target_include_directories(rocketplot_demo_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})   # pages/ include "DemoPage.h"
+rocketplot_configure_qt_target(rocketplot_demo_lib)
+
+# rocketplot_demo: a gallery of feature pages; each page also shows its own source (embedded through demo.qrc, which
+# is compiled into the executable: the linker would drop the resources of a static library nothing refers to).
+add_executable(rocketplot_demo
+    demo.qrc
+    main.cpp)
+target_link_libraries(rocketplot_demo PRIVATE rocketplot_demo_lib)
 set_target_properties(rocketplot_demo PROPERTIES
     AUTORCC ON
     WIN32_EXECUTABLE ON   # no console window on Windows

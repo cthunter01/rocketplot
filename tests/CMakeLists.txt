@@ -41,7 +41,8 @@ add_executable(rocketplot_tests
     widgets/ThemeTests.cpp
     widgets/export_tests.cpp
     widgets/interaction_tests.cpp
-    widgets/plottime_tests.cpp)
+    widgets/plottime_tests.cpp
+    widgets/state_tests.cpp)
 # Qt6::Svg: the export tests read an exported SVG drawing back.
 target_link_libraries(rocketplot_tests PRIVATE rocketplot::rocketplot Qt6::Svg Qt6::Test GTest::gtest)
 rocketplot_configure_qt_target(rocketplot_tests)
@@ -51,7 +52,31 @@ if(WIN32)
         ${CMAKE_COMMAND} -E env --modify "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>" --)
 endif()
 
+# Demo tests: the parts of the demo that are more than a page of example code (its reader of delimited text, the
+# telemetry simulator, the property inspector, the data import, the window), linked from rocketplot_demo_lib. With
+# the widget tests' main(), and the demo's resources: the pages' source snippets.
+if(ROCKETPLOT_BUILD_DEMO)
+    add_executable(rocketplot_demo_tests
+        widgets/main.cpp
+        demo/DataImportWidgetTests.cpp
+        demo/DelimitedTextTests.cpp
+        demo/MainWindowTests.cpp
+        demo/PropertyInspectorTests.cpp
+        demo/TelemetrySimulatorTests.cpp
+        ${PROJECT_SOURCE_DIR}/demo/demo.qrc)
+    target_link_libraries(rocketplot_demo_tests PRIVATE rocketplot_demo_lib Qt6::Test GTest::gtest)
+    set_target_properties(rocketplot_demo_tests PROPERTIES AUTORCC ON)
+    rocketplot_configure_qt_target(rocketplot_demo_tests)
+    if(WIN32)
+        set_property(TARGET rocketplot_demo_tests PROPERTY TEST_LAUNCHER
+            ${CMAKE_COMMAND} -E env --modify "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>" --)
+    endif()
+endif()
+
 # PRE_TEST: list the tests when ctest runs, not at build time (the binary may be sanitized or cross-compiled).
 # Labels: `ctest -L core` runs only the Qt-free tests (the tsan preset does).
 gtest_discover_tests(rocketplot_core_tests DISCOVERY_MODE PRE_TEST PROPERTIES LABELS core)
 gtest_discover_tests(rocketplot_tests DISCOVERY_MODE PRE_TEST PROPERTIES LABELS qt)
+if(TARGET rocketplot_demo_tests)
+    gtest_discover_tests(rocketplot_demo_tests DISCOVERY_MODE PRE_TEST PROPERTIES LABELS qt)
+endif()

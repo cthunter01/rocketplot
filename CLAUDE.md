@@ -15,11 +15,16 @@ SDK removed). CI's Arch image has the newest clang-tidy, which may be ahead of t
 - Rebuild only: `cmake --build --preset clang-debug`
 - Test only: `ctest --preset clang-debug`
 - One test: `ctest --preset clang-debug -R 'Decimator\.'` or
-  `build/clang-debug/bin/rocketplot_core_tests --gtest_filter='Decimator.*'` (widget tests: `rocketplot_tests`)
-- Qt-free tests only: `ctest --preset clang-debug -L core` (widget tests have the label `qt`)
+  `build/clang-debug/bin/rocketplot_core_tests --gtest_filter='Decimator.*'` (widget tests: `rocketplot_tests`,
+  demo tests: `rocketplot_demo_tests`)
+- Qt-free tests only: `ctest --preset clang-debug -L core` (widget and demo tests have the label `qt`)
 - Demo: `build/clang-debug/bin/rocketplot_demo` (a `.app` bundle on macOS). Screenshots of every gallery page
   without a display: `QT_QPA_PLATFORM=offscreen build/clang-debug/bin/rocketplot_demo --theme light --screenshots <dir>`
-  (then look at them)
+  (then look at them; `--inspector` shows the property inspector, `--page <title>` takes one page only, and
+  `--settle <ms>` waits longer before each screenshot: the Telemetry page needs 30000 to get past staging)
+- Benchmarks: `cmake --workflow --preset bench`, then `build/bench/bin/rocketplot_benchmarks` (the widget) and
+  `rocketplot_core_benchmarks` (the core); `--benchmark_filter=<regex>` picks some. Times only mean something on
+  an idle machine. The `tidy` and `ci-*` presets build them too and run each once as a test (label `bench`)
 - Before finishing a change, also run: `cmake --workflow --preset tidy` (clang-tidy, warnings are errors) and
   `cmake --workflow --preset asan` (AddressSanitizer + UBSan)
 - On Windows the presets are `msvc-debug` (workflow `dev-msvc`), `msvc-release` and `ci-msvc`, and cmake must run
@@ -27,7 +32,7 @@ SDK removed). CI's Arch image has the newest clang-tidy, which may be ahead of t
 - Formatting is automatic: a Claude Code hook (`.claude/hooks/format-cpp.sh`) runs clang-format on every C/C++
   file right after you edit it. The pre-commit hook and CI also reject unformatted files
 
-Other presets: `clang-release`, `gcc-debug`, `gcc-release`, `tsan`, `coverage`, `ci-gcc`, `ci-clang`, and
+Other presets: `clang-release`, `gcc-debug`, `gcc-release`, `tsan`, `coverage`, `bench`, `ci-gcc`, `ci-clang`, and
 `dist-linux`, `dist-macos`, `dist-windows` (release archives, in `build/dist-<os>/package/`).
 Each builds into `build/<preset>/`; never edit anything under `build/`. A preset is only available on the
 platforms it supports (`gcc-*`: Linux; `clang-*`: Linux and macOS; `msvc-*`: Windows); `cmake --list-presets`
@@ -59,14 +64,24 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
   placement, values and drawing), `Occupancy` (where data was drawn, for the legend's BEST spot), `Overlays`
   (crosshair and zoom box), `AnnotationPainter` (annotations are part of the cached rendering: under the series, over
   them, then their labels), `PlotLink` (linked x axes, crosshair and history), `TextPainter` (plain and rich text),
-  `MarkerPainter`, `plottime.cpp`, `Logging` (categories `rocketplot.render|input|data`). The legend, crosshair and
+  `MarkerPainter`, `PlotState` (how settings are written in the JSON of `PlotWidget::saveState()`; each class
+  saves and restores its own in private `saveState()`/`restoreState()`: a new setting goes there too),
+  `plottime.cpp`, `Logging` (categories `rocketplot.render|input|data`). The legend, crosshair and
   zoom box are drawn over the widget's cached rendering: call `PlotWidget::invalidate()` when what the plot shows
   changes, `update()` for overlays only
 - `demo/`: `rocketplot_demo`, a gallery: one `pages/<Name>Page.cpp` per page, listed in `MainWindow.cpp` and
-  `demo.qrc` (the code between `// [snippet]` markers is shown in the app)
+  `demo.qrc` (the code between `// [snippet]` markers is shown in the app). Everything but `main.cpp` is in the
+  static library `rocketplot_demo_lib`, so that tests can link it: the window, the pages, and the parts with logic
+  of their own: `PropertyInspector` (a tree of every Q_PROPERTY of the page's plots and their parts, through the
+  meta-object system: a new property shows up by itself), `TelemetrySimulator` (the flight behind the Telemetry
+  page), `DelimitedText` (reads CSV and the like) and `DataImportWidget` (the "Your data" page)
 - `tests/core/`: `rocketplot_core_tests` (links the core objects); `tests/widgets/`: `rocketplot_tests` (offscreen Qt,
-  own `main.cpp`). Class tests: `MyClassTests.cpp`; other tests: `*_tests.cpp`. Tests of what gets drawn use the
-  `RenderedPlotTest` fixture (fixed size, theme and axes) and compare a rendering with and without the thing
+  own `main.cpp`); `tests/demo/`: `rocketplot_demo_tests` (links `rocketplot_demo_lib`, same `main.cpp`; creates
+  every gallery page). Class tests: `MyClassTests.cpp`; other tests: `*_tests.cpp`. Tests of what gets drawn use
+  the `RenderedPlotTest` fixture (fixed size, theme and axes) and compare a rendering with and without the thing
+- `benchmarks/`: Google Benchmark, only with `ROCKETPLOT_BUILD_BENCHMARKS`. `core/`: `rocketplot_core_benchmarks`
+  (links the core objects); `widgets/`: `rocketplot_benchmarks` (the public API, offscreen Qt, own `main.cpp`).
+  Named like the tests: `MyClassBenchmarks.cpp`, `*_benchmarks.cpp`
 - `cmake/ProjectOptions.cmake`: `rocketplot_configure_target()` (warnings, sanitizers, coverage, tidy) and
   `rocketplot_configure_qt_target()` (that plus moc, `QT_NO_KEYWORDS` and a Qt 6.8 deprecation cap)
 - `cmake/Dependencies.cmake`: Qt (find_package) and third-party libraries via FetchContent
@@ -87,6 +102,9 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
 - Every new target must call `rocketplot_configure_target(<target>)`, or `rocketplot_configure_qt_target()` if it
   uses Qt
 - New source files go into the relevant `CMakeLists.txt`; new tests go into `tests/CMakeLists.txt`
+- A setting of a plot class is a `Q_PROPERTY` (with `NOTIFY`, and `RESET` when it has a default to go back to):
+  the demo's inspector then lists it by itself. One that is part of how a plot is set up, rather than of what it
+  shows, also goes into that class's `saveState()`/`restoreState()`
 - Warnings are part of the build: code must compile cleanly with `-Werror` under GCC and Clang and with `/WX`
   under MSVC
 - Code must build and pass its tests on Linux, macOS and Windows (CI runs all three). Use the standard library

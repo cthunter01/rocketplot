@@ -1,13 +1,18 @@
 #include "rocketplot/Axis.h"
 
+#include <QJsonObject>
+#include <QJsonValue>
+#include <QLatin1String>
 #include <QObject>
 #include <QString>
 #include <QTimeZone>
 #include <Qt>
 #include <cmath>
+#include <optional>
 #include <utility>
 
 #include "Logging.h"
+#include "PlotState.h"
 #include "core/AxisMapping.h"
 #include "rocketplot/Range.h"
 #include "rocketplot/enums.h"
@@ -217,6 +222,81 @@ bool Axis::isShown(bool hasSeries) const noexcept
         return *m_visible;
     }
     return !m_secondary || hasSeries;
+}
+
+void Axis::saveState(QJsonObject& state) const
+{
+    state.insert(QLatin1String("min"), m_range.min);
+    state.insert(QLatin1String("max"), m_range.max);
+    state.insert(QLatin1String("autoscale"), m_autoscale);
+    state.insert(QLatin1String("autoscaleMode"), state::fromEnum(m_autoscaleMode));
+    state.insert(QLatin1String("autoscaleMargin"), m_autoscaleMargin);
+    state.insert(QLatin1String("followWindow"), m_followWindow);
+    state.insert(QLatin1String("scaleType"), state::fromEnum(m_scaleType));
+    state.insert(QLatin1String("numberFormat"), state::fromEnum(m_numberFormat));
+    state.insert(QLatin1String("timeZone"), QString::fromLatin1(m_timeZone.id()));
+    state.insert(QLatin1String("gridVisible"), m_gridVisible);
+    state.insert(QLatin1String("minorGridVisible"), m_minorGridVisible);
+    state.insert(QLatin1String("visible"), state::fromOptional(m_visible));
+}
+
+void Axis::restoreState(const QJsonObject& state)
+{
+    // The scale first: it decides which ranges the axis can show.
+    if (const auto scale = state::toEnum<ScaleType>(state.value(QLatin1String("scaleType"))))
+    {
+        setScaleType(*scale);
+    }
+    if (const auto format = state::toEnum<NumberFormat>(state.value(QLatin1String("numberFormat"))))
+    {
+        setNumberFormat(*format);
+    }
+    if (const QJsonValue zone = state.value(QLatin1String("timeZone")); zone.isString())
+    {
+        setTimeZone(QTimeZone(zone.toString().toLatin1()));  // ignored if there is no such zone
+    }
+    if (const auto mode = state::toEnum<AutoscaleMode>(state.value(QLatin1String("autoscaleMode"))))
+    {
+        setAutoscaleMode(*mode);
+    }
+    if (const auto margin = state::toNumber(state.value(QLatin1String("autoscaleMargin"))))
+    {
+        setAutoscaleMargin(*margin);
+    }
+    if (const auto window = state::toNumber(state.value(QLatin1String("followWindow"))))
+    {
+        setFollowWindow(*window);
+    }
+    if (const auto grid = state::toBool(state.value(QLatin1String("gridVisible"))))
+    {
+        setGridVisible(*grid);
+    }
+    if (const auto grid = state::toBool(state.value(QLatin1String("minorGridVisible"))))
+    {
+        setMinorGridVisible(*grid);
+    }
+    state::restoreOptional(
+        state.value(QLatin1String("visible")), state::toBool,
+        [this](bool visible) { setVisible(visible); }, [this] { resetVisible(); });
+
+    // An axis that was following the data follows the data there is now; one that wasn't shows
+    // the range it showed. A range without a word on autoscale is a range to show.
+    const std::optional<bool>   autoscale = state::toBool(state.value(QLatin1String("autoscale")));
+    const std::optional<double> min       = state::toNumber(state.value(QLatin1String("min")));
+    const std::optional<double> max       = state::toNumber(state.value(QLatin1String("max")));
+    if (autoscale.value_or(false))
+    {
+        applyAutoscale(true);
+        Q_EMIT fitNeeded();
+    }
+    else if (min && max)
+    {
+        setRange(*min, *max);
+    }
+    else if (autoscale)
+    {
+        applyAutoscale(false);
+    }
 }
 
 }  // namespace rocketplot

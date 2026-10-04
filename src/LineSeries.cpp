@@ -1,12 +1,15 @@
 #include "rocketplot/LineSeries.h"
 
 #include <QColor>
+#include <QJsonObject>
+#include <QLatin1String>
 #include <QPen>
 #include <QSignalBlocker>
 #include <Qt>
 #include <cmath>
 
 #include "Logging.h"
+#include "PlotState.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/Series.h"
 #include "rocketplot/enums.h"
@@ -76,6 +79,25 @@ void LineSeries::setPen(const QPen& pen)
         setLineStyle(pen.style());
     }
     Q_EMIT changed();
+}
+
+void LineSeries::saveState(QJsonObject& state) const
+{
+    Series::saveState(state);
+    state.insert(QLatin1String("lineWidth"), state::fromOptional(m_lineWidth));
+    state.insert(QLatin1String("lineStyle"), state::fromEnum(m_lineStyle));
+}
+
+void LineSeries::restoreState(const QJsonObject& state)
+{
+    Series::restoreState(state);
+    state::restoreOptional(
+        state.value(QLatin1String("lineWidth")), state::toNumber,
+        [this](double width) { setLineWidth(width); }, [this] { resetLineWidth(); });
+    if (const auto style = state::toEnum<Qt::PenStyle>(state.value(QLatin1String("lineStyle"))))
+    {
+        setLineStyle(*style);
+    }
 }
 
 }  // namespace rocketplot

@@ -80,7 +80,12 @@ void MinMaxPyramid::extend(std::span<const double> y, std::size_t oldSize)
         const std::size_t complete = y.size() / blockSize;
         // Blocks that were complete before the append are unchanged.
         blocks.resize(std::min(blocks.size(), oldSize / blockSize));
-        blocks.reserve(complete);
+        // Room for the new blocks at once, but growing at least twofold: a reserve() of just
+        // what is needed would copy every block again each time an append completes one.
+        if (blocks.capacity() < complete)
+        {
+            blocks.reserve(std::max(complete, blocks.capacity() * 2));
+        }
         for (std::size_t block = blocks.size(); block < complete; ++block)
         {
             MinMax summary;

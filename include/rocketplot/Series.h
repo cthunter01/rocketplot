@@ -15,6 +15,8 @@
 #include "rocketplot/enums.h"
 #include "rocketplot/export.h"
 
+class QJsonObject;
+
 namespace rocketplot
 {
 
@@ -282,6 +284,11 @@ Q_SIGNALS:
 
 protected:
     explicit Series(PlotWidget* plot, Marker marker, ErrorStyle errorStyle);
+
+    // The settings a saved state holds (PlotWidget::saveState()), and taking them back. A kind of
+    // series with settings of its own adds them.
+    virtual void saveState(QJsonObject& state) const;
+    virtual void restoreState(const QJsonObject& state);
 
 private:
     friend class PlotRenderer;

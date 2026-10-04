@@ -8,6 +8,8 @@
 #include "rocketplot/Series.h"
 #include "rocketplot/export.h"
 
+class QJsonObject;
+
 namespace rocketplot
 {
 
@@ -38,6 +40,10 @@ public:
     [[nodiscard]] QPen pen() const;
     /// Sets color, width and style from @p pen.
     void setPen(const QPen& pen);
+
+protected:
+    void saveState(QJsonObject& state) const override;
+    void restoreState(const QJsonObject& state) override;
 
 private:
     friend class PlotWidget;

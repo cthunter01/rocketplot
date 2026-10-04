@@ -34,7 +34,10 @@ DemoPage interactionPage();
 DemoPage legendPage();
 DemoPage annotationsPage();
 DemoPage exportPage();
+DemoPage statePage();
 DemoPage largeDataPage();
 DemoPage liveAppendPage();
+DemoPage telemetryPage();
+DemoPage importPage();
 
 }  // namespace rocketplot::demo

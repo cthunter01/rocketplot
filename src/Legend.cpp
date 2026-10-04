@@ -1,10 +1,13 @@
 #include "rocketplot/Legend.h"
 
+#include <QJsonObject>
+#include <QLatin1String>
 #include <QObject>
 #include <QPointF>
 #include <algorithm>
 #include <cmath>
 
+#include "PlotState.h"
 #include "rocketplot/enums.h"
 
 namespace rocketplot
@@ -87,6 +90,34 @@ void Legend::setValuesVisible(bool visible)
     }
     m_valuesVisible = visible;
     Q_EMIT changed();
+}
+
+void Legend::saveState(QJsonObject& state) const
+{
+    state.insert(QLatin1String("visible"), state::fromOptional(m_visible));
+    state.insert(QLatin1String("anchor"), state::fromEnum(m_anchor));
+    state.insert(QLatin1String("position"), state::fromPoint(m_position));
+    state.insert(QLatin1String("valuesVisible"), m_valuesVisible);
+}
+
+void Legend::restoreState(const QJsonObject& state)
+{
+    state::restoreOptional(
+        state.value(QLatin1String("visible")), state::toBool,
+        [this](bool visible) { setVisible(visible); }, [this] { resetVisible(); });
+    // The position before the anchor: setting a position makes the anchor CUSTOM.
+    if (const auto position = state::toPoint(state.value(QLatin1String("position"))))
+    {
+        setPosition(*position);
+    }
+    if (const auto anchor = state::toEnum<LegendAnchor>(state.value(QLatin1String("anchor"))))
+    {
+        setAnchor(*anchor);
+    }
+    if (const auto values = state::toBool(state.value(QLatin1String("valuesVisible"))))
+    {
+        setValuesVisible(*values);
+    }
 }
 
 }  // namespace rocketplot

@@ -16,6 +16,10 @@
 #include <QIODevice>
 #include <QIcon>
 #include <QImage>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonValue>
+#include <QLatin1String>
 #include <QList>
 #include <QLocale>
 #include <QMenu>
@@ -61,6 +65,7 @@
 #include "PlotExport.h"
 #include "PlotLayout.h"
 #include "PlotRenderer.h"
+#include "PlotState.h"
 #include "TextPainter.h"
 #include "ViewHistory.h"
 #include "core/Autoscale.h"
@@ -185,6 +190,17 @@ struct PlotWidget::Private
     bool                        debugOverlay = false;
     bool                        crosshair    = false;
     bool                        dirty        = true;
+
+    // The axes under the names a saved state has them by.
+    using NamedAxis = std::pair<QLatin1String, Axis*>;
+    [[nodiscard]] std::array<NamedAxis, 3> axesByKey() const
+    {
+        return {
+            NamedAxis{QLatin1String("xAxis"), xAxis},
+            NamedAxis{QLatin1String("yAxis"), yAxis},
+            NamedAxis{QLatin1String("yAxis2"), yAxis2},
+        };
+    }
 
     // The layout in @p bounds (with the link's margins).
     [[nodiscard]] PlotLayout layoutIn(const PlotWidget& plot, const QRectF& bounds,
@@ -379,6 +395,10 @@ void PlotWidget::removeSeries(Series* series)
     }
     Q_EMIT seriesRemoved(series);
     delete series;
+    if (m_impl->series.isEmpty())
+    {
+        m_impl->colorCounter = 0;  // nothing left to tell apart from: the colors start over
+    }
     applyAutoscale();
     invalidate();
 }
@@ -1323,6 +1343,86 @@ void PlotWidget::exportWithDialog()
         QMessageBox::warning(this, tr("Export plot"),
                              tr("Could not write %1.").arg(QDir::toNativeSeparators(fileName)));
     }
+}
+
+// State
+// ---------------------------------------------------------------------------------------------------------
+
+QJsonObject PlotWidget::saveState() const
+{
+    QJsonObject state;
+    state.insert(QLatin1String("format"), QString(state::kFormat));
+    state.insert(QLatin1String("version"), state::kVersion);
+    state.insert(QLatin1String("themeMode"), state::fromEnum(m_impl->themeMode));
+    state.insert(QLatin1String("crosshair"), m_impl->crosshair);
+    for (const auto& [key, axis] : m_impl->axesByKey())
+    {
+        QJsonObject settings;
+        axis->saveState(settings);
+        state.insert(key, settings);
+    }
+    QJsonObject legend;
+    m_impl->legend->saveState(legend);
+    state.insert(QLatin1String("legend"), legend);
+    QJsonArray series;
+    for (const Series* one : std::as_const(m_impl->series))
+    {
+        QJsonObject settings;
+        one->saveState(settings);
+        series.append(settings);
+    }
+    state.insert(QLatin1String("series"), series);
+    return state;
+}
+
+bool PlotWidget::restoreState(const QJsonObject& state)
+{
+    const int version = state.value(QLatin1String("version")).toInt();
+    if (state.value(QLatin1String("format")).toString() != state::kFormat || version < 1 ||
+        version > state::kVersion)
+    {
+        qCWarning(lcData) << "PlotWidget::restoreState: not a state this version reads";
+        return false;
+    }
+    // A custom theme's colors aren't saved: a plot that had one keeps the theme it has now.
+    if (const auto mode = state::toEnum<ThemeMode>(state.value(QLatin1String("themeMode")));
+        mode && *mode != ThemeMode::CUSTOM)
+    {
+        setThemeMode(*mode);
+    }
+    if (const auto crosshair = state::toBool(state.value(QLatin1String("crosshair"))))
+    {
+        setCrosshairEnabled(*crosshair);
+    }
+    // The series before the axes: which of them are shown, and against which y axis, decides
+    // what an autoscaling axis fits.
+    QList<Series*>   unmatched = m_impl->series;
+    const QJsonArray series    = state.value(QLatin1String("series")).toArray();
+    for (const auto& entry : series)
+    {
+        const QJsonObject settings = entry.toObject();
+        const QString     name     = settings.value(QLatin1String("name")).toString();
+        const auto        match    = std::ranges::find_if(
+            unmatched, [&name](const Series* one) { return one->name() == name; });
+        if (match != unmatched.end())
+        {
+            (*match)->restoreState(settings);
+            unmatched.erase(match);
+        }
+    }
+    for (const auto& [key, axis] : m_impl->axesByKey())
+    {
+        if (const QJsonValue settings = state.value(key); settings.isObject())
+        {
+            axis->restoreState(settings.toObject());
+        }
+    }
+    if (const QJsonValue legend = state.value(QLatin1String("legend")); legend.isObject())
+    {
+        m_impl->legend->restoreState(legend.toObject());
+    }
+    invalidate();
+    return true;
 }
 
 // Geometry

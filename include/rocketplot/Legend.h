@@ -8,6 +8,7 @@
 #include "rocketplot/enums.h"
 #include "rocketplot/export.h"
 
+class QJsonObject;
 class QMenu;
 
 namespace rocketplot
@@ -77,6 +78,9 @@ Q_SIGNALS:
 private:
     friend class PlotWidget;
     explicit Legend(QObject* parent);
+    // The settings a saved state holds (PlotWidget::saveState()), and taking them back.
+    void saveState(QJsonObject& state) const;
+    void restoreState(const QJsonObject& state);
 
     std::optional<bool> m_visible;
     LegendAnchor        m_anchor = LegendAnchor::BEST;

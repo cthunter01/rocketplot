@@ -43,6 +43,10 @@ plot->addText(78.0, 31.4, "Max Q")->setOffset({40.0, -30.0});
 plot->exportImage("ascent.png", {.size = {600, 400}, .dpi = 300.0});
 plot->exportPdf("ascent.pdf", {.theme = rocketplot::Theme::print()});
 plot->exportCsv("ascent.csv");
+
+// Open the plot next time the way the user left it: view, legend, hidden series, colors.
+QSettings().setValue("ascentPlot", QJsonDocument(plot->saveState()).toJson());
+plot->restoreState(QJsonDocument::fromJson(QSettings().value("ascentPlot").toByteArray()).object());
 ```
 
 - **Data**: copied in from any range of numbers (`int`, `float`, `std::int16_t`, ...), moved in from an rvalue
@@ -76,12 +80,18 @@ plot->exportCsv("ascent.csv");
   kept as text, the clipboard, and the data in view as CSV. An export looks like the widget, without the
   crosshair, or takes a theme of its own: print-ready figures from a dark window. The context menu has Copy
   image and Export… .
+- **State**: `saveState()` gives how a plot is set up (axis ranges, scales and grids, the legend's place, each
+  series' visibility and style, found again by name) as JSON, and `restoreState()` applies it to a plot with the
+  same or newer data. Settings that follow the theme keep following it.
 - **Look**: light and dark themes that follow the application's palette, plus high-contrast and print themes; a
   colorblind-safe series palette, hairline grid, tabular tick labels. A debug overlay shows layout boxes, frame
   time and what each series drew.
 - MIT licensed; needs only Qt.
 
-Run the demo to see it: `build/clang-debug/bin/rocketplot_demo` after building.
+Run the demo to see it: `build/clang-debug/bin/rocketplot_demo` after building. Besides a gallery page per
+feature (each with its source), it has an inspector that shows and edits every property of the page's plots, a
+simulated launch reported as live telemetry, and a page for your own data: open a CSV file, drop one on the
+window, paste cells copied from a spreadsheet, or start it with `rocketplot_demo data.csv`.
 
 ### Use it in your project
 Install it (`cmake --install build/<preset> --prefix <dir>`) or download the `-sdk` release archive, then:
@@ -104,7 +114,8 @@ Or build it with your project through `FetchContent` or `add_subdirectory()`.
 - Optional: clang-tidy, clang-format, llvm-cov/llvm-profdata (coverage), Doxygen (docs), ccache.
   On macOS, clang-tidy comes from Homebrew (`brew install llvm`). Coverage uses Xcode's llvm-cov.
 
-GoogleTest is used from the system when installed, otherwise downloaded at configure time.
+GoogleTest and Google Benchmark are used from the system when installed, otherwise downloaded at configure
+time.
 
 ## Build
 Linux and macOS:
@@ -121,7 +132,9 @@ cmake --workflow --preset dev-msvc     # configure + build + test, MSVC Debug
 ```
 
 The demo can also save a screenshot of every page and quit, without a display:
-`QT_QPA_PLATFORM=offscreen ./build/clang-debug/bin/rocketplot_demo --theme dark --screenshots shots/`.
+`QT_QPA_PLATFORM=offscreen ./build/clang-debug/bin/rocketplot_demo --theme dark --screenshots shots/`
+(`--inspector` shows the property inspector in them, `--settle 8000` gives the live pages eight seconds each,
+`--page Telemetry` takes only that page; `--help` lists the options).
 
 | Preset | Platforms | What it is |
 | --- | --- | --- |
@@ -132,6 +145,7 @@ The demo can also save a screenshot of every page and quit, without a display:
 | `tsan` | Linux, macOS | Clang RelWithDebInfo with ThreadSanitizer |
 | `tidy` | Linux, macOS | Clang Debug running clang-tidy on every file; findings are errors |
 | `coverage` | Linux, macOS | `cmake --workflow --preset coverage` writes `build/coverage/coverage/html/index.html` |
+| `bench` | Linux, macOS | Clang Release with the benchmarks (see [Benchmarks](#benchmarks)) |
 | `ci-gcc`, `ci-clang`, `ci-msvc` | as their compiler | Release builds with warnings as errors, as run in CI (`ci-clang` and `ci-msvc` build rocketplot as a shared library) |
 | `dist-linux`, `dist-macos`, `dist-windows` | Linux, macOS, Windows | The release archives (see [Releases](#releases)) |
 
@@ -144,6 +158,18 @@ CI (GitHub Actions) builds and tests on all three: Linux (`ci-gcc`, `ci-clang`, 
 (`ci-clang`) and Windows (`ci-msvc`).
 
 API docs: `cmake --build --preset clang-debug --target docs`, then open `build/clang-debug/docs/html/index.html`.
+
+### Benchmarks
+```sh
+cmake --workflow --preset bench                                     # configure + build, Clang Release
+./build/bench/bin/rocketplot_benchmarks                             # the widget: frames, adding data
+./build/bench/bin/rocketplot_core_benchmarks                        # the Qt-free core: decimation, append, ...
+./build/bench/bin/rocketplot_benchmarks --benchmark_filter=Render   # some of them
+```
+`Render/...` times a whole frame of a 1600 × 900 plot (layout, decimation and painting, on Qt's offscreen
+platform): 16 ms is 60 frames a second. Elsewhere, `-DROCKETPLOT_BUILD_BENCHMARKS=ON` adds the benchmarks to any
+build; the CI presets have it on and run each benchmark once as a test (`ctest -L bench`), so that they keep
+working.
 
 ## Releases
 The Release workflow (`.github/workflows/release.yml`) runs only when started by hand, never on a push:

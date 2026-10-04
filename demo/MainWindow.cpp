@@ -2,6 +2,9 @@
 
 #include <QAction>
 #include <QComboBox>
+#include <QDockWidget>
+#include <QDragEnterEvent>
+#include <QDropEvent>
 #include <QFile>
 #include <QFont>
 #include <QFontDatabase>
@@ -9,11 +12,13 @@
 #include <QList>
 #include <QListWidget>
 #include <QMainWindow>
+#include <QMimeData>
 #include <QPlainTextEdit>
 #include <QSplitter>
 #include <QString>
 #include <QStringList>
 #include <QToolBar>
+#include <QUrl>
 #include <QVBoxLayout>
 #include <QVariant>
 #include <QWidget>
@@ -23,7 +28,9 @@
 #include <limits>
 #include <utility>
 
+#include "DataImportWidget.h"
 #include "DemoPage.h"
+#include "PropertyInspector.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/enums.h"
 
@@ -96,12 +103,14 @@ MainWindow::MainWindow(QWidget* parent)
         basicLinesPage(), scatterPage(),         pointStylesPage(), errorBarsPage(),
         gapsPage(),       uniformSamplingPage(), logScalePage(),    dateTimePage(),
         twoAxesPage(),    numberFormatsPage(),   linkedPlotsPage(), interactionPage(),
-        legendPage(),     annotationsPage(),     exportPage(),      largeDataPage(),
-        liveAppendPage(),
+        legendPage(),     annotationsPage(),     exportPage(),      statePage(),
+        largeDataPage(),  liveAppendPage(),      telemetryPage(),   importPage(),
     },
     m_list(new QListWidget(this)),
     m_pageLayout(new QVBoxLayout),
-    m_source(new QPlainTextEdit(this))
+    m_source(new QPlainTextEdit(this)),
+    m_inspector(new PropertyInspector(this)),
+    m_inspectorDock(new QDockWidget(QStringLiteral("Inspector"), this))
 {
     setWindowTitle(QStringLiteral("rocketplot demo"));
 
@@ -123,6 +132,17 @@ MainWindow::MainWindow(QWidget* parent)
     auto* showSource = toolBar->addAction(QStringLiteral("Source"));
     showSource->setCheckable(true);
     showSource->setChecked(true);
+
+    // The inspector: off to begin with, so that the plots have the room.
+    m_inspectorDock->setWidget(m_inspector);
+    m_inspectorDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    addDockWidget(Qt::RightDockWidgetArea, m_inspectorDock);
+    m_inspectorDock->hide();
+    QAction* showInspector = m_inspectorDock->toggleViewAction();
+    showInspector->setToolTip(
+        QStringLiteral("Every property of the page's plots, their axes, series and annotations"));
+    toolBar->addAction(showInspector);
+    setAcceptDrops(true);
 
     for (const DemoPage& page : m_pages)
     {
@@ -173,9 +193,68 @@ QString MainWindow::pageTitle(int index) const
                                              : QString();
 }
 
+int MainWindow::currentPage() const
+{
+    return m_list->currentRow();
+}
+
 void MainWindow::selectPage(int index)
 {
     m_list->setCurrentRow(index);
+}
+
+QList<PlotWidget*> MainWindow::plots() const
+{
+    if (m_page == nullptr)
+    {
+        return {};
+    }
+    QList<PlotWidget*> plots = m_page->findChildren<PlotWidget*>();
+    if (auto* plot = qobject_cast<PlotWidget*>(m_page))
+    {
+        plots.prepend(plot);
+    }
+    return plots;
+}
+
+void MainWindow::setInspectorVisible(bool visible)
+{
+    m_inspectorDock->setVisible(visible);
+}
+
+bool MainWindow::importData(const QMimeData* mime)
+{
+    const auto page = std::ranges::find(m_pages, importPage().title, &DemoPage::title);
+    if (page == m_pages.end())
+    {
+        return false;
+    }
+    selectPage(static_cast<int>(page - m_pages.begin()));  // stays as it is if already shown
+    auto* importer = qobject_cast<DataImportWidget*>(m_page);
+    return importer != nullptr && importer->loadMimeData(mime, QStringLiteral("Dropped text"));
+}
+
+bool MainWindow::openData(const QString& path)
+{
+    QMimeData mime;
+    mime.setUrls({QUrl::fromLocalFile(path)});
+    return importData(&mime);
+}
+
+void MainWindow::dragEnterEvent(QDragEnterEvent* event)
+{
+    if (DataImportWidget::canRead(event->mimeData()))
+    {
+        event->acceptProposedAction();
+    }
+}
+
+void MainWindow::dropEvent(QDropEvent* event)
+{
+    if (importData(event->mimeData()))
+    {
+        event->acceptProposedAction();
+    }
 }
 
 void MainWindow::selectTheme(ThemeMode mode)
@@ -197,6 +276,7 @@ void MainWindow::showPage(int index)
     m_description->setText(page.description);
     m_source->setPlainText(snippet(page.sourceFile));
     applySettings();
+    m_inspector->setPlots(plots());
 }
 
 void MainWindow::applySettings()
@@ -205,13 +285,9 @@ void MainWindow::applySettings()
     {
         return;
     }
-    const auto         mode  = m_theme->currentData().value<ThemeMode>();
-    QList<PlotWidget*> plots = m_page->findChildren<PlotWidget*>();
-    if (auto* plot = qobject_cast<PlotWidget*>(m_page))
-    {
-        plots.append(plot);
-    }
-    for (PlotWidget* plot : std::as_const(plots))
+    const auto               mode  = m_theme->currentData().value<ThemeMode>();
+    const QList<PlotWidget*> shown = plots();
+    for (PlotWidget* plot : shown)
     {
         plot->setThemeMode(mode);
         // The large data page turns its overlay on by itself; the toolbar can only add it

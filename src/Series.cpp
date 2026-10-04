@@ -1,6 +1,8 @@
 #include "rocketplot/Series.h"
 
 #include <QColor>
+#include <QJsonObject>
+#include <QLatin1String>
 #include <QObject>
 #include <QString>
 #include <algorithm>
@@ -13,6 +15,7 @@
 #include <vector>
 
 #include "Logging.h"
+#include "PlotState.h"
 #include "core/ErrorData.h"
 #include "core/SeriesData.h"
 #include "rocketplot/Axis.h"
@@ -411,6 +414,52 @@ void Series::dataWasChanged()
     qCDebug(lcData) << "series" << m_name << "has" << m_data->size()
                     << "points, sorted:" << m_data->isSortedByX() << "view:" << m_data->isView();
     Q_EMIT dataChanged();
+}
+
+void Series::saveState(QJsonObject& state) const
+{
+    state.insert(QLatin1String("name"), m_name);  // which series the settings belong to
+    state.insert(QLatin1String("visible"), m_visible);
+    state.insert(QLatin1String("color"),
+                 m_color ? state::fromColor(*m_color) : QJsonValue(QJsonValue::Null));
+    state.insert(QLatin1String("marker"), state::fromEnum(m_marker));
+    state.insert(QLatin1String("markerSize"), state::fromOptional(m_markerSize));
+    state.insert(QLatin1String("onSecondaryYAxis"), m_secondaryYAxis);
+    state.insert(QLatin1String("errorStyle"), state::fromEnum(m_errorStyle));
+    state.insert(QLatin1String("errorCapSize"), state::fromOptional(m_errorCapSize));
+    state.insert(QLatin1String("bandOpacity"), state::fromOptional(m_bandOpacity));
+}
+
+void Series::restoreState(const QJsonObject& state)
+{
+    if (const auto visible = state::toBool(state.value(QLatin1String("visible"))))
+    {
+        setVisible(*visible);
+    }
+    state::restoreOptional(
+        state.value(QLatin1String("color")), state::toColor,
+        [this](const QColor& color) { setColor(color); }, [this] { resetColor(); });
+    if (const auto marker = state::toEnum<Marker>(state.value(QLatin1String("marker"))))
+    {
+        setMarker(*marker);
+    }
+    state::restoreOptional(
+        state.value(QLatin1String("markerSize")), state::toNumber,
+        [this](double size) { setMarkerSize(size); }, [this] { resetMarkerSize(); });
+    if (const auto secondary = state::toBool(state.value(QLatin1String("onSecondaryYAxis"))))
+    {
+        setOnSecondaryYAxis(*secondary);
+    }
+    if (const auto style = state::toEnum<ErrorStyle>(state.value(QLatin1String("errorStyle"))))
+    {
+        setErrorStyle(*style);
+    }
+    state::restoreOptional(
+        state.value(QLatin1String("errorCapSize")), state::toNumber,
+        [this](double size) { setErrorCapSize(size); }, [this] { resetErrorCapSize(); });
+    state::restoreOptional(
+        state.value(QLatin1String("bandOpacity")), state::toNumber,
+        [this](double opacity) { setBandOpacity(opacity); }, [this] { resetBandOpacity(); });
 }
 
 }  // namespace rocketplot

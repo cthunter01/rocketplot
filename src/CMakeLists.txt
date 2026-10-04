@@ -65,9 +65,11 @@ target_sources(rocketplot
         PlotExport.h
         PlotLayout.cpp
         PlotLayout.h
-        PlotRenderer.cpp
         PlotLink.cpp
+        PlotRenderer.cpp
         PlotRenderer.h
+        PlotState.cpp
+        PlotState.h
         PlotWidget.cpp
         ReferenceLine.cpp
         ScatterSeries.cpp

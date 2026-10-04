@@ -27,6 +27,23 @@ if(ROCKETPLOT_BUILD_TESTS)
     FetchContent_MakeAvailable(googletest)
 endif()
 
+if(ROCKETPLOT_BUILD_BENCHMARKS)
+    # Only the library: not Google Benchmark's own tests, nor install rules for it.
+    set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+    set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
+    set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+    set(BENCHMARK_INSTALL_DOCS OFF CACHE BOOL "" FORCE)
+    set(BENCHMARK_ENABLE_WERROR OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(benchmark
+        GIT_REPOSITORY https://github.com/google/benchmark.git
+        GIT_TAG        v1.9.5
+        GIT_SHALLOW    TRUE
+        SYSTEM
+        EXCLUDE_FROM_ALL
+        FIND_PACKAGE_ARGS)
+    FetchContent_MakeAvailable(benchmark)
+endif()
+
 # Adding another dependency (then link fmt::fmt):
 #
 # FetchContent_Declare(fmt

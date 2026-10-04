@@ -27,6 +27,7 @@ class QContextMenuEvent;
 class QEvent;
 class QIcon;
 class QImage;
+class QJsonObject;
 class QMenu;
 class QMouseEvent;
 class QPaintEvent;
@@ -163,9 +164,11 @@ public:
 
     /// Every series, in the order added (later ones are drawn on top).
     [[nodiscard]] QList<Series*> series() const;
-    /// Removes and deletes @p series (if it belongs to this plot).
+    /// Removes and deletes @p series (if it belongs to this plot). The other series keep their
+    /// colors.
     void removeSeries(Series* series);
-    /// Removes and deletes every series.
+    /// Removes and deletes every series. The series added next get the theme's colors from the
+    /// first again.
     void clearSeries();
 
     // Annotations
@@ -289,6 +292,28 @@ public:
     [[nodiscard]] QString toCsv(QChar separator = QLatin1Char(',')) const;
     /// Writes toCsv() to a file (UTF-8), without holding it all in memory.
     [[nodiscard]] bool exportCsv(const QString& fileName, QChar separator = QLatin1Char(',')) const;
+
+    // State
+    // ----------------------------------------------------------------------------------------------------
+
+    /// How the plot is set up to show what it shows, as JSON for restoreState() to bring back,
+    /// in a later session too: the theme mode, the crosshair being on, for each axis its range,
+    /// autoscale, scale, number format and grid, the legend's place, and for each series its
+    /// visibility, color, marker, line, error style and y axis. A setting that follows the theme
+    /// (a series color nobody chose) is saved as following it.
+    ///
+    /// What the plot shows is not part of it: the data, the series' names, the title and labels,
+    /// the annotations. Nor are the input bindings or a custom theme's colors.
+    [[nodiscard]] QJsonObject saveState() const;
+    /// Applies a state from saveState() to the plot as it is now. An axis that was autoscaling
+    /// fits the data the plot has now; the others get the ranges they had. A series gets the
+    /// settings saved for the series of its name (when several share a name, in their order);
+    /// series the state doesn't know, and settings it doesn't hold, are left as they are: take a
+    /// key out of the JSON ("themeMode", say) to keep that setting out of it. The view history
+    /// doesn't record the change, as for ranges set in code.
+    ///
+    /// Returns false, changing nothing, if @p state isn't one this version of the library reads.
+    bool restoreState(const QJsonObject& state);
 
     // Geometry
     // -------------------------------------------------------------------------------------------------

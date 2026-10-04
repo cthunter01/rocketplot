@@ -10,6 +10,8 @@
 #include "rocketplot/enums.h"
 #include "rocketplot/export.h"
 
+class QJsonObject;
+
 namespace rocketplot
 {
 
@@ -140,6 +142,9 @@ private:
     void applyRange(Range range);
     // Sets autoscale without fitting (linked axes copy it).
     void applyAutoscale(bool enabled);
+    // The settings a saved state holds (PlotWidget::saveState()), and taking them back.
+    void saveState(QJsonObject& state) const;
+    void restoreState(const QJsonObject& state);
 
     Qt::Orientation     m_orientation;
     bool                m_secondary;

@@ -95,26 +95,36 @@
       "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "ROCKETPLOT_ENABLE_COVERAGE": "ON" }
     },
     {
+      "name": "benchmarks",
+      "hidden": true,
+      "cacheVariables": { "ROCKETPLOT_BUILD_BENCHMARKS": "ON" }
+    },
+    {
+      "name": "bench",
+      "displayName": "Clang Release, with the benchmarks",
+      "inherits": ["clang-release", "benchmarks"]
+    },
+    {
       "name": "tidy",
       "displayName": "Clang Debug, clang-tidy while compiling, warnings as errors",
-      "inherits": ["clang", "werror"],
+      "inherits": ["clang", "werror", "benchmarks"],
       "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "ROCKETPLOT_ENABLE_CLANG_TIDY": "ON" }
     },
     {
       "name": "ci-gcc",
       "displayName": "GCC Release, warnings as errors",
-      "inherits": ["gcc-release", "werror"]
+      "inherits": ["gcc-release", "werror", "benchmarks"]
     },
     {
       "name": "ci-clang",
       "displayName": "Clang Release, shared library, warnings as errors",
-      "inherits": ["clang-release", "werror"],
+      "inherits": ["clang-release", "werror", "benchmarks"],
       "cacheVariables": { "ROCKETPLOT_BUILD_SHARED": "ON" }
     },
     {
       "name": "ci-msvc",
       "displayName": "MSVC Release, shared library (DLL), warnings as errors",
-      "inherits": ["msvc-release", "werror"],
+      "inherits": ["msvc-release", "werror", "benchmarks"],
       "cacheVariables": { "ROCKETPLOT_BUILD_SHARED": "ON" }
     },
     {
@@ -124,6 +134,7 @@
       "cacheVariables": {
         "FETCHCONTENT_TRY_FIND_PACKAGE_MODE": "NEVER",
         "ROCKETPLOT_BUILD_SHARED": "OFF",
+        "ROCKETPLOT_BUILD_BENCHMARKS": "OFF",
         "ROCKETPLOT_DEPLOY_QT": "ON"
       }
     },
@@ -166,6 +177,11 @@
     { "name": "asan", "configurePreset": "asan" },
     { "name": "tsan", "configurePreset": "tsan" },
     { "name": "coverage", "configurePreset": "coverage", "targets": ["coverage"] },
+    {
+      "name": "bench",
+      "configurePreset": "bench",
+      "targets": ["rocketplot_core_benchmarks", "rocketplot_benchmarks"]
+    },
     { "name": "tidy", "configurePreset": "tidy" },
     { "name": "ci-gcc", "configurePreset": "ci-gcc" },
     { "name": "ci-clang", "configurePreset": "ci-clang" },
@@ -303,6 +319,14 @@
         { "type": "configure", "name": "tidy" },
         { "type": "build", "name": "tidy" },
         { "type": "test", "name": "tidy" }
+      ]
+    },
+    {
+      "name": "bench",
+      "displayName": "Configure and build the benchmarks (Clang Release); run them from build/bench/bin",
+      "steps": [
+        { "type": "configure", "name": "bench" },
+        { "type": "build", "name": "bench" }
       ]
     },
     {
