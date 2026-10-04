@@ -61,6 +61,8 @@ grid->plot(2)->addLine(time, acceleration);
 grid->exportPdf("flight.pdf");
 ```
 
+![The demo's live page: three channels appended as they arrive, the plot scrolling like a strip chart once ten seconds are in view](docs/images/demo-live-append.gif)
+
 - **Data**: copied in from any range of numbers (`int`, `float`, `std::int16_t`, ...), moved in from an rvalue
   `std::vector<double>`, or plotted in place without a copy (`addLineView`). `append()` adds live data.
   NaN and infinite values are gaps.
