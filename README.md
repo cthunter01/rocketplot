@@ -9,6 +9,9 @@ A Qt 6 widget for plotting numeric data in C++ applications: any number of data 
 legend, taken straight from `std::vector` (or any range of numbers), and smooth to pan and zoom with millions of
 points per series. A demo application shows off what it does and is where new features get worked out.
 
+**[User Guide](docs/user-guide/index.md)**: how to use it, chapter by chapter, from a first plot to linked plots
+of millions of points.
+
 ![The demo following a simulated launch: three channels on a shared time axis, events marked](docs/images/demo-telemetry.png)
 
 ```cpp
@@ -194,6 +197,11 @@ CI (GitHub Actions) builds and tests on all four: Linux (`ci-gcc`, `ci-clang`, `
 not checked on FreeBSD.
 
 API docs: `cmake --build --preset clang-debug --target docs`, then open `build/clang-debug/docs/html/index.html`.
+
+The [User Guide](docs/user-guide/index.md) is Markdown in `docs/user-guide/`. Its code is compiled: every C++
+block is a piece of a source file in `docs/user-guide/examples/`, the figures are drawn by the same code, and the
+test `guide_examples` fails when the two differ. After changing an example,
+`cmake --build --preset clang-debug --target guide` rewrites the guide's blocks and figures.
 
 ### Benchmarks
 ```sh

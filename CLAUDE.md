@@ -24,6 +24,8 @@ installed shared library: `cmake --preset asan -B build/asan-fetched -DFETCHCONT
   `build/clang-debug/bin/rocketplot_core_tests --gtest_filter='Decimator.*'` (widget tests: `rocketplot_tests`,
   demo tests: `rocketplot_demo_tests`)
 - Qt-free tests only: `ctest --preset clang-debug -L core` (widget and demo tests have the label `qt`)
+- After changing an example of the user guide: `cmake --build --preset clang-debug --target guide` (rewrites the
+  guide's code blocks and figures from `docs/user-guide/examples/`), then look at the figures that changed
 - Demo: `build/clang-debug/bin/rocketplot_demo` (a `.app` bundle on macOS). Screenshots of every gallery page
   without a display: `QT_QPA_PLATFORM=offscreen build/clang-debug/bin/rocketplot_demo --theme light --screenshots <dir>`
   (then look at them; `--inspector` shows the property inspector, `--page <title>` takes one page only, and
@@ -97,6 +99,11 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
 - `benchmarks/`: Google Benchmark, only with `ROCKETPLOT_BUILD_BENCHMARKS`. `core/`: `rocketplot_core_benchmarks`
   (links the core objects); `widgets/`: `rocketplot_benchmarks` (the public API, offscreen Qt, own `main.cpp`).
   Named like the tests: `MyClassBenchmarks.cpp`, `*_benchmarks.cpp`
+- `docs/user-guide/`: the User Guide, a Markdown file per chapter (`index.md` is its contents page). Its C++ blocks are
+  never written by hand: each is the code between `// [name]` and `// [/name]` in `examples/<chapter>_examples.cpp`,
+  shown under `<!-- example: name -->` (`<!-- output: name -->` for text an example produces, `<!-- sketch -->` for
+  a fragment that isn't compiled). `rocketplot_guide_examples` (built with the tests) runs the examples, draws the
+  figures in `images/` and checks the chapters against the sources (`GuideChecker`); the test is `guide_examples`
 - `cmake/ProjectOptions.cmake`: `rocketplot_configure_target()` (warnings, sanitizers, coverage, tidy) and
   `rocketplot_configure_qt_target()` (that plus moc, `QT_NO_KEYWORDS` and a Qt 6.8 deprecation cap)
 - `cmake/Dependencies.cmake`: Qt (find_package) and third-party libraries via FetchContent

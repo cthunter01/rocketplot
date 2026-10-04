@@ -24,7 +24,7 @@ Checks: >
   -readability-magic-numbers
 
 WarningsAsErrors: ''
-HeaderFilterRegex: '(include|src|tests|demo|benchmarks)/'
+HeaderFilterRegex: '(include|src|tests|demo|benchmarks|docs)/'
 ExcludeHeaderFilterRegex: '(_deps|_autogen)/'
 FormatStyle: file
 

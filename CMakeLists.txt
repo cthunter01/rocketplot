@@ -68,6 +68,7 @@ endif()
 if(ROCKETPLOT_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
+    add_subdirectory(docs/user-guide/examples)   # the user guide's code, compiled and checked against its text
 endif()
 if(ROCKETPLOT_BUILD_BENCHMARKS)
     add_subdirectory(benchmarks)

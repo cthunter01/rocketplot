@@ -1,4 +1,4 @@
-# 'docs' target: Doxygen HTML for the public headers, if Doxygen is installed.
+# 'docs' target: Doxygen HTML for the public headers and the User Guide, if Doxygen is installed.
 #   cmake --build --preset clang-debug --target docs
 # Output: build/<preset>/docs/html/index.html. Not part of 'all'.
 
@@ -11,7 +11,10 @@ endif()
 set(DOXYGEN_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/docs)
 set(DOXYGEN_USE_MDFILE_AS_MAINPAGE ${PROJECT_SOURCE_DIR}/README.md)
 set(DOXYGEN_MARKDOWN_ID_STYLE GITHUB)   # the README links to its own headings the way GitHub names them
-set(DOXYGEN_IMAGE_PATH ${PROJECT_SOURCE_DIR}/docs/images)   # and shows these
+set(DOXYGEN_IMAGE_PATH   # and shows these
+    ${PROJECT_SOURCE_DIR}/docs/images
+    ${PROJECT_SOURCE_DIR}/docs/user-guide/images)
+set(DOXYGEN_EXCLUDE ${PROJECT_SOURCE_DIR}/docs/user-guide/examples)   # the guide's chapters, not its example code
 set(DOXYGEN_EXTRACT_ALL YES)
 set(DOXYGEN_WARN_IF_UNDOCUMENTED NO)
 set(DOXYGEN_EXTENSION_MAPPING "h=C++")   # headers are .h, but always C++
@@ -27,4 +30,5 @@ endif()
 doxygen_add_docs(docs
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/README.md
+    ${PROJECT_SOURCE_DIR}/docs/user-guide
     COMMENT "Generating Doxygen HTML")
