@@ -111,6 +111,8 @@ TEST_F(ExportTest, AnImageLooksLikeTheWidget)
 
 TEST_F(ExportTest, AnImageOfAnySizeAndSharpness)
 {
+    // In so small an image a legend in a large font may cover the line where it is measured.
+    m_plot.legend()->setVisible(false);
     const QImage small = m_plot.renderToImage({.size = {300, 200}, .dpi = 96.0});
     EXPECT_EQ(small.size(), QSize(300, 200));
     EXPECT_DOUBLE_EQ(small.devicePixelRatio(), 1.0);

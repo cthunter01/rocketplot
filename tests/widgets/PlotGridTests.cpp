@@ -278,7 +278,7 @@ TEST(PlotGrid, TheTitleGoesAboveThePlots)
     const int top = grid.plot(0)->geometry().top();
     EXPECT_GT(top, 10);
     EXPECT_EQ(grid.plot(1)->geometry().bottom(), 399);
-    EXPECT_EQ(grid.plot(0)->height(), grid.plot(1)->height());
+    EXPECT_NEAR(grid.plot(0)->height(), grid.plot(1)->height(), 1);  // an odd pixel goes to one
     const QRect above(0, 0, 400, top);
     EXPECT_GT(inked(titled, above, Theme::light().background), 0);
     EXPECT_NE(plain, titled);

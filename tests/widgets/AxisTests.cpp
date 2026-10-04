@@ -78,8 +78,9 @@ TEST_F(AxisTest, WithoutTickLabelsThePlotAreaTakesTheirRoom)
     const QRectF withoutBoth = m_plot.plotArea();
 
     EXPECT_GT(withoutX.bottom(), labeled.bottom() + 5.0);
-    EXPECT_DOUBLE_EQ(withoutX.left(), labeled.left());
-    EXPECT_LT(withoutBoth.left(), labeled.left() - 5.0);
+    // Against the plot of the same height: a taller one may have other ticks, with other labels.
+    EXPECT_LT(withoutBoth.left(), withoutX.left() - 5.0);
+    EXPECT_DOUBLE_EQ(withoutBoth.bottom(), withoutX.bottom());
 }
 
 TEST_F(AxisTest, WithoutTickLabelsTheAxisKeepsItsLineTicksAndGrid)
