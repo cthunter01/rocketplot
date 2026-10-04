@@ -12,6 +12,24 @@ if(ROCKETPLOT_BUILD_TESTS)
 endif()
 find_package(Qt6 6.8 REQUIRED COMPONENTS ${rocketplot_qt_components})
 
+# rocketplot_sanitize_fetched(<target>...)
+# A sanitized build sanitizes the test and benchmark libraries too, where they are built here from downloaded
+# source. They handle the same vector types as the code that uses them (std::vector<std::string>, for one), and
+# libstdc++'s vector annotations for AddressSanitizer must be on in all of that code or in none (see
+# rocketplot_sanitize_target()): with GoogleTest left out, a test that reserved a vector of strings made
+# AddressSanitizer report a container-overflow inside GoogleTest. An installed library (an imported target, with
+# its own compiled code) is used as it is.
+function(rocketplot_sanitize_fetched)
+    foreach(target IN LISTS ARGN)
+        if(TARGET ${target})
+            get_target_property(imported ${target} IMPORTED)
+            if(NOT imported)
+                rocketplot_sanitize_target(${target})
+            endif()
+        endif()
+    endforeach()
+endfunction()
+
 if(ROCKETPLOT_BUILD_TESTS)
     set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
     # MSVC: link the same C runtime as our targets (CMAKE_MSVC_RUNTIME_LIBRARY: the DLL one unless a preset
@@ -25,6 +43,7 @@ if(ROCKETPLOT_BUILD_TESTS)
         EXCLUDE_FROM_ALL
         FIND_PACKAGE_ARGS NAMES GTest)
     FetchContent_MakeAvailable(googletest)
+    rocketplot_sanitize_fetched(gtest gtest_main gmock gmock_main)
 endif()
 
 if(ROCKETPLOT_BUILD_BENCHMARKS)
@@ -42,6 +61,7 @@ if(ROCKETPLOT_BUILD_BENCHMARKS)
         EXCLUDE_FROM_ALL
         FIND_PACKAGE_ARGS)
     FetchContent_MakeAvailable(benchmark)
+    rocketplot_sanitize_fetched(benchmark benchmark_main)
 endif()
 
 # Adding another dependency (then link fmt::fmt):

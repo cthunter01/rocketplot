@@ -9,6 +9,9 @@ in `CMAKE_PREFIX_PATH` (for example in a `CMakeUserPresets.json`, which is gitig
 6.8 (the minimum, so newer API is caught) and macOS against 6.10 (Qt 6.8.3 links the AGL framework, which the macOS 26
 SDK removed). CI's Arch image has the newest clang-tidy, which may be ahead of this machine's: new checks can fail the
 `tidy` job first.
+CI's image has no GoogleTest package either, so CI builds GoogleTest from source where this machine links the
+installed shared library: `cmake --preset asan -B build/asan-fetched -DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=NEVER`, then
+`cmake --build build/asan-fetched` and `ctest --test-dir build/asan-fetched`, is the build CI's `asan` job runs.
 
 ## Commands
 - Build and test (Clang Debug): `cmake --workflow --preset dev`

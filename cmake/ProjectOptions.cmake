@@ -30,6 +30,31 @@ if(ROCKETPLOT_ENABLE_CLANG_TIDY)
     endif()
 endif()
 
+# rocketplot_sanitize_target(<target>)
+# Builds a target with ROCKETPLOT_SANITIZERS (GCC and Clang; nothing without sanitizers). rocketplot_configure_target()
+# does this for our targets. Called by itself for a dependency that is built here and handles the same standard
+# containers as our code, like GoogleTest (see Dependencies.cmake).
+function(rocketplot_sanitize_target target)
+    if(NOT ROCKETPLOT_SANITIZERS)
+        return()
+    endif()
+    list(JOIN ROCKETPLOT_SANITIZERS "," sanitizers)
+    set(sanitize -fsanitize=${sanitizers})
+    if("undefined" IN_LIST ROCKETPLOT_SANITIZERS)
+        list(APPEND sanitize -fno-sanitize-recover=all)   # UB stops the program, so a test fails
+    endif()
+    target_compile_options(${target} PRIVATE ${sanitize} -fno-omit-frame-pointer)
+    # BUILD_INTERFACE: a sanitized build's users link the runtime too, but the installed package never asks.
+    target_link_options(${target} PUBLIC "$<BUILD_INTERFACE:${sanitize}>")   # quoted: a list
+    if("address" IN_LIST ROCKETPLOT_SANITIZERS)
+        # libstdc++ annotates std::vector's spare capacity for ASan only on request (libc++ does it by default),
+        # so reads past size() but within capacity() are caught. Ignored by libc++ and MSVC. All the code that
+        # handles a vector must agree on this: a vector annotated in one place and grown in code built without
+        # the annotations is reported as a container-overflow.
+        target_compile_definitions(${target} PRIVATE _GLIBCXX_SANITIZE_VECTOR)
+    endif()
+endfunction()
+
 # rocketplot_configure_target(<target>)
 # Applies warnings, sanitizers, coverage, clang-tidy and IPO to one of *our* targets (never to dependencies).
 # Call it for every target you add.
@@ -62,21 +87,7 @@ function(rocketplot_configure_target target)
             $<$<CONFIG:Debug>:_GLIBCXX_ASSERTIONS>
             $<$<CONFIG:Debug>:_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE>)
 
-        if(ROCKETPLOT_SANITIZERS)
-            list(JOIN ROCKETPLOT_SANITIZERS "," sanitizers)
-            set(sanitize -fsanitize=${sanitizers})
-            if("undefined" IN_LIST ROCKETPLOT_SANITIZERS)
-                list(APPEND sanitize -fno-sanitize-recover=all)   # UB stops the program, so a test fails
-            endif()
-            target_compile_options(${target} PRIVATE ${sanitize} -fno-omit-frame-pointer)
-            # BUILD_INTERFACE: a sanitized build's users link the runtime too, but the installed package never asks.
-            target_link_options(${target} PUBLIC "$<BUILD_INTERFACE:${sanitize}>")   # quoted: a list
-            if("address" IN_LIST ROCKETPLOT_SANITIZERS)
-                # libstdc++ annotates std::vector's spare capacity for ASan only on request (libc++ does it by
-                # default), so reads past size() but within capacity() are caught. Ignored by libc++ and MSVC.
-                target_compile_definitions(${target} PRIVATE _GLIBCXX_SANITIZE_VECTOR)
-            endif()
-        endif()
+        rocketplot_sanitize_target(${target})
     endif()
 
     if(ROCKETPLOT_ENABLE_COVERAGE)
