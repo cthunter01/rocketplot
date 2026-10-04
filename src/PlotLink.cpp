@@ -3,6 +3,8 @@
 #include <QList>
 #include <QMarginsF>
 #include <QObject>
+#include <QWidget>
+#include <Qt>
 #include <algorithm>
 #include <memory>
 #include <optional>
@@ -15,6 +17,27 @@
 
 namespace rocketplot
 {
+
+namespace
+{
+
+// Whether @p plot is on screen, or will be once its window is shown: such plots hold each other's
+// margins. One that was hidden, by itself or with the page or the window it is on, takes no part.
+// One whose window hasn't been shown yet does, so that plots drawn before then (QWidget::grab(),
+// an export) line up as they will on screen.
+bool isShownOrAboutToBe(const PlotWidget& plot)
+{
+    const QWidget* window = plot.window();
+    if (window->isVisible())
+    {
+        return plot.isVisible();
+    }
+    // Not shown yet, rather than hidden or closed.
+    return !window->testAttribute(Qt::WA_WState_ExplicitShowHide) &&
+           (plot.isWindow() || plot.isVisibleTo(window));
+}
+
+}  // namespace
 
 PlotLink::PlotLink(QObject* parent)
   : QObject(parent),
@@ -169,7 +192,7 @@ std::pair<double, double> PlotLink::alignedMargins() const
     double right = 0.0;
     for (const PlotWidget* plot : m_plots)
     {
-        if (plot->isVisible() && !plot->rect().isEmpty())
+        if (isShownOrAboutToBe(*plot) && !plot->rect().isEmpty())
         {
             const QMarginsF margins = plot->naturalMargins();
             left                    = std::max(left, margins.left());

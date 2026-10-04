@@ -45,7 +45,8 @@ public:
     [[nodiscard]] QList<PlotWidget*> plots() const;
 
     /// Whether the plots' left and right margins are made equal, so their plot areas line up.
-    /// On by default.
+    /// Plots that were hidden take no part; plots whose window hasn't been shown yet do, so an
+    /// export or QWidget::grab() made before then lines up too. On by default.
     [[nodiscard]] bool alignsMargins() const noexcept { return m_alignMargins; }
     void               setAlignMargins(bool align);
 

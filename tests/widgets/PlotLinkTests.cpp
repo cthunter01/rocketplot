@@ -3,10 +3,13 @@
 #include <QApplication>
 #include <QCursor>
 #include <QEvent>
+#include <QPixmap>
 #include <QPoint>
 #include <QPointF>
 #include <QTest>
+#include <QVBoxLayout>
 #include <QWheelEvent>
+#include <QWidget>
 #include <Qt>
 #include <cmath>
 #include <memory>
@@ -48,6 +51,15 @@ void zoomIn(PlotWidget& plot)
 // A place on no window.
 constexpr QPoint kNowhere(-1000, -1000);
 
+// Short y labels for @p narrow and long ones for @p wide, which needs a much wider left margin:
+// by themselves their plot areas don't line up.
+void fillUnevenly(PlotWidget& narrow, PlotWidget& wide)
+{
+    narrow.addLine(std::vector<double>{0, 10}, std::vector<double>{0, 1});
+    wide.addLine(std::vector<double>{5, 20}, std::vector<double>{-123456.789, 987654.321});
+    wide.yAxis()->setNumberFormat(rocketplot::NumberFormat::PLAIN);
+}
+
 class PlotLinkTest : public testing::Test
 {
 protected:
@@ -61,13 +73,10 @@ protected:
         {
             plot->resize(600, 300);
         }
-        m_a.addLine(std::vector<double>{0, 10}, std::vector<double>{0, 1});
-        // Long y labels: plot b needs a much wider left margin.
-        m_b.addLine(std::vector<double>{5, 20}, std::vector<double>{-123456.789, 987654.321});
-        m_b.yAxis()->setNumberFormat(rocketplot::NumberFormat::PLAIN);
+        fillUnevenly(m_a, m_b);
         m_link.addPlot(&m_a);
         m_link.addPlot(&m_b);
-        // Margins are aligned between plots that are shown.
+        // On screen, where the pointer can be over them.
         m_a.show();
         m_b.show();
         ASSERT_TRUE(QTest::qWaitForWindowExposed(&m_a));
@@ -109,6 +118,103 @@ TEST_F(PlotLinkTest, PlotAreasLineUp)
     EXPECT_DOUBLE_EQ(m_a.plotArea().right(), m_b.plotArea().right());
     m_link.setAlignMargins(false);
     EXPECT_LT(m_a.plotArea().left(), m_b.plotArea().left());
+}
+
+TEST_F(PlotLinkTest, HiddenPlotsTakeNoPart)
+{
+    const double aligned = m_a.plotArea().left();
+    m_b.hide();
+    EXPECT_LT(m_a.plotArea().left(), aligned);  // the margin its own labels need
+    m_b.show();
+    EXPECT_DOUBLE_EQ(m_a.plotArea().left(), aligned);
+}
+
+// Plots drawn before they are shown (an export, QWidget::grab()) line up as they will on screen.
+TEST(PlotLink, PlotsNotShownYetLineUp)
+{
+    PlotWidget narrow;
+    PlotWidget wide;
+    fillUnevenly(narrow, wide);
+    narrow.resize(600, 300);
+    wide.resize(600, 300);
+    PlotLink link;
+    link.addPlot(&narrow);
+    link.addPlot(&wide);
+
+    EXPECT_DOUBLE_EQ(narrow.plotArea().left(), wide.plotArea().left());
+    EXPECT_DOUBLE_EQ(narrow.plotArea().right(), wide.plotArea().right());
+    link.setAlignMargins(false);
+    EXPECT_LT(narrow.plotArea().left(), wide.plotArea().left());
+}
+
+// Two linked plots in a window that is laid out and drawn, but never shown.
+class UnshownPlotLinkTest : public testing::Test
+{
+protected:
+    void SetUp() override
+    {
+        auto* layout = new QVBoxLayout(&m_window);
+        layout->addWidget(m_narrow);
+        layout->addWidget(m_wide);
+        fillUnevenly(*m_narrow, *m_wide);
+        m_link.addPlot(m_narrow);
+        m_link.addPlot(m_wide);
+        m_window.resize(600, 600);
+        ASSERT_FALSE(m_window.grab().isNull());  // lays the window out and draws it
+        ASSERT_EQ(m_narrow->width(), m_wide->width());
+    }
+
+    QWidget     m_window;
+    PlotWidget* m_narrow = new PlotWidget(&m_window);
+    PlotWidget* m_wide   = new PlotWidget(&m_window);
+    PlotLink    m_link;
+};
+
+TEST_F(UnshownPlotLinkTest, PlotAreasLineUp)
+{
+    EXPECT_DOUBLE_EQ(m_narrow->plotArea().left(), m_wide->plotArea().left());
+    EXPECT_DOUBLE_EQ(m_narrow->plotArea().right(), m_wide->plotArea().right());
+    m_link.setAlignMargins(false);
+    EXPECT_LT(m_narrow->plotArea().left(), m_wide->plotArea().left());
+}
+
+TEST_F(UnshownPlotLinkTest, HiddenPlotsTakeNoPart)
+{
+    const double aligned = m_narrow->plotArea().left();
+    m_wide->hide();
+    EXPECT_LT(m_narrow->plotArea().left(), aligned);
+    m_wide->show();
+    EXPECT_DOUBLE_EQ(m_narrow->plotArea().left(), aligned);
+
+    // Nor does a plot on a page that was hidden. This one's labels are longer still.
+    QWidget    page(&m_window);
+    PlotWidget onPage(&page);
+    onPage.resize(600, 300);
+    onPage.addLine(std::vector<double>{0, 10}, std::vector<double>{-1e12, 1e12});
+    onPage.yAxis()->setNumberFormat(rocketplot::NumberFormat::PLAIN);
+    m_link.addPlot(&onPage);
+    EXPECT_GT(m_narrow->plotArea().left(), aligned);
+    page.hide();
+    EXPECT_DOUBLE_EQ(m_narrow->plotArea().left(), aligned);
+}
+
+// A window that was closed isn't one that is about to be shown.
+TEST(PlotLink, PlotsInAClosedWindowTakeNoPart)
+{
+    PlotWidget narrow;
+    PlotWidget wide;
+    fillUnevenly(narrow, wide);
+    narrow.resize(600, 300);
+    wide.resize(600, 300);
+    PlotLink link;
+    link.addPlot(&narrow);
+    link.addPlot(&wide);
+    const double aligned = narrow.plotArea().left();
+
+    wide.show();
+    ASSERT_TRUE(QTest::qWaitForWindowExposed(&wide));
+    wide.close();
+    EXPECT_LT(narrow.plotArea().left(), aligned);
 }
 
 TEST_F(PlotLinkTest, RemovedPlotsGoTheirOwnWay)
