@@ -1,9 +1,9 @@
 # rocketplot
 
-[![Latest release](https://img.shields.io/github/v/release/cthunter01/rocketplot)](https://github.com/cthunter01/rocketplot/releases/latest)
+[![release](https://img.shields.io/github/v/release/cthunter01/rocketplot)](https://github.com/cthunter01/rocketplot/releases/latest)
 [![CI](https://github.com/cthunter01/rocketplot/actions/workflows/ci.yml/badge.svg)](https://github.com/cthunter01/rocketplot/actions/workflows/ci.yml)
-![Linux, macOS, Windows](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-informational)
-![C++23](https://img.shields.io/badge/C%2B%2B-23-blue)
+![platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20FreeBSD-blue)
+![C++](https://img.shields.io/badge/C%2B%2B-23-blue)
 
 A Qt 6 widget for plotting numeric data in C++ applications: any number of data sets on shared axes, with a
 legend, taken straight from `std::vector` (or any range of numbers), and smooth to pan and zoom with millions of
@@ -135,8 +135,8 @@ widgets don't show up there, open the form in the standalone Designer of your Qt
 `rocketplot::PlotWidget` by hand; the generated code is the same).
 
 ## Requirements
-- Qt 6.8 or later (Widgets and SVG; Qt's tools too for the Designer plugin). On Linux, from the distribution
-  (Arch: `qt6-base qt6-svg`, and `qt6-tools`); on macOS and Windows, from the
+- Qt 6.8 or later (Widgets and SVG; Qt's tools too for the Designer plugin). On Linux and FreeBSD, from the
+  system's packages (`qt6-base qt6-svg`, and `qt6-tools`, on Arch and FreeBSD alike); on macOS and Windows, from the
   [Qt online installer](https://www.qt.io/download-qt-installer) or
   [aqt](https://github.com/miurahr/aqtinstall), with its prefix in `CMAKE_PREFIX_PATH` (e.g. in a
   `CMakeUserPresets.json`)
@@ -145,6 +145,7 @@ widgets don't show up there, open the form in the standalone Designer of your Qt
   - Linux: GCC 14+ or Clang 18+
   - macOS: Xcode 16.3+ or its Command Line Tools (Apple Clang 17+)
   - Windows: Visual Studio 2022 17.7+ (MSVC) with the "Desktop development with C++" workload
+  - FreeBSD: 15+, with the base system's Clang (`pkg install cmake-core ninja git-lite` for the rest)
 - Optional: clang-tidy, clang-format, llvm-cov/llvm-profdata (coverage), Doxygen (docs), ccache.
   On macOS, clang-tidy comes from Homebrew (`brew install llvm`). Coverage uses Xcode's llvm-cov.
 
@@ -152,7 +153,7 @@ GoogleTest and Google Benchmark are used from the system when installed, otherwi
 time.
 
 ## Build
-Linux and macOS:
+Linux, macOS and FreeBSD:
 ```sh
 cmake --workflow --preset dev          # configure + build + test, Clang Debug
 ./build/clang-debug/bin/rocketplot_demo
@@ -172,7 +173,7 @@ The demo can also save a screenshot of every page and quit, without a display:
 
 | Preset | Platforms | What it is |
 | --- | --- | --- |
-| `clang-debug`, `clang-release` | Linux, macOS | Everyday builds (Apple Clang on macOS) |
+| `clang-debug`, `clang-release` | Linux, macOS, FreeBSD | Everyday builds (Apple Clang on macOS) |
 | `gcc-debug`, `gcc-release` | Linux | Everyday builds |
 | `msvc-debug`, `msvc-release` | Windows | Everyday builds |
 | `asan` | Linux, macOS | Clang Debug with AddressSanitizer + UndefinedBehaviorSanitizer |
@@ -188,8 +189,9 @@ Each workflow preset (`dev`, `dev-msvc`, `ci-gcc`, `ci-clang`, `ci-msvc`, `asan`
 configures, builds and tests in one command, and the `dist-*` ones also package. Separate steps:
 `cmake --preset <p>`, `cmake --build --preset <p>`, `ctest --preset <p>`.
 
-CI (GitHub Actions) builds and tests on all three: Linux (`ci-gcc`, `ci-clang`, `asan`, `tidy`), macOS
-(`ci-clang`) and Windows (`ci-msvc`).
+CI (GitHub Actions) builds and tests on all four: Linux (`ci-gcc`, `ci-clang`, `asan`, `tidy`), macOS
+(`ci-clang`), Windows (`ci-msvc`) and FreeBSD (`ci-clang`, in a VM). The sanitizer, tidy and coverage presets are
+not checked on FreeBSD.
 
 API docs: `cmake --build --preset clang-debug --target docs`, then open `build/clang-debug/docs/html/index.html`.
 

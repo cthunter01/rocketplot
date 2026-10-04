@@ -1,4 +1,4 @@
-# Builds and tests the CI presets on Linux, macOS and Windows, and checks formatting.
+# Builds and tests the CI presets on Linux, macOS, Windows and FreeBSD, and checks formatting.
 # Linux runs in an Arch Linux container so CI has the same current GCC/Clang and Qt as the dev machine.
 # macOS and Windows install the oldest supported Qt (6.8) instead, so use of newer Qt API is caught there.
 name: CI
@@ -68,6 +68,26 @@ jobs:
         env:
           CMAKE_PREFIX_PATH: ${{ env.QT_ROOT_DIR }}
         run: cmake --workflow --preset ci-msvc
+
+  # GitHub has no FreeBSD runner, so this boots a FreeBSD VM on the Linux one and runs the preset inside it.
+  # release "15" is the newest 15.x. The compiler is the base system's Clang with libc++; Qt is the one in FreeBSD's
+  # packages (a current one, as on Linux), and the font is for the offscreen platform the widget tests use.
+  freebsd:
+    name: freebsd / ${{ matrix.preset }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [ci-clang]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Configure, build and test
+        uses: vmactions/freebsd-vm@v1
+        with:
+          release: "15"
+          copyback: false   # nothing built in the VM is needed on the runner afterwards
+          prepare: pkg install -y cmake-core ninja git-lite qt6-base qt6-svg qt6-tools dejavu
+          run: cmake --workflow --preset ${{ matrix.preset }}
 
   format:
     name: clang-format

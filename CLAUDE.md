@@ -2,14 +2,16 @@
 
 A Qt 6 Widgets plotting library (`rocketplot::PlotWidget`: many series on shared axes, with a legend, from
 `std::vector`/any numeric range, smooth with millions of points) plus a demo app. C++23, CMake presets + Ninja,
-GoogleTest. Cross-platform: Linux (GCC, Clang), macOS (Apple Clang) and Windows (MSVC).
+GoogleTest. Cross-platform: Linux (GCC, Clang), macOS (Apple Clang), Windows (MSVC) and FreeBSD (Clang).
 
-Needs Qt 6.8+ (Widgets, and Svg for the SVG export; UiPlugin from Qt's tools, Arch `qt6-tools`, for the Designer
-plugin, which is skipped without it). Linux uses the system Qt; on macOS and Windows put Qt's prefix
-in `CMAKE_PREFIX_PATH` (for example in a `CMakeUserPresets.json`, which is gitignored). CI builds Windows against Qt
-6.8 (the minimum, so newer API is caught) and macOS against 6.10 (Qt 6.8.3 links the AGL framework, which the macOS 26
-SDK removed). CI's Arch image has the newest clang-tidy, which may be ahead of this machine's: new checks can fail the
-`tidy` job first.
+Needs Qt 6.8+ (Widgets, and Svg for the SVG export; UiPlugin from Qt's tools, `qt6-tools`, for the Designer
+plugin, which is skipped without it). Linux and FreeBSD use the system Qt (packages `qt6-base qt6-svg qt6-tools`
+on both); on macOS and Windows put Qt's prefix in `CMAKE_PREFIX_PATH` (for example in a `CMakeUserPresets.json`,
+which is gitignored). CI builds Windows against Qt 6.8 (the minimum, so newer API is caught) and macOS against 6.10
+(Qt 6.8.3 links the AGL framework, which the macOS 26 SDK removed). FreeBSD is built in CI only, in a VM, with the
+`ci-clang` preset: Clang with libc++ and the Qt of FreeBSD's packages; the sanitizer, tidy and coverage presets
+are not checked there. CI's Arch image has the newest clang-tidy, which may be ahead of this machine's: new checks
+can fail the `tidy` job first.
 CI's image has no GoogleTest package either, so CI builds GoogleTest from source where this machine links the
 installed shared library: `cmake --preset asan -B build/asan-fetched -DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=NEVER`, then
 `cmake --build build/asan-fetched` and `ctest --test-dir build/asan-fetched`, is the build CI's `asan` job runs.
@@ -41,8 +43,8 @@ installed shared library: `cmake --preset asan -B build/asan-fetched -DFETCHCONT
 Other presets: `clang-release`, `gcc-debug`, `gcc-release`, `tsan`, `coverage`, `bench`, `ci-gcc`, `ci-clang`, and
 `dist-linux`, `dist-macos`, `dist-windows` (release archives, in `build/dist-<os>/package/`).
 Each builds into `build/<preset>/`; never edit anything under `build/`. A preset is only available on the
-platforms it supports (`gcc-*`: Linux; `clang-*`: Linux and macOS; `msvc-*`: Windows); `cmake --list-presets`
-shows this machine's.
+platforms it supports (`gcc-*`: Linux; `clang-*`: Linux, macOS and FreeBSD; `msvc-*`: Windows);
+`cmake --list-presets` shows this machine's.
 
 Releases: the `Release` GitHub workflow (`.github/workflows/release.yml`) runs only when started by hand. It tags
 `v<project VERSION>` and publishes the `dist-*` archives, so the version is raised in `project()` in
@@ -125,6 +127,7 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
   off: it changes no pixel of them and takes ten times as long. Everything else is antialiased
 - Warnings are part of the build: code must compile cleanly with `-Werror` under GCC and Clang and with `/WX`
   under MSVC
-- Code must build and pass its tests on Linux, macOS and Windows (CI runs all three). Use the standard library
-  (`<filesystem>`, `<thread>`, `<chrono>`) over POSIX or Win32 APIs; when an OS API is unavoidable, keep it in one
-  source file behind an `#ifdef _WIN32` / `__APPLE__` / `__linux__` split, with a branch for each platform
+- Code must build and pass its tests on Linux, macOS, Windows and FreeBSD (CI runs all four). Use the standard
+  library (`<filesystem>`, `<thread>`, `<chrono>`) over POSIX or Win32 APIs; when an OS API is unavoidable, keep it
+  in one source file behind an `#ifdef _WIN32` / `__APPLE__` / `__linux__` / `__FreeBSD__` split, with a branch for
+  each platform

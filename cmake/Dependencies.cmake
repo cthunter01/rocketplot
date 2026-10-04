@@ -4,7 +4,7 @@ include(FetchContent)
 # SYSTEM: the dependency's headers are system headers, so our warnings and clang-tidy skip them.
 # EXCLUDE_FROM_ALL: only the parts of the dependency we link against get built.
 
-# Qt is never downloaded: it comes from the system (Linux packages) or an installer/aqt, found through
+# Qt is never downloaded: it comes from the system (Linux and FreeBSD packages) or an installer/aqt, found through
 # CMAKE_PREFIX_PATH (CI sets it; locally on macOS and Windows put it in a CMakeUserPresets.json).
 set(rocketplot_qt_components Widgets Svg)   # Svg: QSvgGenerator, for PlotWidget::exportSvg()
 if(ROCKETPLOT_BUILD_TESTS)

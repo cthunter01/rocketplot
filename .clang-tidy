@@ -137,8 +137,8 @@ CheckOptions:
 
   # ---------------------------------------------------------------------------
   # Trailing commas (clang-tidy 23+): multi-line initializer lists end in a comma, so clang-format puts one
-  # element per line. Single-line lists are left alone: the check's "Remove" fix-it is buggy (it removes the
-  # comma after `UniformX{}` in a call's argument list).
+  # element per line. Single-line lists are left alone: there the check is buggy (it takes the comma after
+  # `UniformX{}` in a call's argument list for a trailing one, and its fix-it removes it).
   # ---------------------------------------------------------------------------
   readability-trailing-comma.MultiLineCommaPolicy: Append
   readability-trailing-comma.SingleLineCommaPolicy: Ignore
