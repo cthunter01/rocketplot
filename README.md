@@ -61,11 +61,9 @@ grid->plot(2)->addLine(time, acceleration);
 grid->exportPdf("flight.pdf");
 ```
 
-![The demo's live page: three channels appended as they arrive, the plot scrolling like a strip chart once ten seconds are in view](docs/images/demo-live-append.gif)
-
 - **Data**: copied in from any range of numbers (`int`, `float`, `std::int16_t`, ...), moved in from an rvalue
-  `std::vector<double>`, or plotted in place without a copy (`addLineView`). `append()` adds live data.
-  NaN and infinite values are gaps.
+  `std::vector<double>`, or plotted in place without a copy (`addLineView`). `append()` adds live data (see
+  [Live data](#live-data)). NaN and infinite values are gaps.
 - **Large data**: sorted series are drawn from their visible range only, as the extremes of each pixel column,
   read from a precomputed min/max pyramid. 10 million points pan and zoom at interactive frame rates.
 - **Errors**: any series takes errors along x and y, the same or different below and above. Lines draw y errors
@@ -113,6 +111,40 @@ Run the demo to see it: `build/clang-debug/bin/rocketplot_demo` after building. 
 feature (each with its source), it has an inspector that shows and edits every property of the page's plots, a
 simulated launch reported as live telemetry, and a page for your own data: open a CSV file, drop one on the
 window, paste cells copied from a spreadsheet, or start it with `rocketplot_demo data.csv`.
+
+### Live data
+A plot keeps up with data that is still arriving. `append()` adds points to a series, and two autoscale modes
+turn the plot into a strip chart: `FOLLOW_LATEST` makes the x axis show the newest stretch of data and scroll as
+more comes in, and `FIT_VISIBLE` makes the y axis fit what is in that stretch.
+
+![Three channels drawn as their samples arrive: the lines grow until ten seconds are in view, then the plot scrolls](docs/images/demo-live-append.gif)
+
+This is the demo's "Live append" page. Three channels get 100 samples a second each and the x axis follows the
+last ten seconds: the lines grow until that window is full, then the plot scrolls. The y axis rescales as the
+channels wander, and the legend moves to wherever it hides the least data. What it takes:
+
+```cpp
+// An empty series to begin with. x shows the newest ten seconds and scrolls; y fits what is in view.
+auto* channel = plot->addLine(std::vector<double>{}, std::vector<double>{}, "Channel 1");
+plot->xAxis()->setAutoscaleMode(rocketplot::AutoscaleMode::FOLLOW_LATEST);
+plot->xAxis()->setFollowWindow(10.0);
+plot->yAxis()->setAutoscaleMode(rocketplot::AutoscaleMode::FIT_VISIBLE);
+
+// From a timer in the GUI thread: everything that arrived since the last tick, in one call.
+channel->append(times, readings);
+```
+
+- **It stays fast as the recording grows.** While each new x is not smaller than the last, the series stays
+  sorted and only the new points are processed: the min/max pyramid is extended, not rebuilt. What a frame costs
+  depends on the width of the plot, not on how many points there are by then.
+- **The user can look back while it runs.** Panning or zooming an axis stops it following while the data keeps
+  coming in; a double-click hands the axis back.
+- **Evenly sampled channels need no x.** A `UniformX` series takes `append(samples)`: the x values continue the
+  sequence.
+
+[Live data](docs/user-guide/data.md#live-data) in the User Guide has the rest: appending in batches, data that
+arrives on another thread, and how much history to keep. The demo's Telemetry page (the picture at the top)
+reports a whole simulated flight this way, on linked plots.
 
 ### Use it in your project
 Install it (`cmake --install build/<preset> --prefix <dir>`) or download the `-sdk` release archive, then:
