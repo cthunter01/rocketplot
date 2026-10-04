@@ -100,6 +100,15 @@ enum class AutoscaleMode : std::uint8_t
 };
 Q_ENUM_NS(AutoscaleMode)
 
+/// Which plots of a PlotGrid share their x axis (through a PlotLink).
+enum class GridLink : std::uint8_t
+{
+    NONE,     ///< None: each plot has its own
+    COLUMNS,  ///< The plots of each column (the default)
+    ALL,      ///< All the plots
+};
+Q_ENUM_NS(GridLink)
+
 /// A pointer gesture that InputBindings maps to an action.
 enum class Gesture : std::uint8_t
 {

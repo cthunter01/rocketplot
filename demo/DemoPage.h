@@ -30,6 +30,7 @@ DemoPage dateTimePage();
 DemoPage twoAxesPage();
 DemoPage numberFormatsPage();
 DemoPage linkedPlotsPage();
+DemoPage gridPage();
 DemoPage interactionPage();
 DemoPage legendPage();
 DemoPage annotationsPage();

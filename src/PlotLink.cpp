@@ -1,6 +1,7 @@
 #include "rocketplot/PlotLink.h"
 
 #include <QList>
+#include <QMarginsF>
 #include <QObject>
 #include <algorithm>
 #include <memory>
@@ -170,9 +171,9 @@ std::pair<double, double> PlotLink::alignedMargins() const
     {
         if (plot->isVisible() && !plot->rect().isEmpty())
         {
-            const auto [plotLeft, plotRight] = plot->naturalMargins();
-            left                             = std::max(left, plotLeft);
-            right                            = std::max(right, plotRight);
+            const QMarginsF margins = plot->naturalMargins();
+            left                    = std::max(left, margins.left());
+            right                   = std::max(right, margins.right());
         }
     }
     return {left, right};

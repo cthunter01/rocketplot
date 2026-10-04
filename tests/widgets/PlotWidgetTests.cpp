@@ -151,6 +151,8 @@ TEST_F(PlotWidgetTest, DoubleClickReturnsToAutoscale)
     ASSERT_NE(m_plot.xAxis()->range(), x);
     const QPoint center(static_cast<int>(plotCenter().x()), static_cast<int>(plotCenter().y()));
     QTest::mouseDClick(&m_plot, Qt::LeftButton, Qt::NoModifier, center);
+    // As a real double click ends, and so that QTest doesn't go on thinking the button is down.
+    QTest::mouseRelease(&m_plot, Qt::LeftButton, Qt::NoModifier, center);
     EXPECT_TRUE(m_plot.xAxis()->autoscale());
     EXPECT_TRUE(m_plot.yAxis()->autoscale());
     EXPECT_EQ(m_plot.xAxis()->range(), x);

@@ -27,9 +27,11 @@ rocketplot_configure_target(rocketplot_core_tests)
 add_executable(rocketplot_tests
     widgets/main.cpp
     widgets/AnnotationTests.cpp
+    widgets/AxisTests.cpp
     widgets/EventMarkerTests.cpp
     widgets/InputBindingsTests.cpp
     widgets/LegendTests.cpp
+    widgets/PlotGridTests.cpp
     widgets/PlotLinkTests.cpp
     widgets/PlotWidgetTests.cpp
     widgets/ReferenceLineTests.cpp
@@ -39,12 +41,15 @@ add_executable(rocketplot_tests
     widgets/ShadedSpanTests.cpp
     widgets/TextAnnotationTests.cpp
     widgets/ThemeTests.cpp
+    widgets/PlotForm.ui
     widgets/export_tests.cpp
+    widgets/form_tests.cpp
     widgets/interaction_tests.cpp
     widgets/plottime_tests.cpp
     widgets/state_tests.cpp)
 # Qt6::Svg: the export tests read an exported SVG drawing back.
 target_link_libraries(rocketplot_tests PRIVATE rocketplot::rocketplot Qt6::Svg Qt6::Test GTest::gtest)
+set_target_properties(rocketplot_tests PROPERTIES AUTOUIC ON)   # form_tests.cpp: PlotForm.ui, a form from Designer
 rocketplot_configure_qt_target(rocketplot_tests)
 if(WIN32)
     # Windows finds DLLs on PATH only: put Qt's bin directory there for test discovery and runs (CMake 3.29+).
@@ -73,10 +78,32 @@ if(ROCKETPLOT_BUILD_DEMO)
     endif()
 endif()
 
+# Designer plugin tests: what the plugin tells Qt Designer about the widgets, and the plugin itself, loaded from
+# its file as Designer loads it.
+if(TARGET rocketplot_designer)
+    add_executable(rocketplot_designer_tests
+        widgets/main.cpp
+        designer/CustomWidgetTests.cpp
+        designer/plugin_tests.cpp)
+    target_link_libraries(rocketplot_designer_tests PRIVATE rocketplot_designer_widgets GTest::gtest)
+    target_compile_definitions(rocketplot_designer_tests PRIVATE
+        ROCKETPLOT_INCLUDE_DIR="${PROJECT_SOURCE_DIR}/include"
+        ROCKETPLOT_DESIGNER_PLUGIN="$<TARGET_FILE:rocketplot_designer>")
+    add_dependencies(rocketplot_designer_tests rocketplot_designer)   # loaded, not linked
+    rocketplot_configure_qt_target(rocketplot_designer_tests)
+    if(WIN32)
+        set_property(TARGET rocketplot_designer_tests PROPERTY TEST_LAUNCHER
+            ${CMAKE_COMMAND} -E env --modify "PATH=path_list_prepend:$<TARGET_FILE_DIR:Qt6::Core>" --)
+    endif()
+endif()
+
 # PRE_TEST: list the tests when ctest runs, not at build time (the binary may be sanitized or cross-compiled).
 # Labels: `ctest -L core` runs only the Qt-free tests (the tsan preset does).
 gtest_discover_tests(rocketplot_core_tests DISCOVERY_MODE PRE_TEST PROPERTIES LABELS core)
 gtest_discover_tests(rocketplot_tests DISCOVERY_MODE PRE_TEST PROPERTIES LABELS qt)
 if(TARGET rocketplot_demo_tests)
     gtest_discover_tests(rocketplot_demo_tests DISCOVERY_MODE PRE_TEST PROPERTIES LABELS qt)
+endif()
+if(TARGET rocketplot_designer_tests)
+    gtest_discover_tests(rocketplot_designer_tests DISCOVERY_MODE PRE_TEST PROPERTIES LABELS qt)
 endif()

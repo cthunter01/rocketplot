@@ -28,6 +28,8 @@ set(ROCKETPLOT_SANITIZERS "" CACHE STRING "Sanitizers for our targets, e.g. addr
 # The presets set ROCKETPLOT_BUILD_SHARED rather than BUILD_SHARED_LIBS, so FetchContent'd dependencies stay static.
 option(ROCKETPLOT_BUILD_SHARED "Build rocketplot as a shared library" ${BUILD_SHARED_LIBS})
 option(ROCKETPLOT_BUILD_DEMO "Build the demo application" ${PROJECT_IS_TOP_LEVEL})
+option(ROCKETPLOT_BUILD_DESIGNER_PLUGIN "Build the Qt Designer plugin when Qt's UiPlugin module is found"
+       ${PROJECT_IS_TOP_LEVEL})
 option(ROCKETPLOT_INSTALL "Add install rules (the library's CMake package and the demo)" ${PROJECT_IS_TOP_LEVEL})
 option(ROCKETPLOT_DEPLOY_QT "Install the Qt runtime next to the demo (release archives)" OFF)
 
@@ -55,6 +57,9 @@ include(GNUInstallDirs)
 add_subdirectory(src)
 if(ROCKETPLOT_BUILD_DEMO)
     add_subdirectory(demo)
+endif()
+if(ROCKETPLOT_BUILD_DESIGNER_PLUGIN AND TARGET Qt6::UiPlugin)
+    add_subdirectory(designer)
 endif()
 if(ROCKETPLOT_INSTALL)
     include(${PROJECT_SOURCE_DIR}/cmake/Install.cmake)

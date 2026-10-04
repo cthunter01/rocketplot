@@ -215,6 +215,16 @@ void Axis::resetVisible()
     Q_EMIT changed();
 }
 
+void Axis::setTickLabelsVisible(bool visible)
+{
+    if (visible == m_tickLabelsVisible)
+    {
+        return;
+    }
+    m_tickLabelsVisible = visible;
+    Q_EMIT changed();
+}
+
 bool Axis::isShown(bool hasSeries) const noexcept
 {
     if (m_visible)
@@ -238,6 +248,7 @@ void Axis::saveState(QJsonObject& state) const
     state.insert(QLatin1String("gridVisible"), m_gridVisible);
     state.insert(QLatin1String("minorGridVisible"), m_minorGridVisible);
     state.insert(QLatin1String("visible"), state::fromOptional(m_visible));
+    state.insert(QLatin1String("tickLabelsVisible"), m_tickLabelsVisible);
 }
 
 void Axis::restoreState(const QJsonObject& state)
@@ -278,6 +289,11 @@ void Axis::restoreState(const QJsonObject& state)
     state::restoreOptional(
         state.value(QLatin1String("visible")), state::toBool,
         [this](bool visible) { setVisible(visible); }, [this] { resetVisible(); });
+
+    if (const auto labels = state::toBool(state.value(QLatin1String("tickLabelsVisible"))))
+    {
+        setTickLabelsVisible(*labels);
+    }
 
     // An axis that was following the data follows the data there is now; one that wasn't shows
     // the range it showed. A range without a word on autoscale is a range to show.

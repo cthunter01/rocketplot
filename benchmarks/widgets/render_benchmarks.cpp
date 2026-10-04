@@ -16,6 +16,7 @@
 #include "rocketplot/Axis.h"
 #include "rocketplot/ExportOptions.h"
 #include "rocketplot/LineSeries.h"
+#include "rocketplot/PlotGrid.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/ScatterSeries.h"
 #include "rocketplot/enums.h"
@@ -162,6 +163,33 @@ BENCHMARK(errorBand)
     ->Name("Render/ErrorBand")
     ->ArgName("points")
     ->Arg(1'000'000)
+    ->Unit(benchmark::kMillisecond);
+
+// A grid of plots drawn as one figure: each plot is laid out twice, once to find the margins
+// its row and column line up by.
+void grid(benchmark::State& state)
+{
+    const auto                 count = static_cast<std::size_t>(state.range(2));
+    const std::vector<double>  time  = rocketplot::bench::ramp(count);
+    const rocketplot::PlotGrid plots(static_cast<int>(state.range(0)),
+                                     static_cast<int>(state.range(1)));
+    std::uint64_t              seed = 0;
+    for (PlotWidget* plot : plots.plots())
+    {
+        plot->addLine(time, rocketplot::bench::walk(count, ++seed));
+    }
+    const rocketplot::ExportOptions frame{.size = {kWidth, kHeight}, .dpi = 96.0};
+    while (state.KeepRunning())
+    {
+        QImage image = plots.renderToImage(frame);
+        benchmark::DoNotOptimize(image);
+    }
+}
+BENCHMARK(grid)
+    ->Name("Render/Grid")
+    ->ArgNames({"rows", "columns", "points"})
+    ->Args({3, 1, 100'000})
+    ->Args({3, 2, 100'000})
     ->Unit(benchmark::kMillisecond);
 
 // A strip chart: each frame, a batch of points arrives on every channel, the view moves on to

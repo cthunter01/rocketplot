@@ -22,6 +22,7 @@
 #include <QLatin1String>
 #include <QList>
 #include <QLocale>
+#include <QMarginsF>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
@@ -79,6 +80,7 @@
 #include "rocketplot/InputBindings.h"
 #include "rocketplot/Legend.h"
 #include "rocketplot/LineSeries.h"
+#include "rocketplot/PlotGrid.h"
 #include "rocketplot/PlotLink.h"
 #include "rocketplot/Range.h"
 #include "rocketplot/ReferenceLine.h"
@@ -163,6 +165,7 @@ struct PlotWidget::Private
     TextPainter                            text;
     std::unique_ptr<InteractionController> interaction;
     QPointer<PlotLink>                     link;
+    QPointer<PlotGrid>                     grid;
     QList<Series*>                         series;
     QList<Annotation*>                     annotations;
     QString                                title;
@@ -187,9 +190,18 @@ struct PlotWidget::Private
 
     ThemeMode                   themeMode = ThemeMode::SYSTEM;
     std::optional<LegendAnchor> bestAnchor;  // where a BEST legend went last
-    bool                        debugOverlay = false;
-    bool                        crosshair    = false;
-    bool                        dirty        = true;
+    // The margins the plot's labels need on screen, kept until something it shows changes: the
+    // plots of a link or a grid each ask all the others for theirs, on every layout.
+    struct NaturalMargins
+    {
+        QMarginsF margins;
+        QSize     size;
+        double    devicePixelRatio = 0.0;
+    };
+    std::optional<NaturalMargins> naturalMargins;
+    bool                          debugOverlay = false;
+    bool                          crosshair    = false;
+    bool                          dirty        = true;
 
     // The axes under the names a saved state has them by.
     using NamedAxis = std::pair<QLatin1String, Axis*>;
@@ -208,7 +220,11 @@ struct PlotWidget::Private
     {
         LayoutConstraints constraints;
         const PlotLink*   current = link.data();
-        if (current != nullptr && current->alignsMargins())
+        if (const PlotGrid* inGrid = grid.data(); inGrid != nullptr)
+        {
+            constraints = inGrid->constraintsFor(&plot);
+        }
+        else if (current != nullptr && current->alignsMargins())
         {
             const auto [left, right] = current->alignedMargins();
             constraints              = {.minLeft = left, .minRight = right};
@@ -538,6 +554,12 @@ void PlotWidget::setLink(PlotLink* link)
     invalidate();
 }
 
+void PlotWidget::setGrid(PlotGrid* grid)
+{
+    m_impl->grid = grid;
+    invalidate();
+}
+
 void PlotWidget::invalidate()
 {
     markDirty();
@@ -548,11 +570,16 @@ void PlotWidget::invalidate()
             plot->markDirty();
         }
     }
+    if (PlotGrid* current = m_impl->grid.data(); current != nullptr)
+    {
+        current->realign();
+    }
 }
 
 void PlotWidget::markDirty()
 {
     m_impl->dirty = true;
+    m_impl->naturalMargins.reset();
     update();
 }
 
@@ -1149,11 +1176,24 @@ void PlotWidget::setDebugOverlay(bool enabled)
 
 void PlotWidget::paintExport(QPainter& painter, const QRectF& bounds, double devicePixelRatio) const
 {
-    const PlotLayout layout = m_impl->layoutIn(*this, bounds, devicePixelRatio);
-    core::Occupancy  occupancy;
-    RenderStats      stats;
-    const bool       best = m_impl->legend->anchor() == LegendAnchor::BEST;
-    PlotRenderer     renderer(*this, layout, m_impl->markers, m_impl->text);
+    paintLayout(painter, m_impl->layoutIn(*this, bounds, devicePixelRatio));
+}
+
+void PlotWidget::paintExport(QPainter& painter, const QRectF& bounds, double devicePixelRatio,
+                             const LayoutConstraints&    constraints,
+                             const std::optional<Theme>& theme) const
+{
+    const ThemeOverride used(m_impl->theme, theme);
+    paintLayout(painter,
+                layoutPlot(*this, bounds, font(), devicePixelRatio, m_impl->text, constraints));
+}
+
+void PlotWidget::paintLayout(QPainter& painter, const PlotLayout& layout) const
+{
+    core::Occupancy occupancy;
+    RenderStats     stats;
+    const bool      best = m_impl->legend->anchor() == LegendAnchor::BEST;
+    PlotRenderer    renderer(*this, layout, m_impl->markers, m_impl->text);
     renderer.render(painter, stats,
                     {.highlighted = nullptr, .occupancy = best ? &occupancy : nullptr});
     // The legend where it hides the least in this layout, staying where it is on screen if that is
@@ -1452,11 +1492,27 @@ QPointF PlotWidget::mapFromData(QPointF dataPosition, const Axis* yAxis) const
     return {layout.x.mapping.toPixel(dataPosition.x()), y.mapping.toPixel(dataPosition.y())};
 }
 
-std::pair<double, double> PlotWidget::naturalMargins() const
+QMarginsF PlotWidget::naturalMargins() const
 {
-    const PlotLayout layout = layoutPlot(*this, QRectF(rect()), font(), devicePixelRatioF(),
-                                         m_impl->text, LayoutConstraints{});
-    return {layout.naturalLeft, layout.naturalRight};
+    const std::optional<Private::NaturalMargins>& kept = m_impl->naturalMargins;
+    if (!kept || kept->size != size() || kept->devicePixelRatio != devicePixelRatioF())
+    {
+        m_impl->naturalMargins = Private::NaturalMargins{
+            .margins          = naturalMargins(QRectF(rect()), devicePixelRatioF(), std::nullopt),
+            .size             = size(),
+            .devicePixelRatio = devicePixelRatioF(),
+        };
+    }
+    return m_impl->naturalMargins->margins;
+}
+
+QMarginsF PlotWidget::naturalMargins(const QRectF& bounds, double devicePixelRatio,
+                                     const std::optional<Theme>& theme) const
+{
+    const ThemeOverride used(m_impl->theme, theme);
+    const PlotLayout    layout =
+        layoutPlot(*this, bounds, font(), devicePixelRatio, m_impl->text, LayoutConstraints{});
+    return {layout.naturalLeft, layout.naturalTop, layout.naturalRight, layout.naturalBottom};
 }
 
 QSize PlotWidget::sizeHint() const

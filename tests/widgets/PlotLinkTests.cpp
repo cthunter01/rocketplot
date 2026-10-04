@@ -1,6 +1,7 @@
 #include "rocketplot/PlotLink.h"
 
 #include <QApplication>
+#include <QCursor>
 #include <QEvent>
 #include <QPoint>
 #include <QPointF>
@@ -44,11 +45,18 @@ void zoomIn(PlotWidget& plot)
     QApplication::sendEvent(&plot, &event);
 }
 
+// A place on no window.
+constexpr QPoint kNowhere(-1000, -1000);
+
 class PlotLinkTest : public testing::Test
 {
 protected:
     void SetUp() override
     {
+        // No pointer left behind by an earlier test: a window that opens under the pointer takes
+        // it for its own, and then two plots of the link each think they have it.
+        QCursor::setPos(kNowhere);
+        QApplication::processEvents();
         for (PlotWidget* plot : {&m_a, &m_b})
         {
             plot->resize(600, 300);

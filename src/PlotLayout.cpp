@@ -51,20 +51,6 @@ constexpr double kProbeShare = 0.7;
 // The x label spacing assumed by that guess.
 constexpr double kProbeSpacing = 80.0;
 
-QFont scaledFont(const QFont& base, double scale)
-{
-    QFont font = base;
-    if (base.pointSizeF() > 0.0)
-    {
-        font.setPointSizeF(base.pointSizeF() * scale);
-    }
-    else if (base.pixelSize() > 0)
-    {
-        font.setPixelSize(std::max(1, static_cast<int>(std::lround(base.pixelSize() * scale))));
-    }
-    return font;
-}
-
 double widestLabel(const QStringList& labels, const QFontMetricsF& metrics)
 {
     double widest = 0.0;
@@ -224,16 +210,18 @@ struct Vertical
     double xAxisHeight   = 0.0;
 };
 
-Vertical layoutVertically(const PlotWidget& plot, PlotLayout& layout, TextPainter& text)
+Vertical layoutVertically(const PlotWidget& plot, PlotLayout& layout, TextPainter& text,
+                          const LayoutConstraints& constraints)
 {
     const QRectF& bounds      = layout.bounds;
     const double  tickHeight  = tickLabelHeight(layout);
     const double  probeHeight = bounds.height() * kProbeShare;
-    const bool    xAnnotation =
-        needsAnnotation(*plot.xAxis(), layout.x.shown, bounds.width() * kProbeShare, kProbeSpacing);
-    const bool yAnnotations =
-        needsAnnotation(*plot.yAxis(), layout.y.shown, probeHeight, tickHeight * kYLabelSpacing) ||
-        needsAnnotation(*plot.yAxis2(), layout.y2.shown, probeHeight, tickHeight * kYLabelSpacing);
+    const bool    xAnnotation = needsAnnotation(*plot.xAxis(), layout.x.shown && layout.x.labeled,
+                                                bounds.width() * kProbeShare, kProbeSpacing);
+    const bool yAnnotations = needsAnnotation(*plot.yAxis(), layout.y.shown && layout.y.labeled,
+                                              probeHeight, tickHeight * kYLabelSpacing) ||
+                              needsAnnotation(*plot.yAxis2(), layout.y2.shown && layout.y2.labeled,
+                                              probeHeight, tickHeight * kYLabelSpacing);
 
     Vertical vertical;
     double   top = bounds.top() + kOuterPadding;
@@ -256,10 +244,24 @@ Vertical layoutVertically(const PlotWidget& plot, PlotLayout& layout, TextPainte
     {
         bottom -= vertical.xRow + kAxisLabelGap;
     }
-    vertical.xAxisHeight =
-        layout.x.shown ? plot.theme().tickLength + kTickLabelGap + tickHeight : 0.0;
+    if (layout.x.shown)
+    {
+        vertical.xAxisHeight =
+            plot.theme().tickLength + (layout.x.labeled ? kTickLabelGap + tickHeight : 0.0);
+    }
     vertical.plotTop    = snap(top, layout.devicePixelRatio);
     vertical.plotBottom = snap(bottom - vertical.xAxisHeight, layout.devicePixelRatio);
+
+    // Plots side by side in a grid line up: each leaves the room the one with the most above and
+    // below its plot area needs, and what sits there moves with the plot area.
+    layout.naturalTop        = vertical.plotTop - bounds.top();
+    layout.naturalBottom     = bounds.bottom() - vertical.plotBottom;
+    const double extraTop    = std::max(0.0, constraints.minTop - layout.naturalTop);
+    const double extraBottom = std::max(0.0, constraints.minBottom - layout.naturalBottom);
+    vertical.plotTop         = snap(vertical.plotTop + extraTop, layout.devicePixelRatio);
+    vertical.annotationTop += extraTop;
+    vertical.plotBottom = snap(vertical.plotBottom - extraBottom, layout.devicePixelRatio);
+    vertical.xRowTop -= extraBottom;
     return vertical;
 }
 
@@ -281,7 +283,9 @@ double layoutLeftAxis(const PlotWidget& plot, PlotLayout& layout, TextPainter& t
         layout.y.titleRect = QRectF(left, plotTop, title.height(), plotHeight);
         left += title.height() + kAxisLabelGap;
     }
-    return left + widestLabel(layout.y.labels, metrics) + kTickLabelGap + plot.theme().tickLength;
+    const double labels =
+        layout.y.labeled ? widestLabel(layout.y.labels, metrics) + kTickLabelGap : 0.0;
+    return left + labels + plot.theme().tickLength;
 }
 
 // The same for the secondary y axis on the right. Returns the right edge of the plot area.
@@ -301,7 +305,9 @@ double layoutRightAxis(const PlotWidget& plot, PlotLayout& layout, TextPainter& 
         layout.y2.titleRect = QRectF(right - title.height(), plotTop, title.height(), plotHeight);
         right -= title.height() + kAxisLabelGap;
     }
-    return right - widestLabel(layout.y2.labels, metrics) - kTickLabelGap - plot.theme().tickLength;
+    const double labels =
+        layout.y2.labeled ? widestLabel(layout.y2.labels, metrics) + kTickLabelGap : 0.0;
+    return right - labels - plot.theme().tickLength;
 }
 
 // The x ticks, spaced by their labels' width, with the last label kept inside the target (which
@@ -322,7 +328,7 @@ double layoutXTicks(const Axis& xAxis, PlotLayout& layout, double plotLeft, doub
         fillTicks(layout.x, xAxis, plotRight - plotLeft, minSpacing);
         const core::AxisMapping mapping(xAxis.range(), plotLeft, plotRight, scaleOf(xAxis));
         double                  overflow = 0.0;
-        if (!layout.x.major.empty())
+        if (layout.x.labeled && !layout.x.major.empty())
         {
             const double lastRightEdge = mapping.toPixel(layout.x.major.back()) +
                                          (metrics.horizontalAdvance(layout.x.labels.back()) / 2.0);
@@ -389,6 +395,20 @@ void placeAxes(const PlotWidget& plot, PlotLayout& layout, const Vertical& verti
 
 }  // namespace
 
+QFont scaledFont(const QFont& base, double scale)
+{
+    QFont font = base;
+    if (base.pointSizeF() > 0.0)
+    {
+        font.setPointSizeF(base.pointSizeF() * scale);
+    }
+    else if (base.pixelSize() > 0)
+    {
+        font.setPixelSize(std::max(1, static_cast<int>(std::lround(base.pixelSize() * scale))));
+    }
+    return font;
+}
+
 const AxisLayout& PlotLayout::yFor(const Series& series) const
 {
     return series.isOnSecondaryYAxis() ? y2 : y;
@@ -423,11 +443,14 @@ PlotLayout layoutPlot(const PlotWidget& plot, const QRectF& bounds, const QFont&
     layout.bounds           = bounds;
     layout.devicePixelRatio = devicePixelRatio;
     setFonts(layout, font, plot.theme());
-    layout.x.shown  = plot.xAxis()->isShown(true);
-    layout.y.shown  = plot.yAxis()->isShown(true);
-    layout.y2.shown = plot.yAxis2()->isShown(hasSeriesOnSecondary(plot));
+    layout.x.shown    = plot.xAxis()->isShown(true);
+    layout.y.shown    = plot.yAxis()->isShown(true);
+    layout.y2.shown   = plot.yAxis2()->isShown(hasSeriesOnSecondary(plot));
+    layout.x.labeled  = plot.xAxis()->areTickLabelsVisible();
+    layout.y.labeled  = plot.yAxis()->areTickLabelsVisible();
+    layout.y2.labeled = plot.yAxis2()->areTickLabelsVisible();
 
-    const Vertical vertical = layoutVertically(plot, layout, text);
+    const Vertical vertical = layoutVertically(plot, layout, text, constraints);
     if (vertical.plotBottom - vertical.plotTop < kMinPlotSize)
     {
         return layout;

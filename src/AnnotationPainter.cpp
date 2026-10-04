@@ -42,6 +42,8 @@ namespace
 
 // Where an end that an axis can't place is put, before it is cut off at the plot's edge.
 constexpr double kFarPixels = 1e6;
+// How far from a whole number of device pixels a line width may be and count as one.
+constexpr double kWholePixelTolerance = 0.01;
 // Labels of lines and spans: the text's padding in its box, the box's distance from the plot's
 // edge along the line, and from the line itself.
 constexpr double kLabelPaddingX = 4.0;
@@ -298,7 +300,13 @@ std::optional<LinePlace> placeOf(const EventMarker& event, const PlotLayout& lay
 void strokeLine(const Context& context, LinePlace place, const QPen& pen)
 {
     const QRectF& plot = context.layout->plot;
-    const double  at   = crispLine(place.pixel, pen.widthF(), context.layout->devicePixelRatio);
+    const double  dpr  = context.layout->devicePixelRatio;
+    const double  at   = crispLine(place.pixel, pen.widthF(), dpr);
+    // A line along an axis that is a whole number of device pixels wide covers whole pixels:
+    // antialiasing wouldn't change it, and takes ten times as long.
+    const double deviceWidth = pen.widthF() * dpr;
+    const bool wholePixels = std::abs(deviceWidth - std::round(deviceWidth)) < kWholePixelTolerance;
+    context.painter->setRenderHint(QPainter::Antialiasing, !wholePixels);
     context.painter->setPen(pen);
     QRectF covered;
     if (place.vertical)
@@ -311,6 +319,7 @@ void strokeLine(const Context& context, LinePlace place, const QPen& pen)
         context.painter->drawLine(QPointF(plot.left(), at), QPointF(plot.right(), at));
         covered = QRectF(plot.left(), at - (pen.widthF() / 2.0), plot.width(), pen.widthF());
     }
+    context.painter->setRenderHint(QPainter::Antialiasing, true);
     context.occupy(covered);
 }
 

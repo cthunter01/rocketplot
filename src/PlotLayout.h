@@ -20,7 +20,8 @@ class TextPainter;
 /// One axis's share of a layout.
 struct AxisLayout
 {
-    bool                shown = false;
+    bool                shown   = false;
+    bool                labeled = true;  ///< Whether the tick labels and the annotation are drawn
     core::AxisMapping   mapping;
     std::vector<double> major;
     std::vector<double> minor;
@@ -31,11 +32,14 @@ struct AxisLayout
     QRectF              annotationRect;
 };
 
-/// Smallest margins either side of the plot area (linked plots line up with these).
+/// Smallest margins around the plot area: linked plots line up with these left and right, and
+/// the plots of a grid on every side.
 struct LayoutConstraints
 {
-    double minLeft  = 0.0;
-    double minRight = 0.0;
+    double minLeft   = 0.0;
+    double minRight  = 0.0;
+    double minTop    = 0.0;
+    double minBottom = 0.0;
 };
 
 /// Where everything goes for one frame. Computed from the plot's state and the target rectangle, so
@@ -59,10 +63,11 @@ struct PlotLayout
     QFont legendFont;
     QFont annotationFont;
 
-    /// The margins left and right of the plot area that this plot's content needs, before
-    /// constraints.
-    double naturalLeft  = 0.0;
-    double naturalRight = 0.0;
+    /// The margins around the plot area that this plot's content needs, before constraints.
+    double naturalLeft   = 0.0;
+    double naturalRight  = 0.0;
+    double naturalTop    = 0.0;
+    double naturalBottom = 0.0;
 
     /// The y layout a series is drawn against, or an annotation's y values are on.
     [[nodiscard]] const AxisLayout& yFor(const Series& series) const;
@@ -73,6 +78,9 @@ struct PlotLayout
 [[nodiscard]] PlotLayout layoutPlot(const PlotWidget& plot, const QRectF& bounds, const QFont& font,
                                     double devicePixelRatio, TextPainter& text,
                                     LayoutConstraints constraints = {});
+
+/// @p base at @p scale times its size (a theme's font scales).
+[[nodiscard]] QFont scaledFont(const QFont& base, double scale);
 
 /// The scale an axis maps values with.
 [[nodiscard]] core::Scale scaleOf(const Axis& axis);

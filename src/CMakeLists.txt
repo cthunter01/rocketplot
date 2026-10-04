@@ -63,6 +63,7 @@ target_sources(rocketplot
         Overlays.h
         PlotExport.cpp
         PlotExport.h
+        PlotGrid.cpp
         PlotLayout.cpp
         PlotLayout.h
         PlotLink.cpp
@@ -94,6 +95,7 @@ target_sources(rocketplot
             ${PROJECT_SOURCE_DIR}/include/rocketplot/Legend.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/LineSeries.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/NumericRange.h
+            ${PROJECT_SOURCE_DIR}/include/rocketplot/PlotGrid.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/PlotLink.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/PlotWidget.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/Range.h
@@ -118,6 +120,7 @@ if(NOT ROCKETPLOT_BUILD_SHARED)
     target_compile_definitions(rocketplot PUBLIC ROCKETPLOT_STATIC_DEFINE)
 endif()
 set_target_properties(rocketplot PROPERTIES
+    POSITION_INDEPENDENT_CODE ON   # a static rocketplot can go into a plugin or shared library (the Designer plugin)
     CXX_VISIBILITY_PRESET hidden   # only ROCKETPLOT_EXPORT classes leave the shared library
     VISIBILITY_INLINES_HIDDEN ON
     VERSION ${PROJECT_VERSION}

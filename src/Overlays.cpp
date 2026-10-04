@@ -62,7 +62,9 @@ void drawCrosshair(QPainter& painter, const PlotWidget& plot, const PlotLayout& 
     const Theme& theme = plot.theme();
     const double dpr   = layout.devicePixelRatio;
     painter.save();
-    painter.setRenderHint(QPainter::Antialiasing, true);
+    // Hairlines on whole device pixels: drawn without antialiasing, which they don't need and
+    // which would be most of the cost of following the pointer.
+    painter.setRenderHint(QPainter::Antialiasing, false);
     painter.setPen(hairlinePen(theme.crosshair));
     const double lineX = crispPixel(px, dpr);
     painter.drawLine(QPointF(lineX, area.top()), QPointF(lineX, area.bottom()));
@@ -71,6 +73,7 @@ void drawCrosshair(QPainter& painter, const PlotWidget& plot, const PlotLayout& 
         const double lineY = crispPixel(pointer->y(), dpr);
         painter.drawLine(QPointF(area.left(), lineY), QPointF(area.right(), lineY));
     }
+    painter.setRenderHint(QPainter::Antialiasing, true);
 
     // Tags over the tick labels, with the coordinates written out in full.
     const QFontMetricsF metrics(layout.tickFont);

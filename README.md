@@ -9,6 +9,8 @@ A Qt 6 widget for plotting numeric data in C++ applications: any number of data 
 legend, taken straight from `std::vector` (or any range of numbers), and smooth to pan and zoom with millions of
 points per series. A demo application shows off what it does and is where new features get worked out.
 
+![The demo following a simulated launch: three channels on a shared time axis, events marked](docs/images/demo-telemetry.png)
+
 ```cpp
 #include "rocketplot/Axis.h"
 #include "rocketplot/PlotWidget.h"
@@ -47,6 +49,13 @@ plot->exportCsv("ascent.csv");
 // Open the plot next time the way the user left it: view, legend, hidden series, colors.
 QSettings().setValue("ascentPlot", QJsonDocument(plot->saveState()).toJson());
 plot->restoreState(QJsonDocument::fromJson(QSettings().value("ascentPlot").toByteArray()).object());
+
+// Several plots as one figure: rows share a time axis, plot areas line up, one export.
+auto* grid = new rocketplot::PlotGrid(3, 1, parent);
+grid->plot(0)->addLine(time, altitude);
+grid->plot(1)->addLine(time, velocity);
+grid->plot(2)->addLine(time, acceleration);
+grid->exportPdf("flight.pdf");
 ```
 
 - **Data**: copied in from any range of numbers (`int`, `float`, `std::int16_t`, ...), moved in from an rvalue
@@ -68,6 +77,11 @@ plot->restoreState(QJsonDocument::fromJson(QSettings().value("ascentPlot").toByt
   as a scrolling strip chart.
 - **Linked plots**: `PlotLink` ties the x axes of stacked plots together, lines up their plot areas, and shares
   their crosshair and view history.
+- **Subplot grid**: `PlotGrid` arranges plots in rows and columns, lines their plot areas up in both directions,
+  links the x axes of each column (or of all plots, or none), leaves the tick labels of a shared axis to the
+  bottom row, and exports as one figure.
+- **Qt Designer**: a plugin puts `PlotWidget` and `PlotGrid` into Designer's widget box, with their properties in
+  the property editor (see [Qt Designer](#qt-designer)).
 - **Interaction**: drag to pan, Shift-drag to zoom to a box (a thin one zooms one axis), wheel to zoom about the
   pointer (over an axis: only that axis; Ctrl: x only, Shift: y only), double-click to autoscale again. Trackpads
   scroll to pan and pinch to zoom; touchscreens drag and pinch. Back and forward through the view history (the
@@ -88,6 +102,8 @@ plot->restoreState(QJsonDocument::fromJson(QSettings().value("ascentPlot").toByt
   time and what each series drew.
 - MIT licensed; needs only Qt.
 
+![A grid of six plots: three channels in rows, the two stages in columns](docs/images/demo-grid.png)
+
 Run the demo to see it: `build/clang-debug/bin/rocketplot_demo` after building. Besides a gallery page per
 feature (each with its source), it has an inspector that shows and edits every property of the page's plots, a
 simulated launch reported as live telemetry, and a page for your own data: open a CSV file, drop one on the
@@ -101,9 +117,27 @@ target_link_libraries(my_app PRIVATE rocketplot::rocketplot)
 ```
 Or build it with your project through `FetchContent` or `add_subdirectory()`.
 
+### Qt Designer
+The build makes a Designer plugin when Qt's UiPlugin module is there (it comes with Qt's tools; Arch:
+`qt6-tools`): `build/<preset>/plugins/designer/rocketplot_designer.so` (`.dll` on Windows), also installed to
+`<prefix>/plugins/designer/` and part of the `-sdk` archives. Designer looks for plugins in a `designer` folder of
+its plugin paths:
+```sh
+QT_PLUGIN_PATH=build/clang-debug/plugins designer6      # try it from the build
+cp build/clang-debug/plugins/designer/rocketplot_designer.so <Qt>/plugins/designer/   # or keep it with Qt
+```
+"Plot" and "Plot grid" then show under *rocketplot* in the widget box. A form that uses them includes
+`rocketplot/PlotWidget.h` or `rocketplot/PlotGrid.h`, so the application links `rocketplot::rocketplot` as
+above; the data, axis labels and so on are set in code (`ui->plot->addLine(...)`). A plugin must be built with
+the Qt it is loaded by (same major version, not newer than it, same compiler family). Qt Creator's built-in
+form editor uses the Qt that Creator itself was built with, which is often not the one your kit uses: if the
+widgets don't show up there, open the form in the standalone Designer of your Qt (or promote a `QWidget` to
+`rocketplot::PlotWidget` by hand; the generated code is the same).
+
 ## Requirements
-- Qt 6.8 or later (Widgets and SVG). On Linux, from the distribution (Arch: `qt6-base qt6-svg`); on macOS and
-  Windows, from the [Qt online installer](https://www.qt.io/download-qt-installer) or
+- Qt 6.8 or later (Widgets and SVG; Qt's tools too for the Designer plugin). On Linux, from the distribution
+  (Arch: `qt6-base qt6-svg`, and `qt6-tools`); on macOS and Windows, from the
+  [Qt online installer](https://www.qt.io/download-qt-installer) or
   [aqt](https://github.com/miurahr/aqtinstall), with its prefix in `CMAKE_PREFIX_PATH` (e.g. in a
   `CMakeUserPresets.json`)
 - CMake 3.28+ and Ninja
@@ -182,8 +216,8 @@ packages an archive on each platform. Only when every job passes does it tag the
 publish a GitHub release with the archives, a `SHA256SUMS` file and generated release notes.
 
 Each platform gets two archives: `rocketplot-<version>-<platform>-sdk` (the static library, headers and CMake
-package, for `find_package(rocketplot)`) and `rocketplot-<version>-<platform>-demo` (the demo, with the Qt
-libraries and plugins it needs next to it).
+package, for `find_package(rocketplot)`, and the Designer plugin) and `rocketplot-<version>-<platform>-demo` (the
+demo, with the Qt libraries and plugins it needs next to it).
 
 | Platform | Built with | Runs on |
 | --- | --- | --- |

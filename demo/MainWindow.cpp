@@ -100,11 +100,12 @@ QString snippet(const QString& sourceFile)
 MainWindow::MainWindow(QWidget* parent)
   : QMainWindow(parent),
     m_pages{
-        basicLinesPage(), scatterPage(),         pointStylesPage(), errorBarsPage(),
-        gapsPage(),       uniformSamplingPage(), logScalePage(),    dateTimePage(),
-        twoAxesPage(),    numberFormatsPage(),   linkedPlotsPage(), interactionPage(),
-        legendPage(),     annotationsPage(),     exportPage(),      statePage(),
-        largeDataPage(),  liveAppendPage(),      telemetryPage(),   importPage(),
+        basicLinesPage(),  scatterPage(),         pointStylesPage(), errorBarsPage(),
+        gapsPage(),        uniformSamplingPage(), logScalePage(),    dateTimePage(),
+        twoAxesPage(),     numberFormatsPage(),   linkedPlotsPage(), gridPage(),
+        interactionPage(), legendPage(),          annotationsPage(), exportPage(),
+        statePage(),       largeDataPage(),       liveAppendPage(),  telemetryPage(),
+        importPage(),
     },
     m_list(new QListWidget(this)),
     m_pageLayout(new QVBoxLayout),

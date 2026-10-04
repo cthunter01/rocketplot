@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QList>
+#include <QMarginsF>
 #include <QPoint>
 #include <QPointF>
 #include <QRectF>
@@ -44,6 +45,7 @@ class EventMarker;
 class InputBindings;
 class InteractionController;
 class Legend;
+class PlotGrid;
 class PlotLink;
 class LineSeries;
 class ReferenceLine;
@@ -52,7 +54,9 @@ class Series;
 class ShadedSpan;
 class TextAnnotation;
 class ViewHistory;
+struct LayoutConstraints;
 struct LegendEntry;
+struct PlotLayout;
 
 /// A widget that plots any number of data sets on shared x and y axes, with a legend.
 ///
@@ -367,6 +371,7 @@ protected:
 
 private:
     friend class InteractionController;
+    friend class PlotGrid;
     friend class PlotLink;
     struct Private;
 
@@ -381,6 +386,7 @@ private:
     void            refitY();
     void            updateSystemTheme();
     void            setLink(PlotLink* link);
+    void            setGrid(PlotGrid* grid);
     // Repaints after a change to what the plot shows (the cached rendering is redrawn); linked
     // plots repaint too, as their margins may follow.
     void invalidate();
@@ -398,6 +404,11 @@ private:
     // Exports: the plot as it is exported, laid out in @p bounds; the size an export is laid out
     // in; the CSV text, a piece at a time; and the context menu's "Export…".
     void paintExport(QPainter& painter, const QRectF& bounds, double devicePixelRatio) const;
+    // The same for a grid, which says what margins the plot is to leave, and in what theme (if
+    // not the plot's own) it exports.
+    void paintExport(QPainter& painter, const QRectF& bounds, double devicePixelRatio,
+                     const LayoutConstraints& constraints, const std::optional<Theme>& theme) const;
+    void paintLayout(QPainter& painter, const PlotLayout& layout) const;
     [[nodiscard]] QSize exportSize(const ExportOptions& options) const;
     void writeCsv(QChar separator, const std::function<void(std::string_view)>& write) const;
     void exportWithDialog();
@@ -416,9 +427,12 @@ private:
     [[nodiscard]] Range xDataBounds(bool positiveOnly, bool withAnnotations) const;
     // The same for the y values on @p axis; within the current x range if @p visibleOnly.
     [[nodiscard]] Range yDataBounds(const Axis& axis, bool positiveOnly, bool visibleOnly) const;
-    // The margins left and right of the plot area that this plot's labels need.
-    [[nodiscard]] std::pair<double, double> naturalMargins() const;
-    [[nodiscard]] qsizetype                 nextColorIndex();
+    // The margins around the plot area that this plot's labels need, before any are widened to
+    // line up with other plots': on screen, and laid out in @p bounds (in @p theme, if given).
+    [[nodiscard]] QMarginsF naturalMargins() const;
+    [[nodiscard]] QMarginsF naturalMargins(const QRectF& bounds, double devicePixelRatio,
+                                           const std::optional<Theme>& theme) const;
+    [[nodiscard]] qsizetype nextColorIndex();
 
     std::unique_ptr<Private> m_impl;
 };

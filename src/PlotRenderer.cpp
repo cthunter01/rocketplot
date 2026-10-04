@@ -142,8 +142,12 @@ void PlotRenderer::render(QPainter& painter, RenderStats& stats, const RenderOpt
     {
         return;
     }
-    painter.setRenderHint(QPainter::Antialiasing, true);
+    // The grid and the axes are hairlines on whole device pixels, along the axes: antialiasing
+    // wouldn't change a pixel of them, and takes ten times as long (they were most of the time an
+    // empty plot took to draw).
+    painter.setRenderHint(QPainter::Antialiasing, false);
     drawGrid(painter);
+    painter.setRenderHint(QPainter::Antialiasing, true);
     painter.save();
     // Within whatever clip the painter came with: PlotWidget::paint() draws into others' drawings.
     painter.setClipRect(m_layout->plot, Qt::IntersectClip);
@@ -154,7 +158,9 @@ void PlotRenderer::render(QPainter& painter, RenderStats& stats, const RenderOpt
                     m_options.occupancy);
     drawAnnotationLabels(painter, *m_plot, *m_layout, *m_text, m_options.occupancy);
     painter.restore();
+    painter.setRenderHint(QPainter::Antialiasing, false);
     drawAxes(painter);
+    painter.setRenderHint(QPainter::Antialiasing, true);
     drawLabels(painter);
 }
 
@@ -626,7 +632,7 @@ void PlotRenderer::drawLabels(QPainter& painter) const
     painter.setFont(m_layout->tickFont);
     painter.setPen(m_theme->secondaryText);
 
-    if (m_layout->x.shown)
+    if (m_layout->x.shown && m_layout->x.labeled)
     {
         const double labelTop = plot.bottom() + m_theme->tickLength + kTickLabelGap;
         for (qsizetype i = 0; i < m_layout->x.labels.size(); ++i)
@@ -650,18 +656,18 @@ void PlotRenderer::drawLabels(QPainter& painter) const
             painter.drawText(box, static_cast<int>(alignment.toInt()), axis.labels.at(i));
         }
     };
-    if (m_layout->y.shown)
+    if (m_layout->y.shown && m_layout->y.labeled)
     {
         yLabels(m_layout->y, plot.left() - m_theme->tickLength - kTickLabelGap, true);
     }
-    if (m_layout->y2.shown)
+    if (m_layout->y2.shown && m_layout->y2.labeled)
     {
         yLabels(m_layout->y2, plot.right() + m_theme->tickLength + kTickLabelGap, false);
     }
 
     // What the tick labels leave out: below the x axis on the right, above the y axes.
     const auto annotation = [&](const AxisLayout& axis, Qt::Alignment alignment) {
-        if (axis.shown && !axis.annotation.isEmpty())
+        if (axis.shown && axis.labeled && !axis.annotation.isEmpty())
         {
             painter.drawText(axis.annotationRect, static_cast<int>(alignment.toInt()),
                              axis.annotation);

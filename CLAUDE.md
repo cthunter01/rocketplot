@@ -4,7 +4,8 @@ A Qt 6 Widgets plotting library (`rocketplot::PlotWidget`: many series on shared
 `std::vector`/any numeric range, smooth with millions of points) plus a demo app. C++23, CMake presets + Ninja,
 GoogleTest. Cross-platform: Linux (GCC, Clang), macOS (Apple Clang) and Windows (MSVC).
 
-Needs Qt 6.8+ (Widgets, and Svg for the SVG export). Linux uses the system Qt; on macOS and Windows put Qt's prefix
+Needs Qt 6.8+ (Widgets, and Svg for the SVG export; UiPlugin from Qt's tools, Arch `qt6-tools`, for the Designer
+plugin, which is skipped without it). Linux uses the system Qt; on macOS and Windows put Qt's prefix
 in `CMAKE_PREFIX_PATH` (for example in a `CMakeUserPresets.json`, which is gitignored). CI builds Windows against Qt
 6.8 (the minimum, so newer API is caught) and macOS against 6.10 (Qt 6.8.3 links the AGL framework, which the macOS 26
 SDK removed). CI's Arch image has the newest clang-tidy, which may be ahead of this machine's: new checks can fail the
@@ -25,6 +26,8 @@ installed shared library: `cmake --preset asan -B build/asan-fetched -DFETCHCONT
   without a display: `QT_QPA_PLATFORM=offscreen build/clang-debug/bin/rocketplot_demo --theme light --screenshots <dir>`
   (then look at them; `--inspector` shows the property inspector, `--page <title>` takes one page only, and
   `--settle <ms>` waits longer before each screenshot: the Telemetry page needs 30000 to get past staging)
+- Designer plugin: built into `build/<preset>/plugins/designer/`; try it with
+  `QT_PLUGIN_PATH=build/clang-debug/plugins designer6`
 - Benchmarks: `cmake --workflow --preset bench`, then `build/bench/bin/rocketplot_benchmarks` (the widget) and
   `rocketplot_core_benchmarks` (the core); `--benchmark_filter=<regex>` picks some. Times only mean something on
   an idle machine. The `tidy` and `ci-*` presets build them too and run each once as a test (label `bench`)
@@ -52,7 +55,9 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
 
 ## Layout
 - `include/rocketplot/`: public headers (`PlotWidget`, `Series`/`LineSeries`/`ScatterSeries`, `Axis`, `Legend`,
-  `Annotation`/`ReferenceLine`/`ShadedSpan`/`TextAnnotation`/`EventMarker`, `PlotLink`, `InputBindings`, `Theme`,
+  `Annotation`/`ReferenceLine`/`ShadedSpan`/`TextAnnotation`/`EventMarker`, `PlotLink`, `PlotGrid` (plots in rows
+  and columns: it makes the plots, links each column's x axes with `PlotLink`s and lines the plot areas up through
+  `LayoutConstraints`), `InputBindings`, `Theme`,
   `ExportOptions`, `enums.h`, `plottime.h`; Qt-free value types `Range`, `UniformX`, `NumericRange`).
   `export.h` is generated into `build/<preset>/include/rocketplot/`
 - `src/core/`: `rocketplot_core`, an OBJECT library with no Qt: series storage (`SeriesData`), min/max pyramid,
@@ -78,9 +83,14 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
   of their own: `PropertyInspector` (a tree of every Q_PROPERTY of the page's plots and their parts, through the
   meta-object system: a new property shows up by itself), `TelemetrySimulator` (the flight behind the Telemetry
   page), `DelimitedText` (reads CSV and the like) and `DataImportWidget` (the "Your data" page)
+- `designer/`: `rocketplot_designer`, the Qt Designer plugin (a MODULE; `WidgetCollection` is what Designer loads),
+  and `rocketplot_designer_widgets`, a static library of what it tells Designer about each widget (`CustomWidget`),
+  which `tests/designer/` links. A widget's Q_PROPERTYs are what Designer's property editor shows and what a form
+  sets through `set<Property>()`: `tests/widgets/PlotForm.ui` is such a form, compiled by uic for `form_tests.cpp`
 - `tests/core/`: `rocketplot_core_tests` (links the core objects); `tests/widgets/`: `rocketplot_tests` (offscreen Qt,
   own `main.cpp`); `tests/demo/`: `rocketplot_demo_tests` (links `rocketplot_demo_lib`, same `main.cpp`; creates
-  every gallery page). Class tests: `MyClassTests.cpp`; other tests: `*_tests.cpp`. Tests of what gets drawn use
+  every gallery page); `tests/designer/`: `rocketplot_designer_tests` (the widget descriptions, and the plugin
+  loaded from its file). Class tests: `MyClassTests.cpp`; other tests: `*_tests.cpp`. Tests of what gets drawn use
   the `RenderedPlotTest` fixture (fixed size, theme and axes) and compare a rendering with and without the thing
 - `benchmarks/`: Google Benchmark, only with `ROCKETPLOT_BUILD_BENCHMARKS`. `core/`: `rocketplot_core_benchmarks`
   (links the core objects); `widgets/`: `rocketplot_benchmarks` (the public API, offscreen Qt, own `main.cpp`).
@@ -108,6 +118,11 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
 - A setting of a plot class is a `Q_PROPERTY` (with `NOTIFY`, and `RESET` when it has a default to go back to):
   the demo's inspector then lists it by itself. One that is part of how a plot is set up, rather than of what it
   shows, also goes into that class's `saveState()`/`restoreState()`
+- Widget tests must pass in any order in one process (`build/clang-debug/bin/rocketplot_tests --gtest_shuffle`),
+  not only one per process as ctest runs them: follow `QTest::mouseDClick()` on a widget with a `mouseRelease()`
+  (QTest otherwise goes on thinking the button is down), and don't rely on where the pointer is when a test starts
+- Straight lines along the axes on whole device pixels (grid, axes, ticks, crosshair) are drawn with antialiasing
+  off: it changes no pixel of them and takes ten times as long. Everything else is antialiased
 - Warnings are part of the build: code must compile cleanly with `-Werror` under GCC and Clang and with `/WX`
   under MSVC
 - Code must build and pass its tests on Linux, macOS and Windows (CI runs all three). Use the standard library

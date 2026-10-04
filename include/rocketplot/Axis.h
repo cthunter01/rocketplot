@@ -46,6 +46,8 @@ class ROCKETPLOT_EXPORT Axis : public QObject
     Q_PROPERTY(
         bool minorGridVisible READ isMinorGridVisible WRITE setMinorGridVisible NOTIFY changed)
     Q_PROPERTY(bool visible READ isVisible WRITE setVisible RESET resetVisible NOTIFY changed)
+    Q_PROPERTY(
+        bool tickLabelsVisible READ areTickLabelsVisible WRITE setTickLabelsVisible NOTIFY changed)
 
 public:
     ~Axis() override;
@@ -123,6 +125,13 @@ public:
     /// Whether the axis is drawn, given whether any series uses it.
     [[nodiscard]] bool isShown(bool hasSeries) const noexcept;
 
+    /// Whether the axis writes the values at its ticks (and the offset, multiplier or date that
+    /// goes with them). Without them it keeps its line, its tick marks and the grid, and takes
+    /// less room: for a plot stacked on another one that shows the same axis (PlotGrid does this
+    /// for the plots above its bottom row). On by default.
+    [[nodiscard]] bool areTickLabelsVisible() const noexcept { return m_tickLabelsVisible; }
+    void               setTickLabelsVisible(bool visible);
+
 Q_SIGNALS:
     /// The visible range changed, by the user, by autoscale or by setRange().
     void rangeChanged(double min, double max);
@@ -158,7 +167,8 @@ private:
     double              m_autoscaleMargin = 0.03;
     double              m_followWindow    = 10.0;
     bool                m_gridVisible;
-    bool                m_minorGridVisible = false;
+    bool                m_minorGridVisible  = false;
+    bool                m_tickLabelsVisible = true;
     std::optional<bool> m_visible;
 };
 

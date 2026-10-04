@@ -20,7 +20,8 @@ jobs:
     steps:
       - name: Install toolchain and Qt
         # A font is needed for the offscreen platform the widget tests use: without one, text measures zero.
-        run: pacman -Syu --noconfirm --needed cmake ninja clang git qt6-base qt6-svg ttf-dejavu
+        # qt6-tools: Qt's UiPlugin module, for the Designer plugin (the Qt installs on macOS and Windows have it).
+        run: pacman -Syu --noconfirm --needed cmake ninja clang git qt6-base qt6-svg qt6-tools ttf-dejavu
       - uses: actions/checkout@v7
       - name: Configure, build and test
         run: cmake --workflow --preset ${{ matrix.preset }}

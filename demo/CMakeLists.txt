@@ -21,6 +21,7 @@ add_library(rocketplot_demo_lib STATIC
     pages/ErrorBarsPage.cpp
     pages/ExportPage.cpp
     pages/GapsPage.cpp
+    pages/GridPage.cpp
     pages/ImportPage.cpp
     pages/InteractionPage.cpp
     pages/LargeDataPage.cpp

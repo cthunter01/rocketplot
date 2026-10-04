@@ -261,6 +261,8 @@ TEST_F(InteractionTest, ResetIsAStep)
     wheel(center(), 240);
     const Range zoomed = x();
     QTest::mouseDClick(&m_plot, Qt::LeftButton, Qt::NoModifier, pixel(center()));
+    // As a real double click ends, and so that QTest doesn't go on thinking the button is down.
+    QTest::mouseRelease(&m_plot, Qt::LeftButton, Qt::NoModifier, pixel(center()));
     EXPECT_TRUE(m_plot.xAxis()->autoscale());
     m_plot.back();
     EXPECT_EQ(x(), zoomed);

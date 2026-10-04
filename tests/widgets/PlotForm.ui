@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>PlotForm</class>
+ <widget class="QWidget" name="PlotForm">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <layout class="QHBoxLayout" name="horizontalLayout">
+   <item>
+    <widget class="rocketplot::PlotWidget" name="plot">
+     <property name="title">
+      <string>Ascent</string>
+     </property>
+     <property name="themeMode">
+      <enum>rocketplot::ThemeMode::DARK</enum>
+     </property>
+     <property name="crosshairEnabled">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="rocketplot::PlotGrid" name="plotGrid">
+     <property name="rowCount">
+      <number>3</number>
+     </property>
+     <property name="columnCount">
+      <number>2</number>
+     </property>
+     <property name="xLink">
+      <enum>rocketplot::GridLink::ALL</enum>
+     </property>
+     <property name="innerTickLabelsVisible">
+      <bool>true</bool>
+     </property>
+     <property name="spacing">
+      <number>4</number>
+     </property>
+     <property name="title">
+      <string>Flight 7</string>
+     </property>
+     <property name="themeMode">
+      <enum>rocketplot::ThemeMode::PRINT</enum>
+     </property>
+     <property name="crosshairEnabled">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>rocketplot::PlotWidget</class>
+   <extends>QWidget</extends>
+   <header>rocketplot/PlotWidget.h</header>
+  </customwidget>
+  <customwidget>
+   <class>rocketplot::PlotGrid</class>
+   <extends>QWidget</extends>
+   <header>rocketplot/PlotGrid.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

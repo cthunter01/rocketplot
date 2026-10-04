@@ -12,6 +12,15 @@ if(ROCKETPLOT_BUILD_TESTS)
 endif()
 find_package(Qt6 6.8 REQUIRED COMPONENTS ${rocketplot_qt_components})
 
+# The Designer plugin needs Qt's UiPlugin module, which comes with Qt's tools (Arch: qt6-tools; part of what the Qt
+# installer and aqt install by default). Without it there is no plugin, and nothing else changes.
+if(ROCKETPLOT_BUILD_DESIGNER_PLUGIN)
+    find_package(Qt6 6.8 QUIET COMPONENTS UiPlugin)
+    if(NOT TARGET Qt6::UiPlugin)
+        message(STATUS "Qt's UiPlugin module was not found: the Qt Designer plugin is not built")
+    endif()
+endif()
+
 # rocketplot_sanitize_fetched(<target>...)
 # A sanitized build sanitizes the test and benchmark libraries too, where they are built here from downloaded
 # source. They handle the same vector types as the code that uses them (std::vector<std::string>, for one), and
