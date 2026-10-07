@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)   # FetchContent SYSTEM + EXCLUDE_FROM_ALL + FIND_PACKAGE_ARGS
-project(rocketplot VERSION 0.1.0 DESCRIPTION "Qt widget for plotting large numeric data sets" LANGUAGES CXX)
+project(rocketplot VERSION 0.2.0 DESCRIPTION "Qt widget for plotting large numeric data sets" LANGUAGES CXX)
 
 if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
     message(FATAL_ERROR "In-source builds are not allowed. Use a preset: cmake --preset clang-debug")
