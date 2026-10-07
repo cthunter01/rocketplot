@@ -157,6 +157,7 @@ PlotWidget* PlotGrid::createPlot()
         plot->setThemeMode(m_themeMode);
     }
     plot->setCrosshairEnabled(m_crosshair);
+    plot->setCrosshairMode(m_crosshairMode);
     plot->setGrid(this);
     // The grid's own background and title are drawn in the plots' theme.
     connect(plot, &PlotWidget::themeChanged, this, [this] {
@@ -354,6 +355,20 @@ void PlotGrid::setCrosshairEnabled(bool enabled)
     for (PlotWidget* plot : std::as_const(m_plots))
     {
         plot->setCrosshairEnabled(enabled);
+    }
+    Q_EMIT changed();
+}
+
+void PlotGrid::setCrosshairMode(CrosshairMode mode)
+{
+    if (mode == m_crosshairMode)
+    {
+        return;
+    }
+    m_crosshairMode = mode;
+    for (PlotWidget* plot : std::as_const(m_plots))
+    {
+        plot->setCrosshairMode(mode);
     }
     Q_EMIT changed();
 }

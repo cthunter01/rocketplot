@@ -8,6 +8,7 @@
 #include <QPushButton>
 #include <QString>
 #include <Qt>
+#include <cstddef>
 #include <optional>
 #include <vector>
 
@@ -18,6 +19,7 @@
 #include "rocketplot/Legend.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/Range.h"
+#include "rocketplot/Series.h"
 #include "rocketplot/enums.h"
 
 namespace rocketplot::guide
@@ -26,7 +28,8 @@ namespace rocketplot::guide
 namespace
 {
 
-void crosshair(PlotWidget* plot)
+// Two trajectories to point at.
+void addTrajectories(PlotWidget* plot)
 {
     const Ascent              ascent = sampleAscent();
     const std::vector<double> time   = ascent.time;
@@ -40,9 +43,23 @@ void crosshair(PlotWidget* plot)
     plot->xAxis()->setLabel("Time (s)");
     plot->yAxis()->setLabel("Altitude (km)");
     plot->legend()->setAnchor(LegendAnchor::TOP_LEFT);
+}
+
+void crosshair(PlotWidget* plot)
+{
+    addTrajectories(plot);
     // [interaction-crosshair]
     plot->setCrosshairEnabled(true);  // off by default; the context menu has a switch for it
     // [/interaction-crosshair]
+}
+
+void tracing(PlotWidget* plot)
+{
+    addTrajectories(plot);
+    // [interaction-crosshair-mode]
+    plot->setCrosshairEnabled(true);
+    plot->setCrosshairMode(rocketplot::CrosshairMode::TRACE);  // FREE to begin with
+    // [/interaction-crosshair-mode]
 }
 
 void following(const QString& /*scratch*/)
@@ -65,6 +82,20 @@ void following(const QString& /*scratch*/)
         }
     });
     // [/interaction-crosshair-signal]
+
+    // [interaction-crosshair-point]
+    QObject::connect(plot, &rocketplot::PlotWidget::crosshairMoved, status, [plot, status] {
+        if (const rocketplot::Series* series = plot->crosshairSeries())
+        {
+            // On a data point: of this series, and this one of its points.
+            const std::size_t index = plot->crosshairIndex().value_or(0);
+            status->setText(QString("%1: %2 km at t = %3 s")
+                                .arg(series->name())
+                                .arg(series->y(index), 0, 'f', 2)
+                                .arg(series->x(index), 0, 'f', 1));
+        }
+    });
+    // [/interaction-crosshair-point]
 
     // [interaction-history]
     plot->back();     // the view before the user's last pan, zoom or reset
@@ -125,6 +156,13 @@ void following(const QString& /*scratch*/)
 void addInteractionExamples(Examples& examples)
 {
     examples.addPlot(QStringLiteral("interaction-crosshair"), crosshair, {720, 400},
+                     [](const PlotWidget& plot) {
+                         const QRectF area = plot.plotArea();
+                         return QPointF(area.left() + (0.57 * area.width()),
+                                        area.top() + (0.45 * area.height()));
+                     });
+    // The pointer is in the same place as in the figure before: above both lines.
+    examples.addPlot(QStringLiteral("interaction-crosshair-trace"), tracing, {720, 400},
                      [](const PlotWidget& plot) {
                          const QRectF area = plot.plotArea();
                          return QPointF(area.left() + (0.57 * area.width()),

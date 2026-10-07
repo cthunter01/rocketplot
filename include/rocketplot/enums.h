@@ -137,4 +137,13 @@ enum class PlotAction : std::uint8_t
 };
 Q_ENUM_NS(PlotAction)
 
+/// What a plot's crosshair follows (PlotWidget::setCrosshairMode()).
+enum class CrosshairMode : std::uint8_t
+{
+    FREE,   ///< The pointer (the default)
+    SNAP,   ///< The data point nearest the pointer while one is close to it; otherwise the pointer
+    TRACE,  ///< The data: the point at the pointer's x of whichever series is nearest the pointer
+};
+Q_ENUM_NS(CrosshairMode)
+
 }  // namespace rocketplot

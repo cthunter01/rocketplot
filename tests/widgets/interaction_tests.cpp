@@ -21,6 +21,7 @@
 #include <QWidget>
 #include <QWindow>
 #include <Qt>
+#include <cmath>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -29,19 +30,24 @@
 
 #include "rocketplot/Axis.h"
 #include "rocketplot/InputBindings.h"
+#include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/Range.h"
+#include "rocketplot/ScatterSeries.h"
+#include "rocketplot/Series.h"
 #include "rocketplot/Theme.h"
 #include "rocketplot/enums.h"
 
 namespace
 {
 
+using rocketplot::CrosshairMode;
 using rocketplot::Gesture;
 using rocketplot::InputBindings;
 using rocketplot::PlotAction;
 using rocketplot::PlotWidget;
 using rocketplot::Range;
+using rocketplot::Series;
 
 constexpr double kTolerance = 1e-9;
 
@@ -69,6 +75,19 @@ QStringList actionTexts(const QMenu& menu)
     return texts;
 }
 
+// The action of @p menu called @p text, if it has one.
+QAction* actionCalled(const QMenu& menu, const QString& text)
+{
+    for (QAction* action : menu.actions())
+    {
+        if (action->text() == text)
+        {
+            return action;
+        }
+    }
+    return nullptr;
+}
+
 class InteractionTest : public testing::Test
 {
 protected:
@@ -91,8 +110,22 @@ protected:
     }
 
     [[nodiscard]] QPointF center() const { return m_plot.plotArea().center(); }
-    [[nodiscard]] Range   x() const { return m_plot.xAxis()->range(); }
-    [[nodiscard]] Range   y() const { return m_plot.yAxis()->range(); }
+    // The line the plot starts out with: (0, -5), (5, 5) and (10, 0).
+    [[nodiscard]] Series* first() const { return m_plot.series().front(); }
+    // Where a data point is drawn.
+    [[nodiscard]] QPointF at(double x, double y) const { return m_plot.mapFromData(QPointF(x, y)); }
+    // Turns the crosshair on, following @p mode.
+    void follow(CrosshairMode mode)
+    {
+        m_plot.setCrosshairEnabled(true);
+        m_plot.setCrosshairMode(mode);
+    }
+    [[nodiscard]] QPointF crosshair() const
+    {
+        return m_plot.crosshairPosition().value_or(QPointF(-1000.0, -1000.0));
+    }
+    [[nodiscard]] Range x() const { return m_plot.xAxis()->range(); }
+    [[nodiscard]] Range y() const { return m_plot.yAxis()->range(); }
 
     void wheel(QPointF position, int units, Qt::KeyboardModifiers modifiers = Qt::NoModifier)
     {
@@ -431,6 +464,197 @@ TEST_F(InteractionTest, CrosshairOnlyOverThePlotArea)
     EXPECT_FALSE(m_plot.crosshairPosition());
 }
 
+// A crosshair that follows the data
+// --------------------------------------------------------------------------------
+
+TEST_F(InteractionTest, TheCrosshairFollowsThePointerUnlessToldOtherwise)
+{
+    EXPECT_EQ(m_plot.crosshairMode(), CrosshairMode::FREE);
+    const QPoint nearAPoint = pixel(at(5.0, 5.0) + QPointF(6, 9));
+    m_plot.setCrosshairEnabled(true);
+
+    QTest::mouseMove(&m_plot, nearAPoint);
+
+    EXPECT_EQ(m_plot.crosshairSeries(), nullptr);
+    EXPECT_FALSE(m_plot.crosshairIndex());
+    EXPECT_NEAR(crosshair().x(), m_plot.mapToData(nearAPoint).x(), kTolerance);
+    EXPECT_NEAR(crosshair().y(), m_plot.mapToData(nearAPoint).y(), kTolerance);
+}
+
+TEST_F(InteractionTest, ChangingWhatTheCrosshairFollowsMovesItAtOnce)
+{
+    m_plot.setCrosshairEnabled(true);
+    QTest::mouseMove(&m_plot, pixel(at(5.0, 5.0) + QPointF(6, 9)));
+    const QSignalSpy changed(&m_plot, &PlotWidget::crosshairModeChanged);
+    const QSignalSpy moved(&m_plot, &PlotWidget::crosshairMoved);
+
+    m_plot.setCrosshairMode(CrosshairMode::SNAP);
+    m_plot.setCrosshairMode(CrosshairMode::SNAP);
+
+    EXPECT_EQ(changed.count(), 1);
+    EXPECT_EQ(moved.count(), 1);
+    EXPECT_EQ(m_plot.crosshairMode(), CrosshairMode::SNAP);
+    EXPECT_EQ(m_plot.crosshairSeries(), first());
+}
+
+TEST_F(InteractionTest, ASnappingCrosshairGoesToAPointNearThePointer)
+{
+    follow(CrosshairMode::SNAP);
+
+    QTest::mouseMove(&m_plot, pixel(at(5.0, 5.0) + QPointF(6, 9)));
+
+    EXPECT_EQ(m_plot.crosshairSeries(), first());
+    EXPECT_EQ(m_plot.crosshairIndex(), 1U);
+    EXPECT_DOUBLE_EQ(crosshair().x(), 5.0);
+    EXPECT_DOUBLE_EQ(crosshair().y(), 5.0);
+}
+
+TEST_F(InteractionTest, ASnappingCrosshairIsFreeAwayFromThePoints)
+{
+    follow(CrosshairMode::SNAP);
+    // On the line, but 60 pixels along it from the nearest of its points.
+    const QPointF onTheLine = at(5.0, 5.0) + QPointF(60, 0);
+    const QPoint  position  = pixel(QPointF(onTheLine.x(), at(0.0, 0.0).y()));
+
+    QTest::mouseMove(&m_plot, position);
+
+    EXPECT_EQ(m_plot.crosshairSeries(), nullptr);
+    EXPECT_FALSE(m_plot.crosshairIndex());
+    EXPECT_NEAR(crosshair().x(), m_plot.mapToData(position).x(), kTolerance);
+    EXPECT_NEAR(crosshair().y(), m_plot.mapToData(position).y(), kTolerance);
+}
+
+TEST_F(InteractionTest, ACrosshairThatFollowsTheDataNeedsTheCrosshairOn)
+{
+    m_plot.setCrosshairMode(CrosshairMode::TRACE);
+
+    QTest::mouseMove(&m_plot, pixel(at(5.0, 5.0) + QPointF(6, 9)));
+
+    EXPECT_FALSE(m_plot.crosshairPosition());
+    EXPECT_EQ(m_plot.crosshairSeries(), nullptr);
+    EXPECT_FALSE(m_plot.crosshairIndex());
+}
+
+TEST_F(InteractionTest, ATracingCrosshairIsOnThePointAtThePointersX)
+{
+    follow(CrosshairMode::TRACE);
+
+    // Far above the line and far below it: the x of the pointer decides.
+    QTest::mouseMove(&m_plot, pixel(at(2.0, 4.0)));
+    EXPECT_EQ(m_plot.crosshairSeries(), first());
+    EXPECT_EQ(m_plot.crosshairIndex(), 0U);
+    EXPECT_DOUBLE_EQ(crosshair().x(), 0.0);
+    EXPECT_DOUBLE_EQ(crosshair().y(), -5.0);
+
+    QTest::mouseMove(&m_plot, pixel(at(3.0, -4.0)));
+    EXPECT_EQ(m_plot.crosshairIndex(), 1U);
+    EXPECT_DOUBLE_EQ(crosshair().x(), 5.0);
+    EXPECT_DOUBLE_EQ(crosshair().y(), 5.0);
+}
+
+TEST_F(InteractionTest, ATracingCrosshairTakesTheSeriesNearestThePointer)
+{
+    Series* second =
+        m_plot.addLine(std::vector<double>{0, 5, 10}, std::vector<double>{5, -5, 0}, "second");
+    follow(CrosshairMode::TRACE);
+
+    QTest::mouseMove(&m_plot, pixel(at(5.0, 3.0)));
+    EXPECT_EQ(m_plot.crosshairSeries(), first());
+    QTest::mouseMove(&m_plot, pixel(at(5.0, -3.0)));
+    EXPECT_EQ(m_plot.crosshairSeries(), second);
+    EXPECT_DOUBLE_EQ(crosshair().y(), -5.0);
+
+    // A hidden series is no longer there to be on.
+    const QSignalSpy moved(&m_plot, &PlotWidget::crosshairMoved);
+    second->setVisible(false);
+    EXPECT_GE(moved.count(), 1);
+    EXPECT_EQ(m_plot.crosshairSeries(), first());
+    EXPECT_DOUBLE_EQ(crosshair().y(), 5.0);
+}
+
+TEST_F(InteractionTest, ACrosshairOnAPointOfTheSecondaryAxisReadsThatPoint)
+{
+    Series* second =
+        m_plot.addLine(std::vector<double>{0, 5, 10}, std::vector<double>{100, 200, 300}, "second");
+    second->setYAxis(m_plot.yAxis2());
+    follow(CrosshairMode::TRACE);
+    const QPointF point = m_plot.mapFromData(QPointF(5.0, 200.0), m_plot.yAxis2());
+
+    QTest::mouseMove(&m_plot, pixel(point + QPointF(3, 4)));
+
+    ASSERT_EQ(m_plot.crosshairSeries(), second);
+    EXPECT_EQ(m_plot.crosshairIndex(), 1U);
+    EXPECT_DOUBLE_EQ(second->y(1), 200.0);
+    // crosshairPosition() is on the primary y axis: what that reads at the point's height.
+    EXPECT_DOUBLE_EQ(crosshair().x(), 5.0);
+    EXPECT_NEAR(crosshair().y(), m_plot.mapToData(point).y(), kTolerance);
+}
+
+TEST_F(InteractionTest, ACrosshairDoesNotGoToAHiddenMarker)
+{
+    rocketplot::ScatterSeries* dots =
+        m_plot.addScatter(std::vector<double>{2, 4, 6}, std::vector<double>{0, 0, 0}, "dots");
+    dots->setSizes(std::vector<double>{8.0, 0.0, 8.0});
+    follow(CrosshairMode::SNAP);
+
+    QTest::mouseMove(&m_plot, pixel(at(4.0, 0.0) + QPointF(3, 3)));
+    EXPECT_EQ(m_plot.crosshairSeries(), nullptr);
+    QTest::mouseMove(&m_plot, pixel(at(6.0, 0.0) + QPointF(3, 3)));
+    EXPECT_EQ(m_plot.crosshairSeries(), dots);
+    EXPECT_EQ(m_plot.crosshairIndex(), 2U);
+}
+
+TEST_F(InteractionTest, ACrosshairOnTheDataFollowsItAsItChanges)
+{
+    follow(CrosshairMode::TRACE);
+    QTest::mouseMove(&m_plot, pixel(at(2.0, 0.0)));
+    ASSERT_EQ(m_plot.crosshairIndex(), 0U);
+    const QSignalSpy moved(&m_plot, &PlotWidget::crosshairMoved);
+
+    // The same bounds, so no axis changes: only the point under the pointer.
+    first()->setData(std::vector<double>{0, 2, 10}, std::vector<double>{-5, 5, 0});
+
+    EXPECT_GE(moved.count(), 1);
+    EXPECT_EQ(m_plot.crosshairIndex(), 1U);
+    EXPECT_DOUBLE_EQ(crosshair().x(), 2.0);
+}
+
+TEST_F(InteractionTest, ACrosshairLetsGoOfASeriesThatIsRemoved)
+{
+    follow(CrosshairMode::TRACE);
+    QTest::mouseMove(&m_plot, pixel(at(5.0, 5.0) + QPointF(6, 9)));
+    ASSERT_EQ(m_plot.crosshairSeries(), first());
+
+    m_plot.removeSeries(first());
+
+    EXPECT_EQ(m_plot.crosshairSeries(), nullptr);
+    EXPECT_FALSE(m_plot.crosshairIndex());
+    EXPECT_TRUE(m_plot.crosshairPosition());  // free: there is nothing left to trace
+}
+
+TEST_F(InteractionTest, ACrosshairOnAPointIsDrawnThroughThePoint)
+{
+    const QImage plain = m_plot.grab().toImage();
+    follow(CrosshairMode::SNAP);
+    const QPoint point   = pixel(at(5.0, 5.0));
+    const QPoint pointer = point + QPoint(12, 9);
+    // The pixel column the point is in, a little below the top of the plot area.
+    const QPoint onTheLine(static_cast<int>(std::floor(at(5.0, 5.0).x())),
+                           static_cast<int>(m_plot.plotArea().top()) + 3);
+    const QPoint underThePointer(pointer.x(), onTheLine.y());
+
+    QTest::mouseMove(&m_plot, pointer);
+    const QImage shown = m_plot.grab().toImage();
+
+    // The line down the plot is at the point's x, not at the pointer's.
+    EXPECT_NE(shown.pixelColor(onTheLine), plain.pixelColor(onTheLine));
+    EXPECT_EQ(shown.pixelColor(underThePointer), plain.pixelColor(underThePointer));
+    // A marker in the series' color on the point: beside the line, where there was none.
+    const QPoint beside = point + QPoint(2, -2);
+    EXPECT_NE(plain.pixelColor(beside), first()->color());
+    EXPECT_EQ(shown.pixelColor(beside), first()->color());
+}
+
 // Context menu
 // ---------------------------------------------------------------------------------------------------
 
@@ -444,7 +668,8 @@ TEST_F(InteractionTest, ContextMenuHasTheViewActions)
     ASSERT_NE(menu, nullptr);
     EXPECT_EQ(aboutToShow.count(), 1);
     EXPECT_EQ(actionTexts(*menu),
-              (QStringList{"Back", "Forward", "Reset view", "Crosshair", "Copy image", "Export…"}));
+              (QStringList{"Back", "Forward", "Reset view", "Crosshair", "Free", "Snap to data",
+                           "Trace data", "Copy image", "Export…"}));
     EXPECT_FALSE(menu->actions().front()->isEnabled());  // nothing to go back to
     // By name: triggering Export… instead would wait for a file dialog that nobody answers.
     QAction* crosshair = nullptr;
@@ -455,6 +680,28 @@ TEST_F(InteractionTest, ContextMenuHasTheViewActions)
     ASSERT_NE(crosshair, nullptr);
     crosshair->trigger();
     EXPECT_TRUE(m_plot.isCrosshairEnabled());
+    menu->close();
+}
+
+TEST_F(InteractionTest, ContextMenuChoosesWhatTheCrosshairFollows)
+{
+    QContextMenuEvent event(QContextMenuEvent::Mouse, pixel(center()),
+                            m_plot.mapToGlobal(pixel(center())));
+    QApplication::sendEvent(&m_plot, &event);
+    QMenu* menu = openMenu();
+    ASSERT_NE(menu, nullptr);
+    const QAction* free  = actionCalled(*menu, "Free");
+    QAction*       trace = actionCalled(*menu, "Trace data");
+    ASSERT_NE(free, nullptr);
+    ASSERT_NE(trace, nullptr);
+    EXPECT_TRUE(free->isChecked());
+    EXPECT_FALSE(trace->isChecked());
+
+    trace->trigger();
+
+    EXPECT_EQ(m_plot.crosshairMode(), CrosshairMode::TRACE);
+    EXPECT_TRUE(m_plot.isCrosshairEnabled());  // choosing what it follows turns it on
+    EXPECT_FALSE(free->isChecked());           // one of the three at a time
     menu->close();
 }
 

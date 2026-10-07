@@ -154,12 +154,14 @@ TEST_F(PlotStateTest, PlotSettingsComeBack)
 {
     m_saved.setThemeMode(ThemeMode::DARK);
     m_saved.setCrosshairEnabled(true);
+    m_saved.setCrosshairMode(rocketplot::CrosshairMode::TRACE);
 
     carryOver();
 
     EXPECT_EQ(m_restored.themeMode(), ThemeMode::DARK);
     EXPECT_EQ(m_restored.theme(), Theme::dark());
     EXPECT_TRUE(m_restored.isCrosshairEnabled());
+    EXPECT_EQ(m_restored.crosshairMode(), rocketplot::CrosshairMode::TRACE);
 }
 
 TEST_F(PlotStateTest, ACustomThemeIsNotSaved)

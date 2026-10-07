@@ -88,8 +88,9 @@ grid->exportPdf("flight.pdf");
 - **Interaction**: drag to pan, Shift-drag to zoom to a box (a thin one zooms one axis), wheel to zoom about the
   pointer (over an axis: only that axis; Ctrl: x only, Shift: y only), double-click to autoscale again. Trackpads
   scroll to pan and pinch to zoom; touchscreens drag and pinch. Back and forward through the view history (the
-  mouse's side buttons, the context menu, or `back()`/`forward()`), a crosshair with its coordinates on the axes,
-  and a context menu you can add to. `InputBindings` remaps which gesture does what.
+  mouse's side buttons, the context menu, or `back()`/`forward()`), a crosshair with its coordinates on the axes
+  that follows the pointer, snaps to a data point close to it or traces the nearest series, and a context menu
+  you can add to. `InputBindings` remaps which gesture does what.
 - **Legend**: goes where it hides the least data, or where you drag it. Click an entry to hide its series,
   double-click to show it alone, point at it to bring its series forward, right-click it to change its color,
   width or marker. With the crosshair on, each entry reads its series at the pointer.

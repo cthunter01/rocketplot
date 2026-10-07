@@ -227,6 +227,28 @@ TEST_F(LegendTest, ShowsValuesAtTheCrosshair)
     EXPECT_DOUBLE_EQ(legend().width(), plain);
 }
 
+TEST(Legend, ShowsTheValueOfThePointTheCrosshairIsOn)
+{
+    // Series that aren't sorted by x have no value at an x, only at one of their points.
+    PlotWidget plot;
+    plot.resize(800, 600);
+    plot.setThemeMode(rocketplot::ThemeMode::LIGHT);
+    plot.addScatter(std::vector<double>{5, 1, 9, 3}, std::vector<double>{1, 7, 4, 9}, "one");
+    plot.addScatter(std::vector<double>{8, 2, 6, 4}, std::vector<double>{2, 5, 8, 3}, "two");
+    plot.show();
+    ASSERT_TRUE(QTest::qWaitForWindowExposed(&plot));
+    plot.setCrosshairEnabled(true);
+    QTest::mouseMove(&plot, QPoint(1, 1));
+    QTest::mouseMove(&plot, pixel(plot.plotArea().center()));
+    (void)plot.grab();
+    const double plain = plot.legendArea().width();
+
+    plot.setCrosshairMode(rocketplot::CrosshairMode::TRACE);
+    (void)plot.grab();
+
+    EXPECT_GT(plot.legendArea().width(), plain + 10.0);  // a column of values
+}
+
 TEST_F(LegendTest, EntryMenuIsForThatSeries)
 {
     const Series* menuSeries = nullptr;

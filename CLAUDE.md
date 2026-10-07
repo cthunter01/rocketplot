@@ -67,6 +67,7 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
 - `src/core/`: `rocketplot_core`, an OBJECT library with no Qt: series storage (`SeriesData`), min/max pyramid,
   decimation, line band outlines, clipping, errors (`ErrorData` holds the ends of the bars, `ErrorGeometry` turns them
   into bars and band outlines), `LabelStagger` (rows for event flags), `CsvWriter` (the data in view as CSV text),
+  `NearestPoint` (the data point a snapping or tracing crosshair goes to: sorted series through the pyramid),
   axis mapping (linear/log), ticks (`TickGenerator` linear/log, `TimeTicks` calendar), labels and readouts
   (`NumberFormatter`), `AxisTicks` (picks per axis kind), autoscale. Private headers
 - `src/`: `rocketplot` (alias `rocketplot::rocketplot`): the widget layer. `PlotLayout` (where everything goes),

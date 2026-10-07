@@ -6,6 +6,7 @@
 add_executable(rocketplot_core_benchmarks
     BenchmarkData.h
     core/DecimatorBenchmarks.cpp
+    core/NearestPointBenchmarks.cpp
     core/SeriesDataBenchmarks.cpp
     core/geometry_benchmarks.cpp
     core/text_benchmarks.cpp)

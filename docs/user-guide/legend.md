@@ -65,7 +65,8 @@ can save and restore; see [Saving and restoring state](state.md).
 ## Values at the crosshair
 
 With the plot's crosshair on, each entry shows its series' value at the pointer; see
-[Interaction](interaction.md#the-crosshair).
+[Interaction](interaction.md#the-crosshair). When the crosshair follows the data and is on a point, the entry
+of that point's series shows the value of the point itself.
 
 ## Settings
 

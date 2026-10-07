@@ -76,6 +76,10 @@ ship.
   series has thousands of sharp corners, and stroking them wide or dashed is slow. Thin, solid lines are the
   cheapest.
 - **Very large unsorted scatter series.** See above: every point is visited.
+- **A crosshair that follows the data, over a very large unsorted series.** Finding the point nearest the pointer
+  visits every point of such a series each time the pointer moves: a few milliseconds for a million points. For
+  a sorted series the summary answers this too, and ten million points cost well under a tenth of a
+  millisecond. See [Interaction](interaction.md#a-crosshair-that-follows-the-data).
 - **Many plots that all change at once.** Each plot draws its own data. Twenty plots that each get new data sixty
   times a second are twenty redraws per frame. Update less often, or show fewer at a time.
 

@@ -8,6 +8,7 @@
 #include <QSize>
 #include <QString>
 #include <QWidget>
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -54,6 +55,7 @@ class Series;
 class ShadedSpan;
 class TextAnnotation;
 class ViewHistory;
+struct CrosshairPoint;
 struct LayoutConstraints;
 struct LegendEntry;
 struct PlotLayout;
@@ -101,6 +103,8 @@ class ROCKETPLOT_EXPORT PlotWidget : public QWidget
     Q_PROPERTY(bool debugOverlay READ debugOverlay WRITE setDebugOverlay NOTIFY debugOverlayChanged)
     Q_PROPERTY(bool crosshairEnabled READ isCrosshairEnabled WRITE setCrosshairEnabled NOTIFY
                    crosshairEnabledChanged)
+    Q_PROPERTY(rocketplot::CrosshairMode crosshairMode READ crosshairMode WRITE setCrosshairMode
+                   NOTIFY crosshairModeChanged)
 
 public:
     explicit PlotWidget(QWidget* parent = nullptr);
@@ -240,9 +244,26 @@ public:
     /// has a switch for it.
     [[nodiscard]] bool isCrosshairEnabled() const noexcept;
     void               setCrosshairEnabled(bool enabled);
+    /// What the crosshair follows. FREE (the default): the pointer. SNAP: the data point drawn
+    /// nearest the pointer while one is within 20 pixels of it, and the pointer otherwise. TRACE:
+    /// the data wherever the pointer is: of each series the point at the pointer's x (of one that
+    /// isn't sorted by x, the point nearest the pointer), and of those the one nearest the
+    /// pointer; the pointer only where no series has a point to show.
+    ///
+    /// On a data point the crosshair's lines cross on the point, under a marker in its color, and
+    /// the tags give the point's own x and y. The points of every visible series count, lines and
+    /// scatter series alike; never a place between two points. The context menu has the three
+    /// modes to choose from.
+    [[nodiscard]] CrosshairMode crosshairMode() const noexcept;
+    void                        setCrosshairMode(CrosshairMode mode);
     /// Where the crosshair is, in data coordinates (y on yAxis()), or nothing when it isn't shown.
     /// On a plot showing a linked plot's crosshair, y is NaN.
     [[nodiscard]] std::optional<QPointF> crosshairPosition() const;
+    /// The series whose point the crosshair is on (CrosshairMode::SNAP and TRACE), and which of
+    /// its points that is (see Series::x() and Series::y()). Null and nothing while the crosshair
+    /// follows the pointer or isn't shown.
+    [[nodiscard]] Series*                    crosshairSeries() const;
+    [[nodiscard]] std::optional<std::size_t> crosshairIndex() const;
 
     // Appearance
     // -----------------------------------------------------------------------------------------------
@@ -338,8 +359,9 @@ Q_SIGNALS:
     void themeChanged();
     void debugOverlayChanged();
     void crosshairEnabledChanged();
-    /// The crosshair moved, appeared or disappeared, or the data under it moved (see
-    /// crosshairPosition()).
+    void crosshairModeChanged();
+    /// The crosshair moved, appeared or disappeared, or the data under it moved or changed (see
+    /// crosshairPosition() and crosshairSeries()).
     void crosshairMoved();
     /// An axis range changed (pan, zoom, autoscale or setRange()).
     void viewChanged();
@@ -398,9 +420,12 @@ private:
     // The x of a linked plot's crosshair.
     void setLinkedCrosshair(std::optional<double> x);
     void syncCrosshair();
-    void updateCursor();
-    void showContextMenu(QPoint position, QPoint globalPosition);
-    void renderCache();
+    // The data point the crosshair is on, when it follows the data and has one to be on: looked
+    // up again once the pointer has moved or what the plot shows has changed.
+    [[nodiscard]] const CrosshairPoint* crosshairPoint() const;
+    void                                updateCursor();
+    void                                showContextMenu(QPoint position, QPoint globalPosition);
+    void                                renderCache();
     // Exports: the plot as it is exported, laid out in @p bounds; the size an export is laid out
     // in; the CSV text, a piece at a time; and the context menu's "Export…".
     void paintExport(QPainter& painter, const QRectF& bounds, double devicePixelRatio) const;

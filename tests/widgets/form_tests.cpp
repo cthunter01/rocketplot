@@ -32,6 +32,7 @@ TEST_F(FormTest, AFormSetsAPlotsProperties)
     EXPECT_EQ(plot->title(), QString("Ascent"));
     EXPECT_EQ(plot->themeMode(), rocketplot::ThemeMode::DARK);
     EXPECT_TRUE(plot->isCrosshairEnabled());
+    EXPECT_EQ(plot->crosshairMode(), rocketplot::CrosshairMode::TRACE);
     EXPECT_FALSE(plot->debugOverlay());
 }
 
@@ -52,6 +53,8 @@ TEST_F(FormTest, AFormSetsAGridsProperties)
     // Whatever order the form set them in, the plots made along the way have them all.
     EXPECT_EQ(grid->plot(2, 1)->themeMode(), rocketplot::ThemeMode::PRINT);
     EXPECT_TRUE(grid->plot(2, 1)->isCrosshairEnabled());
+    EXPECT_EQ(grid->crosshairMode(), rocketplot::CrosshairMode::SNAP);
+    EXPECT_EQ(grid->plot(2, 1)->crosshairMode(), rocketplot::CrosshairMode::SNAP);
 }
 
 TEST_F(FormTest, TheFormDraws)

@@ -67,14 +67,17 @@ QFont valueFont(const PlotLayout& layout)
     return font;
 }
 
-// @p series' value at @p x: empty when it can't tell (not sorted by x), a dash where it has none.
-QString valueOf(const Series& series, const PlotLayout& layout, double x)
+// @p series' value at the crosshair: the y of @p point, the one of its points the crosshair is
+// on, or without one the y of its point nearest @p x. Empty when it can't tell (not sorted by x),
+// a dash where the series has none.
+QString valueOf(const Series& series, const PlotLayout& layout, double x,
+                std::optional<std::size_t> point)
 {
-    if (!series.isSortedByX())
+    if (!point && !series.isSortedByX())
     {
         return {};
     }
-    const std::optional<std::size_t> index = series.nearestIndex(x);
+    const std::optional<std::size_t> index = point ? point : series.nearestIndex(x);
     const double y = index ? series.y(*index) : std::numeric_limits<double>::quiet_NaN();
     if (!std::isfinite(y))
     {
@@ -254,7 +257,9 @@ LegendLayout layoutLegend(const PlotWidget& plot, const PlotLayout& layout, Text
         {
             if (entry.series->isVisible())
             {
-                entry.value = valueOf(*entry.series, layout, *state.crosshairX);
+                const bool onPoint = entry.series == state.crosshairSeries;
+                entry.value = valueOf(*entry.series, layout, *state.crosshairX,
+                                      onPoint ? std::optional(state.crosshairIndex) : std::nullopt);
                 widest      = std::max(widest, metrics.horizontalAdvance(entry.value));
             }
         }

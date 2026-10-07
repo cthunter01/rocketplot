@@ -1,6 +1,7 @@
 #include "rocketplot/PlotWidget.h"
 
 #include <QAction>
+#include <QActionGroup>
 #include <QChar>
 #include <QClipboard>
 #include <QColor>
@@ -48,6 +49,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <functional>
 #include <limits>
 #include <memory>
@@ -72,6 +74,8 @@
 #include "core/Autoscale.h"
 #include "core/AxisMapping.h"
 #include "core/CsvWriter.h"
+#include "core/Decimator.h"
+#include "core/NearestPoint.h"
 #include "core/Occupancy.h"
 #include "rocketplot/Annotation.h"
 #include "rocketplot/Axis.h"
@@ -105,6 +109,13 @@ constexpr int kLegendAlpha = 230;
 
 // The resolution at which an image has one pixel per device-independent pixel.
 constexpr double kBaseDpi = 96.0;
+
+// How near the pointer a data point has to be for a snapping crosshair to go to it, in
+// device-independent pixels.
+constexpr double kSnapReach = 20.0;
+// A point on the edge of the plot area may come out a rounding error outside it: one this far
+// outside still counts as inside.
+constexpr double kEdgeTolerance = 0.5;
 
 // Draws with another theme for as long as it lives, if given one: exports can ask for a theme of
 // their own. The plot is not told and doesn't repaint.
@@ -172,8 +183,11 @@ struct PlotWidget::Private
     InputBindings                          bindings = InputBindings::defaults();
     std::optional<double>                  linkedX;  // a linked plot's crosshair
     std::optional<QPointF>                 hover;    // the pointer over the plot area
-    ViewHistory                            history;  // when not linked
-    Theme                                  theme = Theme::light();
+    // The data point the crosshair is on (see PlotWidget::crosshairPoint()): out of date once
+    // pointStale is set.
+    std::optional<CrosshairPoint> point;
+    ViewHistory                   history;  // when not linked
+    Theme                         theme = Theme::light();
 
     // The plot as last rendered, drawn again as long as nothing it shows changes (the legend,
     // crosshair and zoom box are drawn over it).
@@ -199,9 +213,18 @@ struct PlotWidget::Private
         double    devicePixelRatio = 0.0;
     };
     std::optional<NaturalMargins> naturalMargins;
-    bool                          debugOverlay = false;
-    bool                          crosshair    = false;
-    bool                          dirty        = true;
+    CrosshairMode                 crosshairMode = CrosshairMode::FREE;
+    bool                          debugOverlay  = false;
+    bool                          crosshair     = false;
+    bool                          dirty         = true;
+    bool                          pointStale    = true;
+
+    // Whether the crosshair is shown at the pointer and goes to the data: a change to the data
+    // can then move it.
+    [[nodiscard]] bool crosshairFollowsData() const
+    {
+        return crosshair && crosshairMode != CrosshairMode::FREE && hover.has_value();
+    }
 
     // The axes under the names a saved state has them by.
     using NamedAxis = std::pair<QLatin1String, Axis*>;
@@ -328,6 +351,10 @@ SeriesType* PlotWidget::adopt(SeriesType* series, const QString& name)
     applyAutoscale();
     invalidate();
     Q_EMIT seriesAdded(series);
+    if (m_impl->crosshairFollowsData())
+    {
+        Q_EMIT crosshairMoved();  // the new series may be the nearest
+    }
     return series;
 }
 
@@ -409,6 +436,8 @@ void PlotWidget::removeSeries(Series* series)
     {
         return;
     }
+    m_impl->point.reset();  // the crosshair may be on a point of this series
+    m_impl->pointStale = true;
     Q_EMIT seriesRemoved(series);
     delete series;
     if (m_impl->series.isEmpty())
@@ -417,6 +446,10 @@ void PlotWidget::removeSeries(Series* series)
     }
     applyAutoscale();
     invalidate();
+    if (m_impl->crosshairFollowsData())
+    {
+        Q_EMIT crosshairMoved();
+    }
 }
 
 void PlotWidget::clearSeries()
@@ -431,12 +464,20 @@ void PlotWidget::seriesDataChanged()
 {
     applyAutoscale();
     invalidate();
+    if (m_impl->crosshairFollowsData())
+    {
+        Q_EMIT crosshairMoved();  // other points are near the pointer now
+    }
 }
 
 void PlotWidget::seriesStyleChanged()
 {
     applyAutoscale();  // visibility changes what autoscale fits
     invalidate();
+    if (m_impl->crosshairFollowsData())
+    {
+        Q_EMIT crosshairMoved();  // a series was hidden or shown, or changed its y axis
+    }
 }
 
 // Annotations
@@ -578,7 +619,8 @@ void PlotWidget::invalidate()
 
 void PlotWidget::markDirty()
 {
-    m_impl->dirty = true;
+    m_impl->dirty      = true;
+    m_impl->pointStale = true;
     m_impl->naturalMargins.reset();
     update();
 }
@@ -671,7 +713,8 @@ void PlotWidget::setCrosshairEnabled(bool enabled)
     {
         setHoverPosition(std::nullopt);  // while still on: linked plots let go of it too
     }
-    m_impl->crosshair = enabled;
+    m_impl->crosshair  = enabled;
+    m_impl->pointStale = true;
     m_impl->linkedX.reset();
     if (enabled && underMouse())
     {
@@ -681,11 +724,117 @@ void PlotWidget::setCrosshairEnabled(bool enabled)
     Q_EMIT crosshairEnabledChanged();
 }
 
+CrosshairMode PlotWidget::crosshairMode() const noexcept
+{
+    return m_impl->crosshairMode;
+}
+
+void PlotWidget::setCrosshairMode(CrosshairMode mode)
+{
+    if (mode == m_impl->crosshairMode)
+    {
+        return;
+    }
+    m_impl->crosshairMode = mode;
+    m_impl->pointStale    = true;
+    update();
+    Q_EMIT crosshairModeChanged();
+    if (m_impl->crosshair && m_impl->hover)
+    {
+        syncCrosshair();  // it may be at another x now
+        Q_EMIT crosshairMoved();
+    }
+}
+
+const CrosshairPoint* PlotWidget::crosshairPoint() const
+{
+    Private& impl = *m_impl;
+    if (!std::exchange(impl.pointStale, false))
+    {
+        return impl.point ? &*impl.point : nullptr;
+    }
+    impl.point.reset();
+    const std::optional<QPointF> hover = impl.hover;
+    if (!hover || !impl.crosshairFollowsData())
+    {
+        return nullptr;
+    }
+    const PlotLayout layout = impl.shownLayout(*this);
+    if (!layout.valid)
+    {
+        return nullptr;
+    }
+    const QRectF&        area = layout.plot;
+    const core::PixelBox box{
+        .left   = area.left() - kEdgeTolerance,
+        .top    = area.top() - kEdgeTolerance,
+        .right  = area.right() + kEdgeTolerance,
+        .bottom = area.bottom() + kEdgeTolerance,
+    };
+    const core::PixelPoint            pointer{.x = hover->x(), .y = hover->y()};
+    const bool                        tracing = impl.crosshairMode == CrosshairMode::TRACE;
+    std::optional<core::NearestPoint> nearest;
+    Series*                           nearestSeries = nullptr;
+    for (Series* series : std::as_const(impl.series))
+    {
+        if (!series->isVisible())
+        {
+            continue;
+        }
+        const auto*                   scatter = qobject_cast<const ScatterSeries*>(series);
+        const std::span<const double> sizes =
+            scatter != nullptr ? scatter->sizes() : std::span<const double>();
+        const core::AxisMapping&                x = layout.x.mapping;
+        const core::AxisMapping&                y = layout.yFor(*series).mapping;
+        const std::optional<core::NearestPoint> found =
+            tracing ? core::tracedPoint(series->data(), x, y, box, pointer, sizes)
+                    : core::nearestPoint(series->data(), x, y, box, pointer, kSnapReach, sizes);
+        // Of series equally near, the one drawn on top: the later.
+        if (found && (!nearest || found->distance <= nearest->distance))
+        {
+            nearest       = found;
+            nearestSeries = series;
+        }
+    }
+    if (!nearest)
+    {
+        return nullptr;
+    }
+    impl.point = CrosshairPoint{
+        .series   = nearestSeries,
+        .index    = nearest->index,
+        .position = QPointF(std::clamp(nearest->pixel.x, area.left(), area.right()),
+                            std::clamp(nearest->pixel.y, area.top(), area.bottom())),
+    };
+    return &*impl.point;
+}
+
+Series* PlotWidget::crosshairSeries() const
+{
+    const CrosshairPoint* point = crosshairPoint();
+    return point != nullptr ? point->series : nullptr;
+}
+
+std::optional<std::size_t> PlotWidget::crosshairIndex() const
+{
+    const CrosshairPoint* point = crosshairPoint();
+    return point != nullptr ? std::optional(point->index) : std::nullopt;
+}
+
 std::optional<QPointF> PlotWidget::crosshairPosition() const
 {
     if (!m_impl->crosshair)
     {
         return std::nullopt;
+    }
+    if (const CrosshairPoint* point = crosshairPoint())
+    {
+        // y is on yAxis(): for a point on the other y axis, what yAxis() reads at its height.
+        const Series& series = *point->series;
+        const double  y = series.isOnSecondaryYAxis()
+                              ? m_impl->shownLayout(*this).y.mapping.toValue(point->position.y())
+                              : series.y(point->index);
+        return QPointF(series.x(point->index), y);
     }
     if (const std::optional<QPointF> hover = m_impl->hover)
     {
@@ -713,7 +862,8 @@ void PlotWidget::setHoverPosition(std::optional<QPointF> position)
     {
         return;
     }
-    m_impl->hover = position;
+    m_impl->hover      = position;
+    m_impl->pointStale = true;
     update();
     updateCursor();
     syncCrosshair();
@@ -742,7 +892,11 @@ void PlotWidget::syncCrosshair()
         return;
     }
     std::optional<double> x;
-    if (const std::optional<QPointF> hover = m_impl->hover)
+    if (const CrosshairPoint* point = crosshairPoint())
+    {
+        x = point->series->x(point->index);
+    }
+    else if (const std::optional<QPointF> hover = m_impl->hover)
     {
         x = m_impl->shownLayout(*this).x.mapping.toValue(hover->x());
     }
@@ -801,6 +955,21 @@ void PlotWidget::showContextMenu(QPoint position, QPoint globalPosition)
     crosshair->setCheckable(true);
     crosshair->setChecked(isCrosshairEnabled());
     connect(crosshair, &QAction::toggled, this, &PlotWidget::setCrosshairEnabled);
+    // What the crosshair follows, as radio buttons. Choosing one also turns the crosshair on.
+    auto*      modes   = new QActionGroup(menu);
+    const auto addMode = [this, menu, modes](CrosshairMode mode, const QString& text) {
+        QAction* action = menu->addAction(text);
+        action->setCheckable(true);
+        action->setChecked(mode == crosshairMode());
+        action->setActionGroup(modes);
+        connect(action, &QAction::triggered, this, [this, mode] {
+            setCrosshairMode(mode);
+            setCrosshairEnabled(true);
+        });
+    };
+    addMode(CrosshairMode::FREE, tr("Free"));
+    addMode(CrosshairMode::SNAP, tr("Snap to data"));
+    addMode(CrosshairMode::TRACE, tr("Trace data"));
     menu->addSeparator();
     menu->addAction(tr("Copy image"), this, [this] { copyToClipboard(); });
     menu->addAction(tr("Export…"), this, &PlotWidget::exportWithDialog);
@@ -1395,6 +1564,7 @@ QJsonObject PlotWidget::saveState() const
     state.insert(QLatin1String("version"), state::kVersion);
     state.insert(QLatin1String("themeMode"), state::fromEnum(m_impl->themeMode));
     state.insert(QLatin1String("crosshair"), m_impl->crosshair);
+    state.insert(QLatin1String("crosshairMode"), state::fromEnum(m_impl->crosshairMode));
     for (const auto& [key, axis] : m_impl->axesByKey())
     {
         QJsonObject settings;
@@ -1433,6 +1603,10 @@ bool PlotWidget::restoreState(const QJsonObject& state)
     if (const auto crosshair = state::toBool(state.value(QLatin1String("crosshair"))))
     {
         setCrosshairEnabled(*crosshair);
+    }
+    if (const auto mode = state::toEnum<CrosshairMode>(state.value(QLatin1String("crosshairMode"))))
+    {
+        setCrosshairMode(*mode);
     }
     // The series before the axes: which of them are shown, and against which y axis, decides
     // what an autoscaling axis fits.
@@ -1593,6 +1767,7 @@ void PlotWidget::renderCache()
     stats.milliseconds = static_cast<double>(timer.nsecsElapsed()) / 1e6;
     m_impl->stats      = std::move(stats);
     m_impl->dirty      = false;
+    m_impl->pointStale = true;  // the crosshair is on a point of the plot as now drawn
     qCDebug(lcRender) << "frame" << m_impl->stats.milliseconds << "ms,"
                       << m_impl->stats.series.size() << "series";
 }
@@ -1613,11 +1788,12 @@ void PlotWidget::paintEvent(QPaintEvent* /*event*/)
     const PlotLayout& layout = m_impl->cacheLayout;
     if (layout.valid && m_impl->crosshair && (m_impl->hover || m_impl->linkedX))
     {
-        drawCrosshair(painter, *this, layout, m_impl->hover, m_impl->linkedX);
+        drawCrosshair(painter, *this, layout, m_impl->hover, m_impl->linkedX, crosshairPoint());
     }
 
     // The legend, with the values at the crosshair.
     const std::optional<QPointF> crosshair = crosshairPosition();
+    const CrosshairPoint*        onPoint   = crosshairPoint();
     if (!crosshair)
     {
         m_impl->valueWidth = 0.0;
@@ -1625,10 +1801,12 @@ void PlotWidget::paintEvent(QPaintEvent* /*event*/)
     m_impl->legendLayout =
         layoutLegend(*this, layout, m_impl->text,
                      {
-                         .crosshairX    = crosshair ? std::optional(crosshair->x()) : std::nullopt,
-                         .minValueWidth = m_impl->valueWidth,
-                         .occupancy     = &m_impl->occupancy,
-                         .previousBest  = m_impl->bestAnchor,
+                         .crosshairX = crosshair ? std::optional(crosshair->x()) : std::nullopt,
+                         .crosshairSeries = onPoint != nullptr ? onPoint->series : nullptr,
+                         .crosshairIndex  = onPoint != nullptr ? onPoint->index : 0,
+                         .minValueWidth   = m_impl->valueWidth,
+                         .occupancy       = &m_impl->occupancy,
+                         .previousBest    = m_impl->bestAnchor,
                      });
     m_impl->valueWidth = std::max(m_impl->valueWidth, m_impl->legendLayout.valueWidth);
     if (m_impl->legend->anchor() == LegendAnchor::BEST && m_impl->legendLayout.isShown())

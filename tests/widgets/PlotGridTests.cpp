@@ -330,6 +330,20 @@ TEST(PlotGrid, TheCrosshairIsThatOfEveryPlot)
     }
 }
 
+TEST(PlotGrid, WhatTheCrosshairFollowsIsSetForEveryPlot)
+{
+    PlotGrid grid(2, 1);
+
+    grid.setCrosshairMode(rocketplot::CrosshairMode::SNAP);
+    grid.setRowCount(3);
+
+    EXPECT_EQ(grid.crosshairMode(), rocketplot::CrosshairMode::SNAP);
+    for (const PlotWidget* plot : grid.plots())
+    {
+        EXPECT_EQ(plot->crosshairMode(), rocketplot::CrosshairMode::SNAP);
+    }
+}
+
 TEST(PlotGrid, ResetViewTurnsAutoscaleBackOnEverywhere)
 {
     PlotGrid grid(2, 2);

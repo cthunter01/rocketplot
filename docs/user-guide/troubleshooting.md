@@ -51,7 +51,16 @@ It shows from two entries on, and only named series have entries. For a single s
 ## The legend shows no values at the crosshair
 
 A value is shown for series that are sorted by x, while the crosshair is within the series' x range. Check
-`series->isSortedByX()`, and that `legend()->areValuesVisible()` is on.
+`series->isSortedByX()`, and that `legend()->areValuesVisible()` is on. A series that isn't sorted by x shows a
+value only while the crosshair is on one of its points
+([a crosshair that follows the data](interaction.md#a-crosshair-that-follows-the-data)).
+
+## The crosshair doesn't go to the data
+
+It follows the pointer unless told otherwise: `plot->setCrosshairMode(rocketplot::CrosshairMode::SNAP)` or
+`TRACE`, or the context menu's **Snap to data** and **Trace data**. With `SNAP` the pointer has to be within 20
+pixels of a *point*; on a line drawn through a few points, most of the line is farther than that from any of
+them, and `TRACE` is the mode to use. Neither goes to a hidden series.
 
 ## Markers don't show on a line
 

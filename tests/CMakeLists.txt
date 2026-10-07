@@ -12,6 +12,7 @@ add_executable(rocketplot_core_tests
     core/LabelStaggerTests.cpp
     core/LineBandTests.cpp
     core/MinMaxPyramidTests.cpp
+    core/NearestPointTests.cpp
     core/NumberFormatterTests.cpp
     core/OccupancyTests.cpp
     core/PolylineClipperTests.cpp

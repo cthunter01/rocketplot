@@ -55,7 +55,8 @@ What the plots of a link share:
   plot's y labels. This is what makes "the same x is at the same place" true on screen. A plot that is hidden
   takes no part: the others don't keep room for labels nobody sees.
 - **The crosshair.** The crosshair of the plot under the pointer shows as a vertical line at the same x in the
-  others (those that have their crosshair on), and their legends read out their values there.
+  others (those that have their crosshair on), and their legends read out their values there. If it
+  [follows the data](interaction.md#a-crosshair-that-follows-the-data), that x is the x of the point it is on.
 - **The view history.** `back()` on any of them undoes the last pan or zoom, in whichever plot it happened.
 
 Each plot keeps its own y axes.
@@ -154,7 +155,8 @@ grid->resetView();                                // every axis of every plot ba
   deletes the ones that fall outside. Forget your pointers to those.
 - **Stretch.** Rows and columns start with equal shares of the grid; a row with stretch 2 gets twice the share of
   one with stretch 1.
-- **Theme and crosshair** are set for all plots at once and apply to plots the grid makes later too.
+- **Theme and crosshair** (`setCrosshairEnabled()`, `setCrosshairMode()`) are set for all plots at once and
+  apply to plots the grid makes later too.
 
 `grid->plots()` lists the plots row by row, and `grid->link(column)` gives the link of a column.
 

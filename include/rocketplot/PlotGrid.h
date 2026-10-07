@@ -62,6 +62,8 @@ class ROCKETPLOT_EXPORT PlotGrid : public QWidget
     Q_PROPERTY(rocketplot::ThemeMode themeMode READ themeMode WRITE setThemeMode NOTIFY changed)
     Q_PROPERTY(
         bool crosshairEnabled READ isCrosshairEnabled WRITE setCrosshairEnabled NOTIFY changed)
+    Q_PROPERTY(rocketplot::CrosshairMode crosshairMode READ crosshairMode WRITE setCrosshairMode
+                   NOTIFY changed)
 
 public:
     /// A grid of one plot.
@@ -133,6 +135,10 @@ public:
     /// The crosshair of every plot (see PlotWidget::setCrosshairEnabled()).
     [[nodiscard]] bool isCrosshairEnabled() const noexcept { return m_crosshair; }
     void               setCrosshairEnabled(bool enabled);
+    /// What the crosshair of every plot follows: the pointer, or the data (see
+    /// PlotWidget::setCrosshairMode()).
+    [[nodiscard]] CrosshairMode crosshairMode() const noexcept { return m_crosshairMode; }
+    void                        setCrosshairMode(CrosshairMode mode);
 
     /// Turns autoscale back on for every axis of every plot.
     void resetView();
@@ -214,6 +220,7 @@ private:
     int                          m_spacing         = 0;
     GridLink                     m_xLink           = GridLink::COLUMNS;
     ThemeMode                    m_themeMode       = ThemeMode::SYSTEM;
+    CrosshairMode                m_crosshairMode   = CrosshairMode::FREE;
     bool                         m_innerTickLabels = false;
     bool                         m_crosshair       = false;
 };

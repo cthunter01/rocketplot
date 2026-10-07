@@ -90,6 +90,72 @@ QObject::connect(plot, &rocketplot::PlotWidget::crosshairMoved, status, [plot, s
 The y of `crosshairPosition()` is on the left y axis. A plot that shows the crosshair of a linked plot
 ([Several plots](multiple-plots.md)) has an x there but no y of its own: y is NaN.
 
+### A crosshair that follows the data
+
+To begin with the crosshair is wherever the pointer is. It can go to the data instead, so that what it reads out
+is a point of a series and not a place beside it:
+
+<!-- example: interaction-crosshair-mode -->
+```cpp
+plot->setCrosshairEnabled(true);
+plot->setCrosshairMode(rocketplot::CrosshairMode::TRACE);  // FREE to begin with
+```
+
+| Mode | Where the crosshair is |
+| --- | --- |
+| `FREE` | At the pointer (the default) |
+| `SNAP` | On the data point nearest the pointer, while one is within 20 pixels of it. Elsewhere, at the pointer |
+| `TRACE` | On the data, wherever the pointer is: at the pointer's x, on the series nearest the pointer there |
+
+![A tracing crosshair: on a point of the nearer series, with the point's values on the axes](images/interaction-crosshair-trace.png)
+
+The pointer is in the same place here as in the figure above, well above both lines. The crosshair has gone to
+the nearer line, at the pointer's x.
+
+On a data point the lines cross on the point, under a marker in the color of its series, and the tags on the
+axes give the point's own x and y. A few things to know:
+
+- **It is always a point of the data**, never a place between two points. Where a line has few points, the
+  crosshair steps from one to the next. Nothing is interpolated.
+- **Every visible series counts**, lines and scatter series alike. A hidden series, a gap (NaN) and a point
+  outside the plot area can't be landed on.
+- **`SNAP` measures to the points, not to the line.** On a line of few points, halfway between two of them is
+  away from the data. `TRACE` is the mode that stays on such a line.
+- **`TRACE` asks each series for its point at the pointer's x**: the nearest of those in the pointer's pixel
+  column, or, where the points are farther apart, the nearer of the two on either side. Of those, the series
+  whose point is nearest the pointer wins. A series has none before its first point and after its last. The
+  crosshair is at the pointer only where no series has a point to show.
+- **A series that isn't sorted by x** (a scatter cloud, a curve that turns back) has no single point at an x.
+  `TRACE` takes its point nearest the pointer, however far away.
+- **With two y axes**, the y tag is on the axis the point's series is drawn against, and the other axis has none.
+- **In the legend**, the entry of the series the crosshair is on shows that point's value, also for a series
+  that isn't sorted by x.
+- **Linked plots** show their line at the x of the point.
+
+To find out which point it is:
+
+<!-- example: interaction-crosshair-point -->
+```cpp
+QObject::connect(plot, &rocketplot::PlotWidget::crosshairMoved, status, [plot, status] {
+    if (const rocketplot::Series* series = plot->crosshairSeries())
+    {
+        // On a data point: of this series, and this one of its points.
+        const std::size_t index = plot->crosshairIndex().value_or(0);
+        status->setText(QString("%1: %2 km at t = %3 s")
+                            .arg(series->name())
+                            .arg(series->y(index), 0, 'f', 2)
+                            .arg(series->x(index), 0, 'f', 1));
+    }
+});
+```
+
+`crosshairSeries()` is null while the crosshair is at the pointer, or not shown. `crosshairPosition()` gives the
+point too: its x, and its y if the series is on the left y axis. For a point on the right y axis, read the y from
+the series as above: the y of `crosshairPosition()` is what the left axis reads at that height.
+
+`crosshairMoved()` is also emitted when the data changes under a crosshair that follows it, as when points
+arrive in a live plot.
+
 ## Following the view
 
 <!-- example: interaction-view-signal -->
@@ -110,7 +176,8 @@ again.
 A right-click opens a menu:
 
 - **Back**, **Forward**, **Reset view**
-- **Crosshair**, a switch
+- **Crosshair**, a switch, and what the crosshair follows: **Free**, **Snap to data** or **Trace data**.
+  Choosing one of these turns the crosshair on
 - **Copy image** and **Export…** ([Export](export.md))
 
 To add entries of your own, connect to `contextMenuAboutToShow`. It hands you the menu, already filled, and where

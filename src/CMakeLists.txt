@@ -14,6 +14,7 @@ add_library(rocketplot_core OBJECT
     core/LabelStagger.cpp
     core/LineBand.cpp
     core/MinMaxPyramid.cpp
+    core/NearestPoint.cpp
     core/NumberFormatter.cpp
     core/Occupancy.cpp
     core/PolylineClipper.cpp

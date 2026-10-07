@@ -4,6 +4,7 @@
 #include <QRectF>
 #include <QSizeF>
 #include <QString>
+#include <cstddef>
 #include <optional>
 #include <vector>
 
@@ -53,6 +54,10 @@ struct LegendState
 {
     /// Each entry shows its series' value at this x (the crosshair's).
     std::optional<double> crosshairX;
+    /// The data point the crosshair is on, if it is on one: its series' entry shows the y of
+    /// that very point (also when the series isn't sorted by x, and so has no value at an x).
+    const Series* crosshairSeries = nullptr;
+    std::size_t   crosshairIndex  = 0;
     /// The value column is at least this wide, so it doesn't shrink and grow as the crosshair
     /// moves.
     double minValueWidth = 0.0;

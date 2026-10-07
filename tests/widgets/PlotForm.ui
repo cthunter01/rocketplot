@@ -22,6 +22,9 @@
      <property name="crosshairEnabled">
       <bool>true</bool>
      </property>
+     <property name="crosshairMode">
+      <enum>rocketplot::CrosshairMode::TRACE</enum>
+     </property>
     </widget>
    </item>
    <item>
@@ -49,6 +52,9 @@
      </property>
      <property name="crosshairEnabled">
       <bool>true</bool>
+     </property>
+     <property name="crosshairMode">
+      <enum>rocketplot::CrosshairMode::SNAP</enum>
      </property>
     </widget>
    </item>

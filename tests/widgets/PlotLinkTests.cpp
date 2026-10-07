@@ -267,6 +267,21 @@ TEST_F(PlotLinkTest, CrosshairShowsInTheOtherPlots)
     EXPECT_FALSE(m_b.crosshairPosition());
 }
 
+TEST_F(PlotLinkTest, ACrosshairOnTheDataShowsThePointsXInTheOtherPlots)
+{
+    m_a.setCrosshairEnabled(true);
+    m_b.setCrosshairEnabled(true);
+    m_a.setCrosshairMode(rocketplot::CrosshairMode::TRACE);
+
+    // The line of a has points at x = 0 and x = 10 only.
+    QTest::mouseMove(&m_a, QPoint(1, 1));
+    QTest::mouseMove(&m_a, m_a.mapFromData(QPointF(8.0, 0.5)).toPoint());
+
+    ASSERT_TRUE(m_b.crosshairPosition());
+    EXPECT_DOUBLE_EQ(m_a.crosshairPosition().value_or(QPointF()).x(), 10.0);
+    EXPECT_DOUBLE_EQ(m_b.crosshairPosition().value_or(QPointF()).x(), 10.0);
+}
+
 TEST_F(PlotLinkTest, CrosshairStaysWhenAnotherPlotMoves)
 {
     PlotWidget third;
