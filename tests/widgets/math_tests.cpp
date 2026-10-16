@@ -108,6 +108,15 @@ protected:
 
 TEST_F(MathLabelTest, AFormulaSitsOnTheBaselineOfTheText)
 {
+    // The text in Latin Modern Math too, whose upright x sits on the baseline: where a system
+    // has no fonts, Qt draws boxes, which end above it (Windows CI's offscreen platform).
+    const int id = QFontDatabase::addApplicationFont(ROCKETPLOT_MATH_FONT_FILE);
+    ASSERT_GE(id, 0);
+    QFont font(QFontDatabase::applicationFontFamilies(id).value(0));
+    font.setPixelSize(40);
+    m_plot.setFont(font);
+    m_plain = render();
+
     const WarningCatcher warnings;
     const QImage         image = withText("x $x$");  // a text x, then a math x
     const QRect          ink   = inkRect(image, m_plain, middle());
@@ -123,6 +132,8 @@ TEST_F(MathLabelTest, AFormulaSitsOnTheBaselineOfTheText)
     EXPECT_NEAR(formula.height(), text.height(), text.height() / 4.0);
     EXPECT_TRUE(WarningCatcher::messages().isEmpty())
         << WarningCatcher::messages().join('\n').toStdString();
+    m_plot.setFont(QFont());
+    QFontDatabase::removeApplicationFont(id);
 }
 
 TEST_F(MathLabelTest, AFormulaHasTheColourOfTheTextAroundIt)
