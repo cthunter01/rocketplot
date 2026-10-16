@@ -65,6 +65,10 @@ double mathEmPixels(const QFont& font, const RawMathFont& mathFont)
     return em * std::clamp(textXHeight / mathXHeight, 1.0, kMaxSizeFactor);
 }
 
+// How far metricFont() goes before it gives up.
+constexpr int kMaxMetricTries  = 16;
+constexpr int kMaxMetricPixels = 10000;
+
 // The descent of @p font, rounded as QFontMetrics has it or not.
 double descentOf(const QFont& font, bool rounded)
 {
@@ -77,11 +81,13 @@ QFont metricFont(QFont font, double depth, bool rounded)
 {
     int    pixels  = std::max(1, static_cast<int>(std::round(emPixels(font))));
     double descent = descentOf(font, rounded);
-    while (descent < depth)
+    // A font whose descent doesn't grow (a font engine without metrics) can't be made to reach.
+    for (int tries = 0; descent < depth && tries < kMaxMetricTries; ++tries)
     {
         // In proportion, and at least a pixel more: rounding makes descents grow unevenly.
         const double grown = std::ceil(pixels * depth / std::max(1.0, descent));
-        pixels             = std::max(pixels + 1, static_cast<int>(grown));
+        pixels             = std::min(kMaxMetricPixels,
+                                      std::max(pixels + 1, static_cast<int>(std::min(grown, 1e6))));
         font.setPixelSize(pixels);
         descent = descentOf(font, rounded);
     }

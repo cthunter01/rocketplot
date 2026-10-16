@@ -33,8 +33,8 @@ namespace rocketplot
 namespace
 {
 
-// NOLINTNEXTLINE: a generated array of ${size} bytes
-constexpr unsigned char kData[${size}] = {
+// ${size} bytes. Not constexpr: MSVC compiles a constexpr array this large very slowly.
+const unsigned char kData[${size}] = {
 ${bytes}
 };
 
