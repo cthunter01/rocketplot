@@ -98,6 +98,8 @@ class ROCKETPLOT_EXPORT PlotWidget : public QWidget
 {
     Q_OBJECT
     Q_PROPERTY(QString title READ title WRITE setTitle NOTIFY titleChanged)
+    Q_PROPERTY(QString mathFontFamily READ mathFontFamily WRITE setMathFontFamily RESET
+                   resetMathFontFamily NOTIFY mathFontFamilyChanged)
     Q_PROPERTY(
         rocketplot::ThemeMode themeMode READ themeMode WRITE setThemeMode NOTIFY themeChanged)
     Q_PROPERTY(bool debugOverlay READ debugOverlay WRITE setDebugOverlay NOTIFY debugOverlayChanged)
@@ -217,6 +219,15 @@ public:
     [[nodiscard]] QString title() const;
     void                  setTitle(const QString& title);
 
+    /// The font of math between $ signs in the title, labels, legend names and annotations
+    /// ("Speed $v_z$"): the family of an installed OpenType math font (one with a MATH table:
+    /// "STIX Two Math", "Cambria Math", "Libertinus Math"), or empty (the default) for Latin Modern
+    /// Math, which comes with the library. A family that isn't one is set in that too, with a
+    /// warning.
+    [[nodiscard]] QString mathFontFamily() const;
+    void                  setMathFontFamily(const QString& family);
+    void                  resetMathFontFamily() { setMathFontFamily({}); }
+
     // View
     // -----------------------------------------------------------------------------------------------------
 
@@ -297,7 +308,8 @@ public:
     /// Writes the plot as an image, in the format the suffix of @p fileName names.
     [[nodiscard]] bool exportImage(const QString&       fileName,
                                    const ExportOptions& options = {}) const;
-    /// Writes the plot as an SVG drawing. Text stays text, and dense data is thinned to what a
+    /// Writes the plot as an SVG drawing. Text stays text (math is drawn as outlines, which look
+    /// the same without its font), and dense data is thinned to what a
     /// screen would show (one column of extremes per device-independent pixel). The data is
     /// clipped to the plot area with a clip path (SVG 1.1), which browsers and drawing programs
     /// honor; QtSvg's own renderer does not, and shows lines and markers at the edge of the plot
@@ -328,7 +340,7 @@ public:
     /// (a series color nobody chose) is saved as following it.
     ///
     /// What the plot shows is not part of it: the data, the series' names, the title and labels,
-    /// the annotations. Nor are the input bindings or a custom theme's colors.
+    /// the annotations. Nor are the input bindings, a custom theme's colors or the math font.
     [[nodiscard]] QJsonObject saveState() const;
     /// Applies a state from saveState() to the plot as it is now. An axis that was autoscaling
     /// fits the data the plot has now; the others get the ranges they had. A series gets the
@@ -356,6 +368,7 @@ public:
 
 Q_SIGNALS:
     void titleChanged();
+    void mathFontFamilyChanged();
     void themeChanged();
     void debugOverlayChanged();
     void crosshairEnabledChanged();

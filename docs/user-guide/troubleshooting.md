@@ -78,6 +78,17 @@ milliseconds: divide by 1000. `rocketplot::toPlotTime()` converts a `QDateTime` 
 A string that looks like HTML is treated as Qt rich text. In such a string, write a literal `<` as `&lt;` and
 `&` as `&amp;`. See [Appearance](appearance.md#rich-text).
 
+## A `$` sign is gone, and the text after it is italic
+
+Two `$` signs in a string make what is between them math. Write a dollar sign that is a dollar sign as `\$`
+(`"\\$"` in a C++ string literal): `"From \$5 to \$10"`. See [Math notation](math.md#writing-math).
+
+## A formula is shown as it was typed
+
+It can't be typeset: a command the library doesn't know, a `{` without its `}`, two superscripts. The log has a
+warning (category `rocketplot.render`) that says what is wrong and where. See
+[Math notation](math.md#what-can-be-written) for what can be written.
+
 ## Colors change with the theme
 
 Series without a color of their own take the theme's, which differ between the light and dark themes on purpose.

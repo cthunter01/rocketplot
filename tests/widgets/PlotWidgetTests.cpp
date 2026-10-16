@@ -3,6 +3,8 @@
 #include <QApplication>
 #include <QColor>
 #include <QImage>
+#include <QMetaObject>
+#include <QMetaProperty>
 #include <QPalette>
 #include <QPoint>
 #include <QPointF>
@@ -238,6 +240,23 @@ TEST_F(PlotWidgetTest, SystemThemeFollowsThePalette)
     EXPECT_GE(changed.count(), 1);
     EXPECT_EQ(m_plot.theme().background, QColor(0x20, 0x20, 0x20));
     EXPECT_EQ(m_plot.theme().seriesColors, rocketplot::Theme::dark().seriesColors);
+}
+
+TEST(PlotWidget, MathFontFamily)
+{
+    PlotWidget plot;
+    EXPECT_EQ(plot.mathFontFamily(), QString());  // the font of the library
+    const QSignalSpy changed(&plot, &PlotWidget::mathFontFamilyChanged);
+    plot.setMathFontFamily("No Such Math");
+    plot.setMathFontFamily("No Such Math");
+    EXPECT_EQ(changed.count(), 1);
+    EXPECT_EQ(plot.mathFontFamily(), "No Such Math");
+    const QMetaProperty property =
+        plot.metaObject()->property(plot.metaObject()->indexOfProperty("mathFontFamily"));
+    ASSERT_TRUE(property.isResettable());
+    property.reset(&plot);
+    EXPECT_EQ(plot.mathFontFamily(), QString());
+    EXPECT_EQ(changed.count(), 2);
 }
 
 TEST_F(PlotWidgetTest, CustomTheme)

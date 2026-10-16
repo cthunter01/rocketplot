@@ -76,6 +76,10 @@ grid->exportPdf("flight.pdf");
 - **Axes**: linear, logarithmic and date/time scales (calendar-aware ticks and concise labels in any time zone),
   a secondary y axis on the right, minor ticks and grid, short labels (a common offset like `+1.7×10⁹`, a `×10ⁿ`
   multiplier, or SI prefixes), and Qt rich text in titles and labels (`v<sub>z</sub>`).
+- **Math**: formulas between `$` signs in titles, axis labels, legend names and annotations, written as in LaTeX
+  (`"Drag $F_d = \tfrac{1}{2}\rho v^2 C_d A$"`) and typeset as TeX does: fractions, roots, scripts, sums and
+  integrals, accents, delimiters that grow, matrices and cases. In Latin Modern Math, which the library has
+  inside it, or any installed OpenType math font; no LaTeX installation needed.
 - **Autoscale**: fit all the data, fit y to what's visible in the current x range, or follow the newest data
   as a scrolling strip chart.
 - **Linked plots**: `PlotLink` ties the x axes of stacked plots together, lines up their plot areas, and shares
@@ -95,7 +99,7 @@ grid->exportPdf("flight.pdf");
   double-click to show it alone, point at it to bring its series forward, right-click it to change its color,
   width or marker. With the crosshair on, each entry reads its series at the pointer.
 - **Export**: an image at any size and sharpness (a 600 × 400 plot at 300 dpi), SVG and PDF drawings with text
-  kept as text, the clipboard, and the data in view as CSV. An export looks like the widget, without the
+  kept as text (and math as outlines), the clipboard, and the data in view as CSV. An export looks like the widget, without the
   crosshair, or takes a theme of its own: print-ready figures from a dark window. The context menu has Copy
   image and Export… .
 - **State**: `saveState()` gives how a plot is set up (axis ranges, scales and grids, the legend's place, each
@@ -281,3 +285,8 @@ The executables are not code-signed. A macOS browser download needs
 
 ## License
 MIT; see [LICENSE](LICENSE).
+
+The library has a font inside it for math: Latin Modern Math (`src/fonts/latinmodern-math.otf`, unmodified),
+© 2012–2014 B. Jackowski, P. Strzelczyk and P. Pianowski, under the GUST Font License, an instance of the LaTeX
+Project Public License (see [`src/fonts/`](src/fonts): the license and where the whole font package is). Builds
+and releases install both files next to rocketplot's own license.

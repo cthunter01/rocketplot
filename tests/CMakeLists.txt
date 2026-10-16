@@ -9,18 +9,34 @@ add_executable(rocketplot_core_tests
     core/DecimatorTests.cpp
     core/ErrorDataTests.cpp
     core/ErrorGeometryTests.cpp
+    core/FakeMathFont.h
+    core/FontFile.h
+    core/GlyphSubstitutionsTests.cpp
     core/LabelStaggerTests.cpp
     core/LineBandTests.cpp
+    core/MathDump.h
+    core/MathLayoutTests.cpp
+    core/MathParserTests.cpp
+    core/MathPlainTextTests.cpp
+    core/MathSegmentsTests.cpp
+    core/MathSymbolsTests.cpp
+    core/MathTableTests.cpp
     core/MinMaxPyramidTests.cpp
     core/NearestPointTests.cpp
     core/NumberFormatterTests.cpp
     core/OccupancyTests.cpp
+    core/OpenTypeReaderTests.cpp
     core/PolylineClipperTests.cpp
     core/RangeTests.cpp
     core/SeriesDataTests.cpp
+    core/StretchyGlyphsTests.cpp
     core/TickGeneratorTests.cpp
-    core/TimeTicksTests.cpp)
+    core/TimeTicksTests.cpp
+    core/Utf8Tests.cpp)
 target_link_libraries(rocketplot_core_tests PRIVATE rocketplot_core GTest::gtest_main)
+# The math font, read from its file by the tests of the code that reads fonts.
+target_compile_definitions(rocketplot_core_tests PRIVATE
+    ROCKETPLOT_MATH_FONT_FILE="${PROJECT_SOURCE_DIR}/src/fonts/latinmodern-math.otf")
 rocketplot_configure_target(rocketplot_core_tests)
 
 # Widget tests: the public Qt API, on the offscreen platform (see widgets/main.cpp). QTest supplies input helpers
@@ -46,11 +62,14 @@ add_executable(rocketplot_tests
     widgets/export_tests.cpp
     widgets/form_tests.cpp
     widgets/interaction_tests.cpp
+    widgets/math_tests.cpp
     widgets/plottime_tests.cpp
     widgets/state_tests.cpp)
 # Qt6::Svg: the export tests read an exported SVG drawing back.
 target_link_libraries(rocketplot_tests PRIVATE rocketplot::rocketplot Qt6::Svg Qt6::Test GTest::gtest)
-set_target_properties(rocketplot_tests PROPERTIES AUTOUIC ON)   # form_tests.cpp: PlotForm.ui, a form from Designer
+set_target_properties(rocketplot_tests PROPERTIES AUTOUIC ON)
+target_compile_definitions(rocketplot_tests PRIVATE
+    ROCKETPLOT_MATH_FONT_FILE="${PROJECT_SOURCE_DIR}/src/fonts/latinmodern-math.otf")   # form_tests.cpp: PlotForm.ui, a form from Designer
 rocketplot_configure_qt_target(rocketplot_tests)
 if(WIN32)
     # Windows finds DLLs on PATH only: put Qt's bin directory there for test discovery and runs (CMake 3.29+).

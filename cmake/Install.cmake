@@ -28,3 +28,9 @@ install(FILES
     COMPONENT sdk)
 
 install(FILES ${PROJECT_SOURCE_DIR}/LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR} COMPONENT sdk)
+# The math font the library has inside it, and its license.
+install(FILES
+        ${PROJECT_SOURCE_DIR}/src/fonts/GUST-FONT-LICENSE.txt
+        ${PROJECT_SOURCE_DIR}/src/fonts/README-latinmodern-math.txt
+    DESTINATION ${CMAKE_INSTALL_DOCDIR}/latinmodern-math
+    COMPONENT sdk)

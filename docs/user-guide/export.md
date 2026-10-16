@@ -1,6 +1,6 @@
 # Export
 
-[User Guide](index.md) · previous: [Appearance](appearance.md) · next: [Saving and restoring state](state.md)
+[User Guide](index.md) · previous: [Math notation](math.md) · next: [Saving and restoring state](state.md)
 
 A plot can leave the application as an image, as a drawing (SVG or PDF), on the clipboard, on a printed page, or
 as the numbers it shows (CSV).
@@ -41,8 +41,8 @@ All of them return `false` when the file can't be written. They are marked `[[no
 you ignore the result.
 
 **Images or drawings?** A PNG is right for the web, for chat and for slides. SVG and PDF are drawings: they stay
-sharp at any size, their text stays text (it can be searched, selected and restyled), and they are what a paper
-or a report wants. Dense data is thinned in a drawing to what a screen would show, so a line of ten million points
+sharp at any size, their text stays text (it can be searched, selected and restyled; math is drawn as outlines),
+and they are what a paper or a report wants. Dense data is thinned in a drawing to what a screen would show, so a line of ten million points
 doesn't make a file of ten million segments.
 
 ## Size, sharpness and theme

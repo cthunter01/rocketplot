@@ -17,6 +17,7 @@ add_executable(rocketplot_guide_examples
     interaction_examples.cpp
     legend_examples.cpp
     main.cpp
+    math_examples.cpp
     multiple_plots_examples.cpp
     performance_examples.cpp
     series_examples.cpp

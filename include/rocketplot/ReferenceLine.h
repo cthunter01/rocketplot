@@ -47,7 +47,7 @@ public:
     [[nodiscard]] double value() const noexcept { return m_value; }
     void                 setValue(double value);
 
-    /// Text drawn beside the line. Qt rich text works too.
+    /// Text drawn beside the line. Math between $ signs and Qt rich text work too.
     [[nodiscard]] QString label() const { return m_label; }
     void                  setLabel(const QString& label);
 

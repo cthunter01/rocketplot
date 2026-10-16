@@ -43,7 +43,7 @@ public:
     void                  setPosition(QPointF position);
     void                  setPosition(double x, double y) { setPosition(QPointF(x, y)); }
 
-    /// The text. Qt rich text works too: "T<sub>max</sub>".
+    /// The text. Math between $ signs and Qt rich text work too: "$T_0$", "T<sub>0</sub>".
     [[nodiscard]] QString text() const { return m_text; }
     void                  setText(const QString& text);
 

@@ -57,8 +57,8 @@ public:
     /// Whether this is the plot's secondary y axis (on the right).
     [[nodiscard]] bool isSecondary() const noexcept { return m_secondary; }
 
-    /// Text under the x axis or beside the y axis, e.g. "Time (s)". Qt rich text works too:
-    /// "v<sub>z</sub> (m/s²)".
+    /// Text under the x axis or beside the y axis, e.g. "Time (s)". Math between $ signs and Qt
+    /// rich text work too: "$v_z$ (m/s²)", "v<sub>z</sub> (m/s²)".
     [[nodiscard]] QString label() const { return m_label; }
     void                  setLabel(const QString& label);
 

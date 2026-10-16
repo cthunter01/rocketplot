@@ -22,6 +22,7 @@ Read [Getting started](getting-started.md) first. The other chapters stand on th
 | [The legend](legend.md) | Where it goes, what the user can do with it, values at the crosshair |
 | [Several plots](multiple-plots.md) | Linking the x axes of stacked plots; a grid of plots as one figure |
 | [Appearance](appearance.md) | Light, dark, high-contrast and print themes; a theme of your own; fonts; rich text |
+| [Math notation](math.md) | Formulas between `$` signs in titles, labels, legend names and annotations; their font |
 | [Export](export.md) | Images, SVG and PDF drawings, the clipboard, printing, the data as CSV |
 | [Saving and restoring state](state.md) | Opening a plot the way the user left it |
 | [Qt Designer](designer.md) | The plugin that puts the widgets into Designer's widget box |

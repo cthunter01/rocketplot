@@ -36,7 +36,8 @@ public:
     [[nodiscard]] double x() const noexcept { return m_x; }
     void                 setX(double x);
 
-    /// The name on the flag. Qt rich text works too. Without one there is only the line.
+    /// The name on the flag. Math between $ signs and Qt rich text work too. Without one there is
+    /// only the line.
     [[nodiscard]] QString label() const { return m_label; }
     void                  setLabel(const QString& label);
 

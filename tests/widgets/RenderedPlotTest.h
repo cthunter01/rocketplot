@@ -52,6 +52,25 @@ protected:
         return false;
     }
 
+    /// The smallest rectangle holding every pixel of @p area that differs between two renderings:
+    /// the ink of what one has and the other hasn't. Empty if none differs.
+    [[nodiscard]] static QRect inkRect(const QImage& a, const QImage& b, QRect area)
+    {
+        area = area.intersected(a.rect());
+        QRect ink;
+        for (int y = area.top(); y <= area.bottom(); ++y)
+        {
+            for (int x = area.left(); x <= area.right(); ++x)
+            {
+                if (a.pixel(x, y) != b.pixel(x, y))
+                {
+                    ink |= QRect(x, y, 1, 1);
+                }
+            }
+        }
+        return ink;
+    }
+
     PlotWidget m_plot;
 };
 

@@ -49,7 +49,7 @@ public:
     void setMin(double min) { setRange(min, m_range.max); }
     void setMax(double max) { setRange(m_range.min, max); }
 
-    /// Text drawn inside the span. Qt rich text works too.
+    /// Text drawn inside the span. Math between $ signs and Qt rich text work too.
     [[nodiscard]] QString label() const { return m_label; }
     void                  setLabel(const QString& label);
 

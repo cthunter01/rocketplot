@@ -73,7 +73,8 @@ public:
     /// The plot this series belongs to.
     [[nodiscard]] PlotWidget* plot() const noexcept { return m_plot; }
 
-    /// The name in the legend. A series with an empty name has no legend entry.
+    /// The name in the legend. Math between $ signs and Qt rich text work too: "$v_z$". A series
+    /// with an empty name has no legend entry.
     [[nodiscard]] QString name() const { return m_name; }
     void                  setName(const QString& name);
 

@@ -158,6 +158,7 @@ PlotWidget* PlotGrid::createPlot()
     }
     plot->setCrosshairEnabled(m_crosshair);
     plot->setCrosshairMode(m_crosshairMode);
+    plot->setMathFontFamily(m_text->mathFontFamily());
     plot->setGrid(this);
     // The grid's own background and title are drawn in the plots' theme.
     connect(plot, &PlotWidget::themeChanged, this, [this] {
@@ -304,6 +305,27 @@ void PlotGrid::setTitle(const QString& title)
         return;
     }
     m_title = title;
+    placePlots();
+    update();
+    Q_EMIT changed();
+}
+
+QString PlotGrid::mathFontFamily() const
+{
+    return m_text->mathFontFamily();
+}
+
+void PlotGrid::setMathFontFamily(const QString& family)
+{
+    if (family == m_text->mathFontFamily())
+    {
+        return;
+    }
+    m_text->setMathFontFamily(family);
+    for (PlotWidget* plot : std::as_const(m_plots))
+    {
+        plot->setMathFontFamily(family);
+    }
     placePlots();
     update();
     Q_EMIT changed();

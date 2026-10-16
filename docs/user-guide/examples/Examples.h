@@ -74,6 +74,7 @@ void addInteractionExamples(Examples& examples);
 void addLegendExamples(Examples& examples);
 void addMultiplePlotExamples(Examples& examples);
 void addAppearanceExamples(Examples& examples);
+void addMathExamples(Examples& examples);
 void addExportExamples(Examples& examples);
 void addStateExamples(Examples& examples);
 void addPerformanceExamples(Examples& examples);

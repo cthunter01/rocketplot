@@ -29,6 +29,7 @@ DemoPage logScalePage();
 DemoPage dateTimePage();
 DemoPage twoAxesPage();
 DemoPage numberFormatsPage();
+DemoPage mathPage();
 DemoPage linkedPlotsPage();
 DemoPage gridPage();
 DemoPage interactionPage();

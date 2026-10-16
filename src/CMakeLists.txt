@@ -11,16 +11,26 @@ add_library(rocketplot_core OBJECT
     core/Decimator.cpp
     core/ErrorData.cpp
     core/ErrorGeometry.cpp
+    core/GlyphSubstitutions.cpp
     core/LabelStagger.cpp
     core/LineBand.cpp
+    core/MathLayout.cpp
+    core/MathParser.cpp
+    core/MathPlainText.cpp
+    core/MathSegments.cpp
+    core/MathSymbols.cpp
+    core/MathTable.cpp
     core/MinMaxPyramid.cpp
     core/NearestPoint.cpp
     core/NumberFormatter.cpp
     core/Occupancy.cpp
+    core/OpenTypeReader.cpp
     core/PolylineClipper.cpp
     core/SeriesData.cpp
+    core/StretchyGlyphs.cpp
     core/TickGenerator.cpp
-    core/TimeTicks.cpp)
+    core/TimeTicks.cpp
+    core/Utf8.cpp)
 # Core headers are private (src/core/...), but the core may use the Qt-free public value types (Range, UniformX).
 target_include_directories(rocketplot_core PUBLIC ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/include)
 set_target_properties(rocketplot_core PROPERTIES
@@ -38,6 +48,18 @@ endif()
 add_library(rocketplot ${rocketplot_library_type})
 add_library(rocketplot::rocketplot ALIAS rocketplot)
 
+# The math font, compiled in as an array of bytes: a static library's Qt resources would need initializing and
+# exporting. Generated when the font changes; a C array of 700 KB isn't for clang-tidy.
+set(rocketplot_math_font ${CMAKE_CURRENT_SOURCE_DIR}/fonts/latinmodern-math.otf)
+set(rocketplot_math_font_source ${CMAKE_CURRENT_BINARY_DIR}/generated/BundledMathFont.cpp)
+add_custom_command(OUTPUT ${rocketplot_math_font_source}
+    COMMAND ${CMAKE_COMMAND} -DINPUT=${rocketplot_math_font} -DOUTPUT=${rocketplot_math_font_source}
+        -DHEADER=BundledMathFont.h -DFUNCTION=bundledMathFont -P ${PROJECT_SOURCE_DIR}/cmake/EmbedFile.cmake
+    DEPENDS ${rocketplot_math_font} ${PROJECT_SOURCE_DIR}/cmake/EmbedFile.cmake
+    COMMENT "Embedding the math font"
+    VERBATIM)
+set_source_files_properties(${rocketplot_math_font_source} PROPERTIES SKIP_LINTING ON)
+
 generate_export_header(rocketplot
     BASE_NAME ROCKETPLOT
     EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/include/rocketplot/export.h)
@@ -48,6 +70,8 @@ target_sources(rocketplot
         AnnotationPainter.cpp
         AnnotationPainter.h
         Axis.cpp
+        BundledMathFont.h
+        ${rocketplot_math_font_source}
         EventMarker.cpp
         InputBindings.cpp
         InteractionController.cpp
@@ -60,6 +84,10 @@ target_sources(rocketplot
         Logging.h
         MarkerPainter.cpp
         MarkerPainter.h
+        MathRenderer.cpp
+        MathRenderer.h
+        MathTextObject.cpp
+        MathTextObject.h
         Overlays.cpp
         Overlays.h
         PlotExport.cpp
@@ -73,6 +101,8 @@ target_sources(rocketplot
         PlotState.cpp
         PlotState.h
         PlotWidget.cpp
+        RawMathFont.cpp
+        RawMathFont.h
         ReferenceLine.cpp
         ScatterSeries.cpp
         Series.cpp

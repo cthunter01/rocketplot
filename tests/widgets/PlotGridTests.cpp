@@ -6,6 +6,7 @@
 #include <QJsonObject>
 #include <QPointer>
 #include <QRect>
+#include <QSignalSpy>
 #include <QSize>
 #include <QString>
 #include <QTemporaryDir>
@@ -327,6 +328,25 @@ TEST(PlotGrid, TheCrosshairIsThatOfEveryPlot)
     for (const PlotWidget* plot : grid.plots())
     {
         EXPECT_TRUE(plot->isCrosshairEnabled());
+    }
+}
+
+TEST(PlotGrid, TheMathFontIsThatOfEveryPlot)
+{
+    PlotGrid         grid(2, 1);
+    const QSignalSpy changed(&grid, &PlotGrid::changed);
+    grid.setMathFontFamily("No Such Math");
+    grid.setRowCount(3);
+    EXPECT_EQ(changed.count(), 1);
+    EXPECT_EQ(grid.mathFontFamily(), "No Such Math");
+    for (const PlotWidget* plot : grid.plots())
+    {
+        EXPECT_EQ(plot->mathFontFamily(), "No Such Math");
+    }
+    grid.resetMathFontFamily();
+    for (const PlotWidget* plot : grid.plots())
+    {
+        EXPECT_EQ(plot->mathFontFamily(), QString());
     }
 }
 

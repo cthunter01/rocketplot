@@ -59,6 +59,8 @@ class ROCKETPLOT_EXPORT PlotGrid : public QWidget
                    setInnerTickLabelsVisible NOTIFY changed)
     Q_PROPERTY(int spacing READ spacing WRITE setSpacing NOTIFY changed)
     Q_PROPERTY(QString title READ title WRITE setTitle NOTIFY changed)
+    Q_PROPERTY(QString mathFontFamily READ mathFontFamily WRITE setMathFontFamily RESET
+                   resetMathFontFamily NOTIFY changed)
     Q_PROPERTY(rocketplot::ThemeMode themeMode READ themeMode WRITE setThemeMode NOTIFY changed)
     Q_PROPERTY(
         bool crosshairEnabled READ isCrosshairEnabled WRITE setCrosshairEnabled NOTIFY changed)
@@ -120,9 +122,15 @@ public:
     // For all the plots
     // ---------------------------------------------------------------------------------------
 
-    /// A title above the grid. Qt rich text works too.
+    /// A title above the grid. Math between $ signs and Qt rich text work too.
     [[nodiscard]] QString title() const { return m_title; }
     void                  setTitle(const QString& title);
+
+    /// The font of math in the title and in every plot (see PlotWidget::setMathFontFamily()):
+    /// empty for Latin Modern Math, which comes with the library.
+    [[nodiscard]] QString mathFontFamily() const;
+    void                  setMathFontFamily(const QString& family);
+    void                  resetMathFontFamily() { setMathFontFamily({}); }
 
     /// The theme of every plot, now and when the grid grows (see PlotWidget::setThemeMode()).
     [[nodiscard]] ThemeMode themeMode() const noexcept { return m_themeMode; }

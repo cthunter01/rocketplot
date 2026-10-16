@@ -1,6 +1,6 @@
 # Appearance
 
-[User Guide](index.md) · previous: [Several plots](multiple-plots.md) · next: [Export](export.md)
+[User Guide](index.md) · previous: [Several plots](multiple-plots.md) · next: [Math notation](math.md)
 
 How a series looks is set on the series ([Series](series.md)). Everything else a plot draws (background, axes,
 grid, text, the legend's box, the palette that series colors come from) is its *theme*.
@@ -128,7 +128,8 @@ Useful tags: `<sub>`, `<sup>`, `<i>`, `<b>`, and `<br>` for a line break. A stri
 it looks like it (Qt's `Qt::mightBeRichText()`); in rich text, write a literal `<` as `&lt;` and `&` as `&amp;`.
 
 Many symbols need no markup at all: the strings are Unicode, so `"Temperature (°C)"`, `"m/s²"` and `"Δv"` work
-as they are, provided the source file is UTF-8.
+as they are, provided the source file is UTF-8. For formulas (fractions, roots, sums, matrices), write math
+between `$` signs: see [Math notation](math.md).
 
 ## High-DPI screens
 
@@ -136,4 +137,4 @@ Every size in the API (line widths, marker sizes, offsets, export sizes) is in d
 unit Qt uses for widget geometry. On a screen with a scale factor of 2 a 2-pixel line covers 4 physical pixels and
 is drawn at the full resolution. You don't have to do anything for it.
 
-Next: [Export](export.md).
+Next: [Math notation](math.md).

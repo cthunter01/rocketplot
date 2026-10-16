@@ -213,6 +213,31 @@ TEST_F(ExportTest, PaintsIntoAPartOfAnotherDrawing)
     EXPECT_EQ(page.pixelColor(pixelAt(7.0, 5.5) + QPoint(100, 50)), QColor(Qt::magenta));
 }
 
+TEST_F(ExportTest, MathIsDrawnAsOutlinesInAnSvgDrawing)
+{
+    const QString plainFile = path("plain.svg");
+    m_plot.setTitle("Speed v");
+    ASSERT_TRUE(m_plot.exportSvg(plainFile));
+    const QString mathFile = path("math.svg");
+    m_plot.setTitle("Speed $v$");
+    ASSERT_TRUE(m_plot.exportSvg(mathFile));
+
+    const QByteArray plain = contentsOf(plainFile);
+    const QByteArray math  = contentsOf(mathFile);
+    EXPECT_TRUE(math.contains("Speed"));  // the text around the formula stays text
+    EXPECT_GT(math.count("<path"), plain.count("<path"));
+    EXPECT_FALSE(math.contains("Latin Modern"));  // a font the reader may not have
+    EXPECT_TRUE(math.contains("<title>Speed v</title>"));
+}
+
+TEST_F(ExportTest, APdfWithMath)
+{
+    m_plot.setTitle(R"(Rate $\dot{z} = \frac{dz}{dt}$)");
+    const QString fileName = path("math.pdf");
+    ASSERT_TRUE(m_plot.exportPdf(fileName));
+    EXPECT_TRUE(contentsOf(fileName).startsWith("%PDF"));
+}
+
 TEST_F(ExportTest, AnSvgDrawing)
 {
     const QString fileName = path("plot.svg");
@@ -295,6 +320,19 @@ TEST_F(ExportTest, CsvNamesAndWhatIsLeftOut)
               "2,4,8,7.5,8.5\n");
     m_plot.clearSeries();
     EXPECT_EQ(m_plot.toCsv(), QString());
+}
+
+TEST_F(ExportTest, CsvNamesWithMath)
+{
+    m_plot.clearSeries();
+    m_plot.xAxis()->setLabel("Time $t$ (s)");
+    m_plot.addLine(std::vector<double>{1, 2}, std::vector<double>{3, 4}, "$v_z$");
+    m_plot.addLine(std::vector<double>{1, 2}, std::vector<double>{5, 6}, R"($\frac{F}{m}$ in \$)");
+    m_plot.addLine(std::vector<double>{1, 2}, std::vector<double>{7, 8}, "Price $5");
+    EXPECT_EQ(m_plot.toCsv(),
+              "Time t (s),v_z,F/m in $,Price $5\n"
+              "1,3,5,7\n"
+              "2,4,6,8\n");
 }
 
 TEST_F(ExportTest, ACsvFile)

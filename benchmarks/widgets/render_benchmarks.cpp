@@ -230,4 +230,55 @@ void liveFrame(benchmark::State& state)
 }
 BENCHMARK(liveFrame)->Name("Render/LiveFrame")->Unit(benchmark::kMillisecond);
 
+// A plot whose title, axis labels and eight legend names are the same text with and without math
+// between $ signs: what the formulas cost a frame once they are typeset (they are cached).
+void labelled(PlotWidget& plot, bool math)
+{
+    const auto text = [math](const char* plain, const char* formula) {
+        return QString::fromUtf8(math ? formula : plain);
+    };
+    plot.setTitle(text("Drag F = rho v^2 Cd A / 2", R"(Drag $F_d = \tfrac{1}{2}\rho v^2 C_d A$)"));
+    plot.xAxis()->setLabel(text("Time t - t0 (s)", "Time $t - t_0$ (s)"));
+    plot.yAxis()->setLabel(text("Speed vz (m/s)", "Speed $v_z$ (m/s)"));
+    const std::vector<double> x = rocketplot::bench::ramp(10);
+    for (int i = 0; i < 8; ++i)
+    {
+        plot.addLine(
+            x, rocketplot::bench::walk(10, static_cast<std::uint64_t>(i) + 1),
+            math ? QStringLiteral("$x_{%1}^2$").arg(i) : QStringLiteral("x%1 squared").arg(i));
+    }
+}
+
+void plainLabels(benchmark::State& state)
+{
+    PlotWidget plot;
+    labelled(plot, false);
+    renderFrames(state, plot);
+}
+BENCHMARK(plainLabels)->Name("Render/PlainLabels")->Unit(benchmark::kMillisecond);
+
+void mathLabels(benchmark::State& state)
+{
+    PlotWidget plot;
+    labelled(plot, true);
+    renderFrames(state, plot);
+}
+BENCHMARK(mathLabels)->Name("Render/MathLabels")->Unit(benchmark::kMillisecond);
+
+// A new formula every frame: parsing, typesetting and outlining it, not only drawing it.
+void newFormula(benchmark::State& state)
+{
+    PlotWidget plot;
+    labelled(plot, true);
+    const rocketplot::ExportOptions frame{.size = {kWidth, kHeight}, .dpi = 96.0};
+    int                             n = 0;
+    while (state.KeepRunning())
+    {
+        plot.setTitle(QStringLiteral(R"(Frame $\sum_{i=1}^{%1} \frac{x_i^2}{\sqrt{n}}$)").arg(++n));
+        QImage image = plot.renderToImage(frame);
+        benchmark::DoNotOptimize(image);
+    }
+}
+BENCHMARK(newFormula)->Name("Render/NewFormula")->Unit(benchmark::kMillisecond);
+
 }  // namespace

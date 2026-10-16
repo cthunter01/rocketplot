@@ -641,6 +641,22 @@ void PlotWidget::setTitle(const QString& title)
     Q_EMIT titleChanged();
 }
 
+QString PlotWidget::mathFontFamily() const
+{
+    return m_impl->text.mathFontFamily();
+}
+
+void PlotWidget::setMathFontFamily(const QString& family)
+{
+    if (family == m_impl->text.mathFontFamily())
+    {
+        return;
+    }
+    m_impl->text.setMathFontFamily(family);
+    invalidate();
+    Q_EMIT mathFontFamilyChanged();
+}
+
 // View
 // ----------------------------------------------------------------------------------------------------------
 

@@ -29,6 +29,7 @@ add_library(rocketplot_demo_lib STATIC
     pages/LinkedPlotsPage.cpp
     pages/LiveAppendPage.cpp
     pages/LogScalePage.cpp
+    pages/MathPage.cpp
     pages/NumberFormatsPage.cpp
     pages/PointStylesPage.cpp
     pages/ScatterPage.cpp
@@ -66,6 +67,11 @@ install(TARGETS rocketplot_demo
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT demo
     BUNDLE DESTINATION . COMPONENT demo)
 install(FILES ${PROJECT_SOURCE_DIR}/LICENSE DESTINATION ${CMAKE_INSTALL_DOCDIR} COMPONENT demo)
+install(FILES
+        ${PROJECT_SOURCE_DIR}/src/fonts/GUST-FONT-LICENSE.txt
+        ${PROJECT_SOURCE_DIR}/src/fonts/README-latinmodern-math.txt
+    DESTINATION ${CMAKE_INSTALL_DOCDIR}/latinmodern-math
+    COMPONENT demo)
 
 # Release archives: put the Qt libraries and plugins next to the demo so it runs where Qt isn't installed
 # (windeployqt on Windows, macdeployqt into the bundle on macOS, the runtime dependencies into lib/ on Linux).

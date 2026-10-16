@@ -69,14 +69,21 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
   into bars and band outlines), `LabelStagger` (rows for event flags), `CsvWriter` (the data in view as CSV text),
   `NearestPoint` (the data point a snapping or tracing crosshair goes to: sorted series through the pyramid),
   axis mapping (linear/log), ticks (`TickGenerator` linear/log, `TimeTicks` calendar), labels and readouts
-  (`NumberFormatter`), `AxisTicks` (picks per axis kind), autoscale. Private headers
+  (`NumberFormatter`), `AxisTicks` (picks per axis kind), autoscale. Math in labels: `MathSegments` (the `$` rule),
+  `MathParser` (a TeX subset into a list of `MathAtom`s, with `MathSymbols`' tables), `MathPlainText` (a formula as
+  text for CSV headers), `OpenTypeReader`, `MathTable` and `GlyphSubstitutions` (a font's MATH and GSUB tables),
+  `MathLayout` (TeX's Appendix G with the MATH constants, into a `MathBox` of glyphs and rules) and
+  `StretchyGlyphs`, over an abstract `MathFont` (tests use `tests/core/FakeMathFont.h`), `Utf8`. Private headers
 - `src/`: `rocketplot` (alias `rocketplot::rocketplot`): the widget layer. `PlotLayout` (where everything goes),
   `PlotRenderer` (paints a layout; shared by the screen and the exports), `PlotExport` (the image, SVG and PDF devices
   an export paints on; `PlotWidget::paintExport()` is what they all draw), `InteractionController` (mouse, wheel,
   trackpad and touch input through the `InputBindings`), `ViewHistory` (back/forward), `LegendLayout` (legend
   placement, values and drawing), `Occupancy` (where data was drawn, for the legend's BEST spot), `Overlays`
   (crosshair and zoom box), `AnnotationPainter` (annotations are part of the cached rendering: under the series, over
-  them, then their labels), `PlotLink` (linked x axes, crosshair and history), `TextPainter` (plain and rich text),
+  them, then their labels), `PlotLink` (linked x axes, crosshair and history), `TextPainter` (plain text, rich text,
+  and math between `$` signs: a `QTextDocument` in which each formula is an inline object of `MathTextObject`),
+  `MathRenderer` (formulas typeset into cached outline paths), `RawMathFont` (a math font through `QRawFont`: the
+  bundled Latin Modern Math, `src/fonts/`, compiled in by `cmake/EmbedFile.cmake`, or an installed one),
   `MarkerPainter`, `PlotState` (how settings are written in the JSON of `PlotWidget::saveState()`; each class
   saves and restores its own in private `saveState()`/`restoreState()`: a new setting goes there too),
   `plottime.cpp`, `Logging` (categories `rocketplot.render|input|data`). The legend, crosshair and
@@ -133,6 +140,9 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
   (QTest otherwise goes on thinking the button is down), and don't rely on where the pointer is when a test starts
 - Straight lines along the axes on whole device pixels (grid, axes, ticks, crosshair) are drawn with antialiasing
   off: it changes no pixel of them and takes ten times as long. Everything else is antialiased
+- Math glyphs are drawn as outlines (`fillPath`), never as text: SVG and PDF exports would name a font the reader
+  may not have. The library never adds fonts to the application's `QFontDatabase` (`addApplicationFont`): the
+  bundled math font is a `QRawFont` of its own
 - Warnings are part of the build: code must compile cleanly with `-Werror` under GCC and Clang and with `/WX`
   under MSVC
 - Code must build and pass its tests on Linux, macOS, Windows and FreeBSD (CI runs all four). Use the standard

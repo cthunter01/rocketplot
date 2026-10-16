@@ -41,6 +41,7 @@ Examples allExamples()
     addLegendExamples(examples);
     addMultiplePlotExamples(examples);
     addAppearanceExamples(examples);
+    addMathExamples(examples);
     addExportExamples(examples);
     addStateExamples(examples);
     addPerformanceExamples(examples);
