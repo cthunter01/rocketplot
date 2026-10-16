@@ -31,8 +31,11 @@ constexpr bool sortedByName(const std::array<Named<Value>, N>& table)
 template <typename Value, std::size_t N>
 std::optional<Value> find(const std::array<Named<Value>, N>& table, std::string_view name)
 {
-    const auto* const found = std::ranges::lower_bound(table, name, {}, &Named<Value>::name);
-    if (found == table.end() || found->name != name)
+    // Through a span: its iterators are of a class everywhere, where std::array's are pointers in
+    // some standard libraries and not in others.
+    const std::span entries(table);
+    const auto      found = std::ranges::lower_bound(entries, name, {}, &Named<Value>::name);
+    if (found == entries.end() || found->name != name)
     {
         return std::nullopt;
     }
@@ -70,7 +73,7 @@ constexpr Named<OperatorName> function(std::string_view name, std::string_view t
     return {.name = name, .value = {.text = text, .limits = limits}};
 }
 
-constexpr Named<MathAlphabet> alphabet(std::string_view name, MathAlphabet value)
+constexpr Named<MathAlphabet> font(std::string_view name, MathAlphabet value)
 {
     return {.name = name, .value = value};
 }
@@ -409,18 +412,18 @@ constexpr std::array kOperatorNames = {
 };
 
 constexpr std::array kAlphabets = {
-    alphabet("bm", BOLD_ITALIC),
-    alphabet("boldsymbol", BOLD_ITALIC),
-    alphabet("mathbb", DOUBLE_STRUCK),
-    alphabet("mathbf", BOLD),
-    alphabet("mathcal", SCRIPT),
-    alphabet("mathfrak", FRAKTUR),
-    alphabet("mathit", ITALIC),
-    alphabet("mathnormal", DEFAULT),
-    alphabet("mathrm", UPRIGHT),
-    alphabet("mathscr", SCRIPT),
-    alphabet("mathsf", SANS_SERIF),
-    alphabet("mathtt", MONOSPACE),
+    font("bm", BOLD_ITALIC),
+    font("boldsymbol", BOLD_ITALIC),
+    font("mathbb", DOUBLE_STRUCK),
+    font("mathbf", BOLD),
+    font("mathcal", SCRIPT),
+    font("mathfrak", FRAKTUR),
+    font("mathit", ITALIC),
+    font("mathnormal", DEFAULT),
+    font("mathrm", UPRIGHT),
+    font("mathscr", SCRIPT),
+    font("mathsf", SANS_SERIF),
+    font("mathtt", MONOSPACE),
 };
 
 // In mu, as amsmath has them: \, is 3, \quad an em (18).
@@ -531,11 +534,11 @@ constexpr std::array kDoubleStruckHoles = {
 
 std::optional<char32_t> latinForm(char32_t c, const LatinForms& forms)
 {
-    for (const Hole& hole : forms.holes)
+    for (const Hole& entry : forms.holes)
     {
-        if (hole.letter == c)
+        if (entry.letter == c)
         {
-            return hole.form;
+            return entry.form;
         }
     }
     if (c >= U'A' && c <= U'Z')
@@ -735,9 +738,9 @@ std::optional<double> findSpace(std::string_view name)
 
 std::optional<char32_t> negated(char32_t relation)
 {
-    const auto* const found =
-        std::ranges::lower_bound(kNegations, relation, {}, &NegationEntry::relation);
-    if (found == kNegations.end() || found->relation != relation)
+    const std::span negations(kNegations);
+    const auto found = std::ranges::lower_bound(negations, relation, {}, &NegationEntry::relation);
+    if (found == negations.end() || found->relation != relation)
     {
         return std::nullopt;
     }
@@ -778,9 +781,10 @@ AtomType typeOf(char32_t character)
         return AtomType::ORD;
     }
     // A symbol typed as itself: ≤ is a relation as \leq is.
-    const auto* const found = std::ranges::find(
-        kSymbols, character, [](const Named<MathSymbol>& entry) { return entry.value.codePoint; });
-    return found != kSymbols.end() ? found->value.type : AtomType::ORD;
+    const std::span symbols(kSymbols);
+    const auto      found = std::ranges::find(
+        symbols, character, [](const Named<MathSymbol>& entry) { return entry.value.codePoint; });
+    return found != symbols.end() ? found->value.type : AtomType::ORD;
 }
 
 char32_t mathCharacter(char32_t character)

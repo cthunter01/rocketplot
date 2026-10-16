@@ -8,6 +8,7 @@
 #include <expected>
 #include <iterator>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -83,9 +84,9 @@ struct CommandEntry
     Command          command;
 };
 
-constexpr CommandEntry entry(std::string_view name, Command command)
+constexpr CommandEntry entry(std::string_view name, Command which)
 {
-    return {.name = name, .command = command};
+    return {.name = name, .command = which};
 }
 
 constexpr std::array kCommands = {
@@ -137,8 +138,10 @@ static_assert(std::ranges::is_sorted(kCommands, {}, &CommandEntry::name));
 
 std::optional<Command> findCommand(std::string_view name)
 {
-    const auto* const found = std::ranges::lower_bound(kCommands, name, {}, &CommandEntry::name);
-    if (found == kCommands.end() || found->name != name)
+    // Through a span: std::array's iterators are pointers in some standard libraries only.
+    const std::span commands(kCommands);
+    const auto      found = std::ranges::lower_bound(commands, name, {}, &CommandEntry::name);
+    if (found == commands.end() || found->name != name)
     {
         return std::nullopt;
     }
@@ -182,7 +185,7 @@ private:
     throw Failure({.position = position, .message = std::move(message)});
 }
 
-std::string command(std::string_view name)
+std::string backslashed(std::string_view name)
 {
     return "\\" + std::string(name);
 }
@@ -234,7 +237,7 @@ std::string describe(const Token& token)
             {
                 return "\\end without \\begin";
             }
-            return "Unexpected " + command(token.name);
+            return "Unexpected " + backslashed(token.name);
         default:
             return "Unexpected end";
     }
@@ -606,14 +609,14 @@ private:
         {
             list.push_back({.kind = AtomKind::SPACE, .space = *space, .position = position});
         }
-        else if (const auto symbol = findSymbol(name))
+        else if (const auto known = findSymbol(name))
         {
             list.push_back({
                 .kind      = AtomKind::SYMBOL,
-                .type      = symbol->type,
-                .codePoint = symbol->codePoint,
+                .type      = known->type,
+                .codePoint = known->codePoint,
                 .alphabet  = m_alphabet,
-                .limits    = symbol->limits,
+                .limits    = known->limits,
                 .position  = position,
             });
         }
@@ -647,7 +650,7 @@ private:
         }
         else
         {
-            fail(position, "Unknown command " + command(name));
+            fail(position, "Unknown command " + backslashed(name));
         }
     }
 
@@ -891,7 +894,7 @@ private:
     {
         if (list.empty() || list.back().type != AtomType::OP)
         {
-            fail(token.position, command(token.name) + " must follow an operator");
+            fail(token.position, backslashed(token.name) + " must follow an operator");
         }
         list.back().limits = limits;
     }
@@ -907,9 +910,9 @@ private:
         }
         else if (token.kind == TokenKind::COMMAND)
         {
-            if (const auto symbol = findSymbol(token.name))
+            if (const auto known = findSymbol(token.name))
             {
-                relation = symbol->codePoint;
+                relation = known->codePoint;
             }
         }
         const auto negation = relation ? negated(*relation) : std::nullopt;
@@ -928,9 +931,10 @@ private:
     // \begin{name} ... \end{name}: rows of cells, separated by \\ and &.
     MathAtom parseEnvironment(std::size_t position)
     {
-        const std::string name        = rawArgument();
-        const auto* const environment = std::ranges::find(kEnvironments, name, &Environment::name);
-        if (environment == kEnvironments.end())
+        const std::string name = rawArgument();
+        const std::span   environments(kEnvironments);
+        const auto        environment = std::ranges::find(environments, name, &Environment::name);
+        if (environment == environments.end())
         {
             fail(position, "Unknown environment " + name);
         }
