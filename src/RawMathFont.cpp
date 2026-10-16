@@ -5,6 +5,7 @@
 #include <QChar>
 #include <QCoreApplication>
 #include <QFont>
+#include <QFontDatabase>
 #include <QList>
 #include <QPainterPath>
 #include <QPointF>
@@ -12,7 +13,6 @@
 #include <QRawFont>
 #include <QRectF>
 #include <QString>
-#include <Qt>
 #include <QtTypes>
 #include <array>
 #include <cstddef>
@@ -79,12 +79,19 @@ std::span<const std::byte> bytesOf(const QByteArray& table)
 // The installed math font @p family; null if there is none, or it isn't a math font.
 std::shared_ptr<const RawMathFont> loadInstalled(const QString& family)
 {
+    // Asked of the font database, not of the raw font: without the family, Qt makes one of
+    // another, and without any fonts one of no family at all, whose QRawFont::familyName()
+    // crashes in Qt 6.8.
+    if (!QFontDatabase::hasFamily(family))
+    {
+        return nullptr;
+    }
     QFont font(family);
     font.setHintingPreference(QFont::PreferNoHinting);
     const QRawFont raw = QRawFont::fromFont(font);
-    if (!raw.isValid() || raw.familyName().compare(family, Qt::CaseInsensitive) != 0)
+    if (!raw.isValid())
     {
-        return nullptr;  // not installed: Qt chose another font
+        return nullptr;
     }
     const QByteArray math  = raw.fontTable("MATH");
     auto             table = core::MathTable::parse(bytesOf(math));
