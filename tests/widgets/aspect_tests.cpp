@@ -127,6 +127,17 @@ TEST_F(AspectTest, AResizeKeepsTheRegionAskedForInView)
     EXPECT_TRUE(m_plot.xAxis()->range() == x || m_plot.yAxis()->range() == y);
 }
 
+TEST_F(AspectTest, ToScaleAtEveryWidth)
+{
+    // At some widths the ranges to scale have wider y labels than those to scale in the narrower
+    // plot area that leaves, and those labels leave the wider one: it keeps the wider labels' room.
+    for (int width = 300; width <= 1000; width += 2)
+    {
+        m_plot.resize(width, 400);
+        EXPECT_LT(aspectError(m_plot), 1e-9) << width;
+    }
+}
+
 TEST_F(AspectTest, WheelZoomsBothAxes)
 {
     const Range x = m_plot.xAxis()->range();

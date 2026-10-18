@@ -588,10 +588,12 @@ private:
     // Whether aspectRatio() applies: set, with both axes linear.
     [[nodiscard]] bool hasFixedAspect() const;
     // The x and y ranges that show what the axes are asked to show at the aspect ratio when laid
-    // out in @p bounds, with @p fitted (headroomRanges()) for the y axes that autoscale.
+    // out in @p bounds, with @p fitted (headroomRanges()) for the y axes that autoscale. Raises
+    // @p constraints to the margins the plot area keeps at them, which their layout needs too:
+    // the margins kept from the last settling, if the ranges are to scale with those.
     [[nodiscard]] RangeOverrides aspectRanges(const QRectF& bounds, double devicePixelRatio,
-                                              const LayoutConstraints& constraints,
-                                              const RangeOverrides&    fitted) const;
+                                              LayoutConstraints&    constraints,
+                                              const RangeOverrides& fitted) const;
     // Brings the x and y ranges to the aspect ratio in the widget, where it applies. It changes
     // only how the axes show what they were asked to, so even the geometry getters call it.
     void settleAspect() const;
@@ -630,9 +632,10 @@ private:
                      const LayoutConstraints& constraints, const std::optional<Theme>& theme) const;
     void paintLayout(QPainter& painter, const PlotLayout& layout) const;
     // The ranges an export laid out in @p bounds draws with: the axes' own, or with headroom for
-    // the flags at that size.
+    // the flags at that size, or to scale in that shape (which can raise @p constraints, see
+    // aspectRanges()).
     [[nodiscard]] RangeOverrides exportRanges(const QRectF& bounds, double devicePixelRatio,
-                                              const LayoutConstraints& constraints) const;
+                                              LayoutConstraints& constraints) const;
     [[nodiscard]] QSize          exportSize(const ExportOptions& options) const;
     void writeCsv(QChar separator, const std::function<void(std::string_view)>& write) const;
     void exportWithDialog();

@@ -137,8 +137,10 @@ constexpr double kEdgeTolerance = 0.5;
 constexpr double kHeadroomGap      = 4.0;
 constexpr double kMaxHeadroomShare = 0.5;
 constexpr int    kHeadroomPasses   = 3;
-// Layouts at most to settle the aspect ratio: the y labels' width depends a little on the ranges.
-constexpr int    kAspectRounds    = 4;
+// Layouts at most to settle the aspect ratio (the y labels' width depends a little on the ranges),
+// and how far from it ranges may be and still count as to scale.
+constexpr int    kAspectRounds    = 6;
+constexpr double kAspectTolerance = 1e-9;
 constexpr double kHeadroomEpsilon = 1e-9;
 
 // Draws with another theme for as long as it lives, if given one: exports can ask for a theme of
@@ -204,6 +206,36 @@ Range positivePart(Range range)
         return Range::empty();
     }
     return {.min = range.min > 0.0 ? range.min : range.max, .max = range.max};
+}
+
+// The larger of each margin of @p a and @p b.
+LayoutConstraints widest(const LayoutConstraints& a, const LayoutConstraints& b)
+{
+    return {
+        .minLeft   = std::max(a.minLeft, b.minLeft),
+        .minRight  = std::max(a.minRight, b.minRight),
+        .minTop    = std::max(a.minTop, b.minTop),
+        .minBottom = std::max(a.minBottom, b.minBottom),
+    };
+}
+
+// Whether @p x and @p y are to scale at @p ratio in @p plot, but for rounding errors.
+bool isToScale(Range x, Range y, const QRectF& plot, double ratio)
+{
+    const double xPerPixel = x.span() / plot.width();
+    const double yPerPixel = y.span() / plot.height();
+    return std::abs(xPerPixel - (ratio * yPerPixel)) <= kAspectTolerance * xPerPixel;
+}
+
+// The margins around @p plot, a plot area laid out in @p bounds.
+LayoutConstraints marginsOf(const QRectF& bounds, const QRectF& plot)
+{
+    return {
+        .minLeft   = plot.left() - bounds.left(),
+        .minRight  = bounds.right() - plot.right(),
+        .minTop    = plot.top() - bounds.top(),
+        .minBottom = bounds.bottom() - plot.bottom(),
+    };
 }
 
 }  // namespace
@@ -282,9 +314,11 @@ struct PlotWidget::Private
     // widens.
     std::optional<Range> wantedX;
     std::optional<Range> wantedY;
-    bool                 settlingAspect = false;
-    bool                 dirty          = true;
-    bool                 pointStale     = true;
+    // The margins the plot area keeps at the ranges the aspect ratio settled on (aspectRanges()).
+    LayoutConstraints aspectMargins;
+    bool              settlingAspect = false;
+    bool              dirty          = true;
+    bool              pointStale     = true;
 
     // Whether the crosshair is shown at the pointer and goes to the data: a change to the data
     // can then move it.
@@ -304,8 +338,19 @@ struct PlotWidget::Private
         };
     }
 
-    // The margins the plot lines up with: its grid's or its link's.
+    // The margins the plot keeps to: those it lines up with, and under a fixed aspect ratio those
+    // its ranges were settled in.
     [[nodiscard]] LayoutConstraints constraints(const PlotWidget& plot) const
+    {
+        if (!plot.hasFixedAspect())
+        {
+            return alignedConstraints(plot);
+        }
+        return widest(alignedConstraints(plot), aspectMargins);
+    }
+
+    // The margins the plot lines up with: its grid's or its link's.
+    [[nodiscard]] LayoutConstraints alignedConstraints(const PlotWidget& plot) const
     {
         const PlotLink* current = link.data();
         if (const PlotGrid* inGrid = grid.data(); inGrid != nullptr)
@@ -958,19 +1003,20 @@ void PlotWidget::zoom(double factor, Qt::Orientations orientations, std::optiona
     {
         orientations = Qt::Horizontal | Qt::Vertical;  // one zoom, or the ratio would change
     }
-    const PlotLayout layout   = m_impl->layout(*this);
-    const auto       zoomAxis = [factor](Axis& axis, std::optional<double> anchor) {
+    const PlotLayout layout = m_impl->layout(*this);
+    // The axes' new ranges, all from their ranges as they are now: a new x range refits the y
+    // axes that autoscale.
+    std::vector<std::pair<Axis*, Range>> zoomed;
+    const auto zoomAxis = [factor, &zoomed](Axis& axis, std::optional<double> anchor) {
         const core::Scale scale = scaleOf(axis);
         const Range       range = axis.range();
-        const Range       zoomed =
+        const Range       to =
             core::zoomedAbout(range, anchor.value_or(core::middleOf(range, scale)), factor, scale);
-        if (zoomed != range && core::isUsableRange(zoomed, scale))
+        if (to != range && core::isUsableRange(to, scale))
         {
-            axis.setRange(zoomed);
+            zoomed.emplace_back(&axis, to);
         }
     };
-    ViewHistory& views = history();
-    views.beginStep();
     if (orientations.testFlag(Qt::Horizontal))
     {
         zoomAxis(*m_impl->xAxis, center ? std::optional(center->x()) : std::nullopt);
@@ -987,6 +1033,12 @@ void PlotWidget::zoom(double factor, Qt::Orientations orientations, std::optiona
                                                     : std::nullopt;
             zoomAxis(*m_impl->yAxis2, right);
         }
+    }
+    ViewHistory& views = history();
+    views.beginStep();
+    for (const auto& [axis, range] : zoomed)
+    {
+        axis->setRange(range);
     }
     settleAspect();
     views.commitStep();
@@ -1926,8 +1978,8 @@ bool PlotWidget::hasFixedAspect() const
 }
 
 RangeOverrides PlotWidget::aspectRanges(const QRectF& bounds, double devicePixelRatio,
-                                        const LayoutConstraints& constraints,
-                                        const RangeOverrides&    fitted) const
+                                        LayoutConstraints&    constraints,
+                                        const RangeOverrides& fitted) const
 {
     const Axis& x = *m_impl->xAxis;
     const Axis& y = *m_impl->yAxis;
@@ -1947,11 +1999,23 @@ RangeOverrides PlotWidget::aspectRanges(const QRectF& bounds, double devicePixel
     {
         fit = core::AspectFit::FOLLOW_Y;
     }
-    // The plot area depends a little on the ranges (through the y labels' width): lay out until
-    // it holds.
     RangeOverrides ranges = fitted;
     ranges.x              = wantedX;
     ranges.y              = wantedY;
+    // Ranges already to scale in the plot area the margins kept from the last settling leave
+    // (zoomed or panned, or a box fitted to that plot area) stay, with those margins.
+    const LayoutConstraints kept = widest(constraints, m_impl->aspectMargins);
+    if (const PlotLayout layout =
+            layoutPlot(*this, bounds, font(), devicePixelRatio, m_impl->text, kept, ranges);
+        layout.valid && isToScale(wantedX, wantedY, layout.plot, m_impl->aspectRatio))
+    {
+        constraints = kept;
+        return ranges;
+    }
+    // Otherwise: the plot area depends a little on the ranges (through the y labels' width), so
+    // lay out until it holds. Two ranges can each have the labels that fit the other in
+    // (narrower ones, a wider plot area, ranges with wider labels, and back): once the ranges
+    // are settled the plot area keeps the widest margins they took.
     for (int round = 0; round < kAspectRounds; ++round)
     {
         const PlotLayout layout =
@@ -1966,6 +2030,10 @@ RangeOverrides PlotWidget::aspectRanges(const QRectF& bounds, double devicePixel
         {
             break;
         }
+        if (round > 0)
+        {
+            constraints = widest(constraints, marginsOf(bounds, layout.plot));
+        }
         ranges.x = aspect.x;
         ranges.y = aspect.y;
     }
@@ -1978,9 +2046,14 @@ void PlotWidget::settleAspect() const
     {
         return;
     }
-    const RangeOverrides ranges =
-        aspectRanges(QRectF(rect()), devicePixelRatioF(), m_impl->constraints(*this),
-                     headroomRanges(m_impl->headroomShare));
+    LayoutConstraints    margins = m_impl->alignedConstraints(*this);
+    const RangeOverrides ranges  = aspectRanges(QRectF(rect()), devicePixelRatioF(), margins,
+                                                headroomRanges(m_impl->headroomShare));
+    if (margins != m_impl->aspectMargins)
+    {
+        m_impl->aspectMargins = margins;
+        m_impl->dirty         = true;
+    }
     const Range                x = ranges.x.value_or(m_impl->xAxis->range());
     const Range                y = ranges.y.value_or(m_impl->yAxis->range());
     const QScopedValueRollback settling(m_impl->settlingAspect, true);
@@ -2107,23 +2180,26 @@ void PlotWidget::setDebugOverlay(bool enabled)
 
 void PlotWidget::paintExport(QPainter& painter, const QRectF& bounds, double devicePixelRatio) const
 {
-    const LayoutConstraints constraints = m_impl->constraints(*this);
-    paintLayout(painter, m_impl->layoutIn(*this, bounds, devicePixelRatio,
-                                          exportRanges(bounds, devicePixelRatio, constraints)));
+    // The margins the screen keeps to the aspect ratio only if they suit this shape too.
+    LayoutConstraints    constraints = m_impl->alignedConstraints(*this);
+    const RangeOverrides ranges      = exportRanges(bounds, devicePixelRatio, constraints);
+    paintLayout(painter, layoutPlot(*this, bounds, font(), devicePixelRatio, m_impl->text,
+                                    constraints, ranges));
 }
 
 void PlotWidget::paintExport(QPainter& painter, const QRectF& bounds, double devicePixelRatio,
                              const LayoutConstraints&    constraints,
                              const std::optional<Theme>& theme) const
 {
-    const ThemeOverride used(m_impl->theme, theme);
+    const ThemeOverride  used(m_impl->theme, theme);
+    LayoutConstraints    kept   = constraints;
+    const RangeOverrides ranges = exportRanges(bounds, devicePixelRatio, kept);
     paintLayout(painter,
-                layoutPlot(*this, bounds, font(), devicePixelRatio, m_impl->text, constraints,
-                           exportRanges(bounds, devicePixelRatio, constraints)));
+                layoutPlot(*this, bounds, font(), devicePixelRatio, m_impl->text, kept, ranges));
 }
 
 RangeOverrides PlotWidget::exportRanges(const QRectF& bounds, double devicePixelRatio,
-                                        const LayoutConstraints& constraints) const
+                                        LayoutConstraints& constraints) const
 {
     // The flags take as many pixels in an export as on screen, and so another share of a plot
     // area of another height; and a plot area of another shape widens another axis for the

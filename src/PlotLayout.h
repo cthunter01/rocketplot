@@ -45,6 +45,8 @@ struct LayoutConstraints
     double minRight  = 0.0;
     double minTop    = 0.0;
     double minBottom = 0.0;
+
+    [[nodiscard]] bool operator==(const LayoutConstraints&) const = default;
 };
 
 /// Ranges to lay a plot out with instead of its axes' own, which stay as they are: an export
