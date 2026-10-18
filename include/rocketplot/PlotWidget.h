@@ -112,6 +112,8 @@ class ROCKETPLOT_EXPORT PlotWidget : public QWidget
                    crosshairEnabledChanged)
     Q_PROPERTY(rocketplot::CrosshairMode crosshairMode READ crosshairMode WRITE setCrosshairMode
                    NOTIFY crosshairModeChanged)
+    Q_PROPERTY(Qt::CursorShape plotCursor READ plotCursor WRITE setPlotCursor RESET resetPlotCursor
+                   NOTIFY plotCursorChanged)
     Q_PROPERTY(rocketplot::FlagPlacement eventFlagPlacement READ eventFlagPlacement WRITE
                    setEventFlagPlacement NOTIFY eventFlagPlacementChanged)
     Q_PROPERTY(Qt::Orientation eventFlagOrientation READ eventFlagOrientation WRITE
@@ -325,6 +327,12 @@ public:
     /// modes to choose from.
     [[nodiscard]] CrosshairMode crosshairMode() const noexcept;
     void                        setCrosshairMode(CrosshairMode mode);
+    /// The pointer's shape over the plot area (elsewhere it is the widget's): Qt::CrossCursor while
+    /// the crosshair is on, else the widget's own, until set. During a pan or a box zoom it is
+    /// that gesture's.
+    [[nodiscard]] Qt::CursorShape plotCursor() const noexcept;
+    void                          setPlotCursor(Qt::CursorShape shape);
+    void                          resetPlotCursor();
     /// Where the crosshair is, in data coordinates (y on yAxis()), or nothing when it isn't shown.
     /// On a plot showing a linked plot's crosshair, y is NaN.
     [[nodiscard]] std::optional<QPointF> crosshairPosition() const;
@@ -440,6 +448,14 @@ Q_SIGNALS:
     void crosshairMoved();
     /// An axis range changed (pan, zoom, autoscale or setRange()).
     void viewChanged();
+    /// The user clicked the plot area at @p dataPosition (y on yAxis()) with @p button, without
+    /// moving: a press and release of a button whose click does nothing else (InputBindings: the
+    /// left button pans when dragged, but a click of it is free). Not for a click on the legend
+    /// while it is interactive, nor for the second click of a double-click (the first is a click),
+    /// nor for the right button while it opens a context menu. A tap on a touchscreen is a click
+    /// of the left button; the second tap of a double tap is none.
+    void clicked(QPointF dataPosition, Qt::MouseButton button);
+    void plotCursorChanged();
     /// canGoBack() or canGoForward() may have changed.
     void historyChanged();
     /// The context menu is about to open at @p position (widget coordinates): add to @p menu here.
@@ -511,8 +527,11 @@ private:
     // up again once the pointer has moved or what the plot shows has changed.
     [[nodiscard]] const CrosshairPoint* crosshairPoint() const;
     void                                updateCursor();
-    void                                showContextMenu(QPoint position, QPoint globalPosition);
-    void                                renderCache();
+    // Whether the clicked() signal has a receiver: clicks are only followed for it then.
+    [[nodiscard]] bool wantsClicks() const;
+    void               emitClicked(QPointF widgetPosition, Qt::MouseButton button);
+    void               showContextMenu(QPoint position, QPoint globalPosition);
+    void               renderCache();
     // Exports: the plot as it is exported, laid out in @p bounds; the size an export is laid out
     // in; the CSV text, a piece at a time; and the context menu's "Export…".
     void paintExport(QPainter& painter, const QRectF& bounds, double devicePixelRatio) const;

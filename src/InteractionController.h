@@ -113,7 +113,9 @@ private:
     // Starts or continues a history step of continuous gesture events.
     void continueStep(Continuous kind);
 
-    bool beginDrag(QPointF position, Qt::MouseButton button, Qt::KeyboardModifiers modifiers);
+    // Follows a press; @p secondClick: of a double-click, which is no click of its own.
+    bool beginDrag(QPointF position, Qt::MouseButton button, Qt::KeyboardModifiers modifiers,
+                   bool secondClick = false);
     void dragTo(QPointF position);
     // Ends the drag at @p position; without @p click, a drag that didn't move is no click.
     void                  endDrag(QPointF position, bool click);
@@ -128,6 +130,8 @@ private:
     void touchUpdate(const std::vector<QPointF>& down, Qt::KeyboardModifiers modifiers);
     void touchEnd(QPointF position, bool lifted);
     void tapped(QPointF position);
+    // Whether a tap at @p position is the second of a double tap.
+    [[nodiscard]] bool isSecondTap(QPointF position) const;
 
     PlotWidget*                 m_plot;
     std::function<PlotLayout()> m_layout;
@@ -142,8 +146,9 @@ private:
         Region                region = Region::PLOT;
         QPointF               start;
         QPointF               current;
-        QRectF                plot;           // the plot area when it began
-        bool                  moved = false;  // beyond the drag distance: not a click
+        QRectF                plot;               // the plot area when it began
+        bool                  moved     = false;  // beyond the drag distance: not a click
+        bool                  clickable = false;  // its release may be a click for clicked()
         std::vector<Target>   targets;
     };
     Drag m_drag;

@@ -12,12 +12,15 @@
 #include <QPoint>
 #include <QString>
 #include <QTemporaryDir>
+#include <QTest>
 #include <Qt>
 
 #include <gtest/gtest.h>
 
 #include "DataImportWidget.h"
 #include "PropertyInspector.h"
+#include "rocketplot/Annotation.h"
+#include "rocketplot/EventMarker.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/enums.h"
 
@@ -92,6 +95,25 @@ TEST_F(MainWindowTest, TheThemeChoiceAppliesToEveryPage)
 
     m_window.selectPage(1);
     EXPECT_EQ(m_window.plots().constFirst()->themeMode(), rocketplot::ThemeMode::DARK);
+}
+
+TEST_F(MainWindowTest, AClickMarksAMomentOnTheInteractionPage)
+{
+    m_window.selectPage(pageCalled("Interaction"));
+    rocketplot::PlotWidget* plot = m_window.plots().constFirst();
+    m_window.show();
+    ASSERT_TRUE(QTest::qWaitForWindowExposed(&m_window));
+    const QPoint point = plot->plotArea().center().toPoint();
+    QTest::mouseClick(plot, Qt::LeftButton, Qt::NoModifier, point);
+    ASSERT_EQ(plot->annotations().size(), 1);
+    const auto* mark = qobject_cast<const rocketplot::EventMarker*>(plot->annotations().front());
+    ASSERT_NE(mark, nullptr);
+    EXPECT_NEAR(mark->x(), plot->mapToData(point).x(), 1e-9);
+
+    // The next click moves it.
+    QTest::mouseClick(plot, Qt::LeftButton, Qt::NoModifier, point + QPoint(60, 0));
+    EXPECT_EQ(plot->annotations().size(), 1);
+    EXPECT_GT(mark->x(), plot->mapToData(point).x());
 }
 
 TEST_F(MainWindowTest, OpensAFileOnTheDataPage)

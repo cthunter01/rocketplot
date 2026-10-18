@@ -187,6 +187,38 @@ QObject::connect(plot, &rocketplot::PlotWidget::viewChanged, status, [plot, stat
 emits it twice. Don't change the same plot's ranges from this signal without a guard, or the change calls you
 again.
 
+## Clicks in the plot area
+
+A click that does nothing else is yours: `clicked()` hands you where it was, in data coordinates, and the button.
+
+<!-- example: interaction-clicked -->
+```cpp
+QObject::connect(plot, &rocketplot::PlotWidget::clicked, plot,
+                 [plot](QPointF position, Qt::MouseButton button) {
+                     // A click that did nothing else: no pan, no menu, not on the legend.
+                     if (button == Qt::LeftButton)
+                     {
+                         plot->addEvent(position.x(), "Mark");
+                     }
+                 });
+plot->setPlotCursor(Qt::PointingHandCursor);  // over the plot area only
+```
+
+A click is a press and a release in the same place, of a button whose click has no action of its own
+(`Gesture::CLICK` in [the bindings](#changing-what-the-gestures-do)): the left button pans when it is dragged,
+but a click of it is free. There is no `clicked()`
+
+- outside the plot area, as on an axis;
+- on the legend, while it is interactive (a click there shows or hides a series);
+- for the second click of a double-click: the first was one already;
+- for the right button while it opens the [context menu](#the-context-menu).
+
+On a touchscreen a tap is a click of the left button, but not the second tap of a double tap, nor a long press.
+The plot only follows clicks while `clicked()` is connected.
+
+`plotCursor` is the pointer's shape over the plot area: the arrow, or a cross while the crosshair is on, until you
+set one, and `resetPlotCursor()` goes back to that. A pan and a box zoom still show theirs while they last.
+
 ## The context menu
 
 A right-click opens a menu:

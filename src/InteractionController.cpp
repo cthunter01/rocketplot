@@ -281,6 +281,7 @@ bool InteractionController::mouseRelease(const QMouseEvent& event)
     if (event.button() == m_drag.button)
     {
         endDrag(event.position(), true);
+        m_plot->pointAt(event.position());  // where the pointer is now, after the drag
     }
     return true;
 }
@@ -300,7 +301,14 @@ bool InteractionController::mouseDoubleClick(const QMouseEvent& event)
     {
         return false;
     }
-    return perform(bindings().action(Gesture::DOUBLE_CLICK, event.button(), event.modifiers()));
+    if (perform(bindings().action(Gesture::DOUBLE_CLICK, event.button(), event.modifiers())))
+    {
+        return true;
+    }
+    // Nothing to do with a double-click: its second press may still begin a drag (which is
+    // what QWidget would make of it), but it is no click of its own.
+    m_dropMenu = false;
+    return beginDrag(event.position(), event.button(), event.modifiers(), true);
 }
 
 bool InteractionController::contextMenu(const QContextMenuEvent& event)
@@ -380,7 +388,7 @@ bool InteractionController::wheel(const QWheelEvent& event)
 // --------------------------------------------------------------------------------------------------------
 
 bool InteractionController::beginDrag(QPointF position, Qt::MouseButton button,
-                                      Qt::KeyboardModifiers modifiers)
+                                      Qt::KeyboardModifiers modifiers, bool secondClick)
 {
     m_continuous = Continuous::NONE;
     if (button == Qt::LeftButton && m_plot->isOnLegend(position))
@@ -409,9 +417,11 @@ bool InteractionController::beginDrag(QPointF position, Qt::MouseButton button,
     {
         action = PlotAction::NONE;
     }
-    // A button that only clicks is still followed to its release.
+    // A button that only clicks is still followed to its release, and any button over the plot
+    // area while its clicks are wanted (clicked()).
+    const bool clickable = region == Region::PLOT && !secondClick && m_plot->wantsClicks();
     if (region == Region::OUTSIDE ||
-        (action == PlotAction::NONE &&
+        (action == PlotAction::NONE && !clickable &&
          bindings().action(Gesture::CLICK, button, modifiers) == PlotAction::NONE))
     {
         return false;
@@ -426,6 +436,8 @@ bool InteractionController::beginDrag(QPointF position, Qt::MouseButton button,
         .start     = position,
         .current   = position,
         .plot      = layout.plot,
+        .moved     = false,
+        .clickable = clickable,
         .targets   = targetsFor(action, region, position, layout),
     };
     if (action != PlotAction::NONE)
@@ -498,6 +510,15 @@ void InteractionController::endDrag(QPointF position, bool click)
     const bool       clicked = click && !drag.moved;
     const PlotAction clickAction =
         clicked ? bindings().action(Gesture::CLICK, drag.button, drag.modifiers) : PlotAction::NONE;
+    // A click that does nothing else, for clicked(): not of the right button while it opens a
+    // menu.
+    const Qt::ContextMenuPolicy policy = m_plot->contextMenuPolicy();
+    const bool opensMenu = drag.button == Qt::RightButton && policy != Qt::NoContextMenu &&
+                           policy != Qt::PreventContextMenu;
+    if (clicked && drag.clickable && clickAction == PlotAction::NONE && !opensMenu)
+    {
+        m_plot->emitClicked(drag.start, drag.button);
+    }
     if (drag.button == Qt::RightButton)
     {
         // The right button was ours from the press, so the context menu is decided here: a plain
@@ -704,11 +725,26 @@ void InteractionController::touchEnd(QPointF position, bool lifted)
         return;
     }
     const bool tap = lifted && !m_touch.moved;
+    if (tap &&
+        (isSecondTap(position) ||
+         m_touch.pressed.elapsed() > QGuiApplication::styleHints()->mouseDoubleClickInterval()))
+    {
+        m_drag.clickable = false;  // the second tap of a double tap, or a long press: no click
+    }
     endDrag(position, tap);
     if (tap)
     {
         tapped(position);
     }
+}
+
+bool InteractionController::isSecondTap(QPointF position) const
+{
+    const QStyleHints* hints = QGuiApplication::styleHints();
+    return m_touch.lastTap.isValid() &&
+           m_touch.lastTap.elapsed() <= hints->mouseDoubleClickInterval() &&
+           (position - m_touch.lastTapPosition).manhattanLength() <=
+               hints->touchDoubleTapDistance();
 }
 
 void InteractionController::tapped(QPointF position)

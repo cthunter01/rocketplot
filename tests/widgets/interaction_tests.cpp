@@ -30,6 +30,7 @@
 
 #include "rocketplot/Axis.h"
 #include "rocketplot/InputBindings.h"
+#include "rocketplot/Legend.h"
 #include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/Range.h"
@@ -414,6 +415,19 @@ TEST_F(TouchTest, PinchZoomsAlongTheSpread)
     EXPECT_TRUE(m_plot.yAxis()->autoscale());
 }
 
+TEST_F(TouchTest, ATapIsAClickAndADoubleTapOne)
+{
+    const QSignalSpy clicked(&m_plot, &PlotWidget::clicked);
+    const QPoint     point = pixel(center());
+    QTest::touchEvent(&m_plot, m_screen).press(0, point);
+    QTest::touchEvent(&m_plot, m_screen).release(0, point);
+    ASSERT_EQ(clicked.count(), 1);
+    EXPECT_EQ(clicked.at(0).at(1).value<Qt::MouseButton>(), Qt::LeftButton);
+    QTest::touchEvent(&m_plot, m_screen).press(0, point);  // the second tap of a double tap
+    QTest::touchEvent(&m_plot, m_screen).release(0, point);
+    EXPECT_EQ(clicked.count(), 1);
+}
+
 TEST_F(TouchTest, DoubleTapResets)
 {
     wheel(center(), 240);
@@ -425,6 +439,118 @@ TEST_F(TouchTest, DoubleTapResets)
         QTest::touchEvent(&m_plot, m_screen).release(0, point);
     }
     EXPECT_TRUE(m_plot.xAxis()->autoscale());
+}
+
+// Clicks and the cursor
+// -----------------------------------------------------------------------------------------------
+
+TEST_F(InteractionTest, AClickInThePlotAreaIsSignalled)
+{
+    const QSignalSpy clicked(&m_plot, &PlotWidget::clicked);
+    const QPoint     point = pixel(at(5.0, 2.0));
+    QTest::mouseClick(&m_plot, Qt::LeftButton, Qt::NoModifier, point);
+    ASSERT_EQ(clicked.count(), 1);
+    const QPointF data = clicked.at(0).at(0).toPointF();
+    EXPECT_NEAR(data.x(), 5.0, 0.05);
+    EXPECT_NEAR(data.y(), 2.0, 0.1);
+    EXPECT_EQ(clicked.at(0).at(1).value<Qt::MouseButton>(), Qt::LeftButton);
+    // A pan is no click, nor is a click on an axis.
+    drag(point, point + QPoint(80, 0));
+    QTest::mouseClick(&m_plot, Qt::LeftButton, Qt::NoModifier,
+                      pixel(QPointF(center().x(), m_plot.plotArea().bottom() + 10.0)));
+    EXPECT_EQ(clicked.count(), 1);
+}
+
+TEST_F(InteractionTest, ADoubleClickIsOneClick)
+{
+    const QSignalSpy clicked(&m_plot, &PlotWidget::clicked);
+    const QPoint     point = pixel(center());
+    // As the platform delivers it: a click, then the second press as a double-click.
+    QTest::mouseClick(&m_plot, Qt::LeftButton, Qt::NoModifier, point);
+    QTest::mouseDClick(&m_plot, Qt::LeftButton, Qt::NoModifier, point);
+    QTest::mouseRelease(&m_plot, Qt::LeftButton, Qt::NoModifier, point);
+    EXPECT_EQ(clicked.count(), 1);
+    // Also where a double-click does nothing else: its second press can still pan.
+    m_plot.setInputBindings(InputBindings{});
+    QTest::mouseClick(&m_plot, Qt::LeftButton, Qt::NoModifier, point);
+    QTest::mouseDClick(&m_plot, Qt::LeftButton, Qt::NoModifier, point);
+    QTest::mouseRelease(&m_plot, Qt::LeftButton, Qt::NoModifier, point);
+    EXPECT_EQ(clicked.count(), 2);
+}
+
+TEST_F(InteractionTest, AnInteractiveLegendTakesItsClicks)
+{
+    m_plot.addLine(std::vector<double>{0, 10}, std::vector<double>{0, 1}, "second");
+    static_cast<void>(m_plot.grab());
+    const QSignalSpy clicked(&m_plot, &PlotWidget::clicked);
+    const QPoint     onLegend = pixel(m_plot.legendArea().center());
+    QTest::mouseClick(&m_plot, Qt::LeftButton, Qt::NoModifier, onLegend);
+    EXPECT_EQ(clicked.count(), 0);
+    m_plot.legend()->setInteractive(false);
+    QTest::mouseClick(&m_plot, Qt::LeftButton, Qt::NoModifier, onLegend);
+    EXPECT_EQ(clicked.count(), 1);
+}
+
+TEST_F(InteractionTest, ClicksOfButtonsThatDoNothingElse)
+{
+    const QSignalSpy clicked(&m_plot, &PlotWidget::clicked);
+    const QPoint     point = pixel(center());
+    QTest::mouseClick(&m_plot, Qt::BackButton, Qt::NoModifier, point);  // goes back
+    EXPECT_EQ(clicked.count(), 0);
+    QTest::mouseClick(&m_plot, Qt::MiddleButton, Qt::NoModifier, point);
+    ASSERT_EQ(clicked.count(), 1);
+    EXPECT_EQ(clicked.at(0).at(1).value<Qt::MouseButton>(), Qt::MiddleButton);
+    // With no bindings at all, every click is one, and a drag still isn't.
+    m_plot.setInputBindings(InputBindings{});
+    QTest::mouseClick(&m_plot, Qt::BackButton, Qt::NoModifier, point);
+    drag(point, point + QPoint(80, 0));
+    EXPECT_EQ(clicked.count(), 2);
+}
+
+TEST_F(InteractionTest, ARightClickIsOneOnlyWithoutAMenu)
+{
+    const QSignalSpy clicked(&m_plot, &PlotWidget::clicked);
+    QWindow*         window = m_plot.windowHandle();
+    QTest::mouseClick(window, Qt::RightButton, Qt::NoModifier, pixel(center()));
+    EXPECT_NE(openMenu(), nullptr);
+    EXPECT_EQ(clicked.count(), 0);
+    openMenu()->close();
+    m_plot.setContextMenuPolicy(Qt::NoContextMenu);
+    QTest::mouseClick(window, Qt::RightButton, Qt::NoModifier, pixel(center()));
+    EXPECT_EQ(openMenu(), nullptr);
+    ASSERT_EQ(clicked.count(), 1);
+    EXPECT_EQ(clicked.at(0).at(1).value<Qt::MouseButton>(), Qt::RightButton);
+}
+
+TEST_F(InteractionTest, TheCursorOverThePlotArea)
+{
+    const QSignalSpy changed(&m_plot, &PlotWidget::plotCursorChanged);
+    const QPoint     inside  = pixel(center());
+    const QPoint     outside = pixel(QPointF(center().x(), m_plot.plotArea().bottom() + 10.0));
+    QTest::mouseMove(&m_plot, inside);
+    EXPECT_EQ(m_plot.plotCursor(), Qt::ArrowCursor);
+    EXPECT_EQ(m_plot.cursor().shape(), Qt::ArrowCursor);
+
+    m_plot.setPlotCursor(Qt::PointingHandCursor);
+    EXPECT_EQ(changed.count(), 1);
+    QTest::mouseMove(&m_plot, inside + QPoint(1, 1));
+    EXPECT_EQ(m_plot.cursor().shape(), Qt::PointingHandCursor);
+    QTest::mouseMove(&m_plot, outside);
+    EXPECT_EQ(m_plot.cursor().shape(), Qt::ArrowCursor);
+    // A pan shows its own.
+    QTest::mousePress(&m_plot, Qt::LeftButton, Qt::NoModifier, inside);
+    QTest::mouseMove(&m_plot, inside + QPoint(40, 0));
+    EXPECT_EQ(m_plot.cursor().shape(), Qt::ClosedHandCursor);
+    QTest::mouseRelease(&m_plot, Qt::LeftButton, Qt::NoModifier, inside + QPoint(40, 0));
+    EXPECT_EQ(m_plot.cursor().shape(), Qt::PointingHandCursor);
+
+    // Back to the default: the crosshair's while it is on.
+    m_plot.resetPlotCursor();
+    m_plot.setCrosshairEnabled(true);
+    EXPECT_EQ(changed.count(), 3);
+    EXPECT_EQ(m_plot.plotCursor(), Qt::CrossCursor);
+    QTest::mouseMove(&m_plot, inside);
+    EXPECT_EQ(m_plot.cursor().shape(), Qt::CrossCursor);
 }
 
 // Crosshair

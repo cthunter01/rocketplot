@@ -121,6 +121,18 @@ void following(const QString& /*scratch*/)
     });
     // [/interaction-view-signal]
 
+    // [interaction-clicked]
+    QObject::connect(plot, &rocketplot::PlotWidget::clicked, plot,
+                     [plot](QPointF position, Qt::MouseButton button) {
+                         // A click that did nothing else: no pan, no menu, not on the legend.
+                         if (button == Qt::LeftButton)
+                         {
+                             plot->addEvent(position.x(), "Mark");
+                         }
+                     });
+    plot->setPlotCursor(Qt::PointingHandCursor);  // over the plot area only
+    // [/interaction-clicked]
+
     // [interaction-menu]
     QObject::connect(plot, &rocketplot::PlotWidget::contextMenuAboutToShow, plot,
                      [plot](QMenu* menu, QPointF position) {

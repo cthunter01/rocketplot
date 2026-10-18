@@ -27,6 +27,7 @@
 #include <QMarginsF>
 #include <QMenu>
 #include <QMessageBox>
+#include <QMetaMethod>
 #include <QMouseEvent>
 #include <QNativeGestureEvent>
 #include <QPaintDevice>
@@ -257,15 +258,16 @@ struct PlotWidget::Private
         QSize     size;
         double    devicePixelRatio = 0.0;
     };
-    std::optional<NaturalMargins> naturalMargins;
-    CrosshairMode                 crosshairMode   = CrosshairMode::FREE;
-    FlagPlacement                 flagPlacement   = FlagPlacement::OVER_DATA;
-    Qt::Orientation               flagOrientation = Qt::Horizontal;
-    double                        headroomShare   = 0.0;  // left free above autoscaled y data
-    bool                          debugOverlay    = false;
-    bool                          crosshair       = false;
-    bool                          dirty           = true;
-    bool                          pointStale      = true;
+    std::optional<NaturalMargins>  naturalMargins;
+    CrosshairMode                  crosshairMode = CrosshairMode::FREE;
+    std::optional<Qt::CursorShape> plotCursor;  // over the plot area, once set
+    FlagPlacement                  flagPlacement   = FlagPlacement::OVER_DATA;
+    Qt::Orientation                flagOrientation = Qt::Horizontal;
+    double                         headroomShare   = 0.0;  // left free above autoscaled y data
+    bool                           debugOverlay    = false;
+    bool                           crosshair       = false;
+    bool                           dirty           = true;
+    bool                           pointStale      = true;
 
     // Whether the crosshair is shown at the pointer and goes to the data: a change to the data
     // can then move it.
@@ -919,6 +921,10 @@ void PlotWidget::setCrosshairEnabled(bool enabled)
     }
     m_impl->crosshair  = enabled;
     m_impl->pointStale = true;
+    if (!m_impl->plotCursor)
+    {
+        Q_EMIT plotCursorChanged();  // it is the crosshair's while it is on
+    }
     if (isOutside(m_impl->legend->anchor()) && m_impl->legend->areValuesVisible())
     {
         invalidate();  // it keeps a column for the values, or no longer does
@@ -1111,6 +1117,43 @@ void PlotWidget::syncCrosshair()
     current->syncCrosshair(this, x);
 }
 
+Qt::CursorShape PlotWidget::plotCursor() const noexcept
+{
+    return m_impl->plotCursor.value_or(m_impl->crosshair ? Qt::CrossCursor : Qt::ArrowCursor);
+}
+
+void PlotWidget::setPlotCursor(Qt::CursorShape shape)
+{
+    if (m_impl->plotCursor == shape)
+    {
+        return;
+    }
+    m_impl->plotCursor = shape;
+    updateCursor();
+    Q_EMIT plotCursorChanged();
+}
+
+void PlotWidget::resetPlotCursor()
+{
+    if (!m_impl->plotCursor)
+    {
+        return;
+    }
+    m_impl->plotCursor.reset();
+    updateCursor();
+    Q_EMIT plotCursorChanged();
+}
+
+bool PlotWidget::wantsClicks() const
+{
+    return isSignalConnected(QMetaMethod::fromSignal(&PlotWidget::clicked));
+}
+
+void PlotWidget::emitClicked(QPointF widgetPosition, Qt::MouseButton button)
+{
+    Q_EMIT clicked(mapToData(widgetPosition), button);
+}
+
 void PlotWidget::updateCursor()
 {
     switch (m_impl->interaction->dragAction())
@@ -1147,9 +1190,14 @@ void PlotWidget::updateCursor()
         }
         return;
     }
-    if (m_impl->hover)
+    // Over the plot area, its own; elsewhere the widget's.
+    const std::optional<QPointF> pointer = m_impl->pointer;
+    const bool                   overPlot =
+        m_impl->hover.has_value() ||
+        (pointer.has_value() && m_impl->shownLayout(*this).plot.contains(*pointer));
+    if (overPlot && (m_impl->plotCursor || m_impl->crosshair))
     {
-        setCursor(Qt::CrossCursor);
+        setCursor(plotCursor());
     }
     else
     {
@@ -2312,7 +2360,8 @@ void PlotWidget::mouseDoubleClickEvent(QMouseEvent* event)
         event->accept();
         return;
     }
-    QWidget::mouseDoubleClickEvent(event);
+    // Not QWidget's, which would take it for a press: the controller has had it as one.
+    event->ignore();
 }
 
 void PlotWidget::wheelEvent(QWheelEvent* event)

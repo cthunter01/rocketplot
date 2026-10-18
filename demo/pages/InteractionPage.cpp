@@ -4,6 +4,7 @@
 #include <QLabel>
 #include <QLocale>
 #include <QPointF>
+#include <QPointer>
 #include <QPushButton>
 #include <QString>
 #include <QVBoxLayout>
@@ -16,6 +17,7 @@
 #include "DemoPage.h"
 #include "Generators.h"
 #include "rocketplot/Axis.h"
+#include "rocketplot/EventMarker.h"
 #include "rocketplot/InputBindings.h"
 #include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotWidget.h"
@@ -111,6 +113,25 @@ QWidget* create(QWidget* parent)
                                   : QString());
     });
 
+    // A click that does nothing else (no pan, no menu) marks a moment; the next one moves the mark.
+    QObject::connect(plot, &rocketplot::PlotWidget::clicked, plot,
+                     [plot, mark = QPointer<rocketplot::EventMarker>()](
+                         QPointF position, Qt::MouseButton button) mutable {
+                         if (button != Qt::LeftButton)
+                         {
+                             return;
+                         }
+                         const QString label =
+                             QStringLiteral("t = %1 s").arg(position.x(), 0, 'f', 1);
+                         if (mark == nullptr)
+                         {
+                             mark = plot->addEvent(position.x(), label);
+                             return;
+                         }
+                         mark->setX(position.x());
+                         mark->setLabel(label);
+                     });
+
     // Gestures can be rebound: here the right button can also zoom to a box.
     QObject::connect(rightDrag, &QCheckBox::toggled, plot, [plot](bool on) {
         rocketplot::InputBindings bindings = rocketplot::InputBindings::defaults();
@@ -144,7 +165,8 @@ DemoPage interactionPage()
         .title       = QStringLiteral("Interaction"),
         .description = QStringLiteral(
             "Drag to pan, <b>Shift-drag</b> to zoom to a box (a thin box zooms just one axis), "
-            "scroll to zoom, double-click to fit the data again. On a trackpad, scroll to pan and "
+            "scroll to zoom, double-click to fit the data again, click to mark a moment. On a "
+            "trackpad, scroll to pan and "
             "pinch to zoom; on a touchscreen, drag and pinch. Over an axis, each of these only "
             "affects that axis. The mouse's back and forward buttons step through the view "
             "history, and right-clicking opens a menu with the history and the crosshair. The "
