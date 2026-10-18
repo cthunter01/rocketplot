@@ -70,18 +70,21 @@ private:
     std::int64_t    m_steps       = 0;    // flown, of 1 / kSampleRate seconds each
     double          m_requested   = 0.0;  // flight time asked for in all
     double          m_time        = 0.0;
-    double          m_altitude    = 0.0;      // m
-    double          m_downrange   = 0.0;      // m
-    double          m_climbRate   = 0.0;      // m/s, up
-    double          m_groundSpeed = 0.0;      // m/s, along the ground
-    double          m_firstPropellant;        // kg
-    double          m_secondPropellant;       // kg
-    double          m_cutoffTime      = 0.0;  // of the first stage
-    double          m_lastPressure    = 0.0;  // dynamic pressure a step ago
-    bool            m_stagesJoined    = true;
-    bool            m_fairingAttached = true;
-    bool            m_passedMaxQ      = false;
-    bool            m_liftoffReported = false;
+    double          m_altitude    = 0.0;  // m
+    double          m_downrange   = 0.0;  // m
+    double          m_climbRate   = 0.0;  // m/s, up
+    double          m_groundSpeed = 0.0;  // m/s, along the ground
+    // Filled by the constructor from the vehicle's constants, which are in the source file.
+    // NOLINTBEGIN(cppcoreguidelines-use-default-member-init,modernize-use-default-member-init)
+    double m_firstPropellant;   // kg
+    double m_secondPropellant;  // kg
+    // NOLINTEND(cppcoreguidelines-use-default-member-init,modernize-use-default-member-init)
+    double m_cutoffTime      = 0.0;  // of the first stage
+    double m_lastPressure    = 0.0;  // dynamic pressure a step ago
+    bool   m_stagesJoined    = true;
+    bool   m_fairingAttached = true;
+    bool   m_passedMaxQ      = false;
+    bool   m_liftoffReported = false;
 };
 
 }  // namespace rocketplot::demo

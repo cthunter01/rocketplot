@@ -126,7 +126,7 @@ void PlotGrid::setGridSize(int rows, int columns)
             kept.append(existing != nullptr ? existing : createPlot());
         }
     }
-    for (PlotWidget* old : std::as_const(m_plots))
+    for (const PlotWidget* old : std::as_const(m_plots))
     {
         if (!kept.contains(old))
         {
