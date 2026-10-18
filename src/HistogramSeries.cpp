@@ -4,6 +4,7 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QLatin1String>
+#include <algorithm>
 #include <cstddef>
 #include <utility>
 #include <vector>
@@ -114,11 +115,8 @@ void HistogramSeries::setNormalization(HistogramNormalization normalization)
 void HistogramSeries::recount()
 {
     const Range range   = m_binRange.isValid() ? m_binRange : core::histogramRange(m_values);
-    std::size_t counted = 0;
-    for (const double value : m_values)
-    {
-        counted += range.contains(value) ? 1 : 0;
-    }
+    const auto  counted = static_cast<std::size_t>(
+        std::ranges::count_if(m_values, [&range](double value) { return range.contains(value); }));
     const std::size_t bins =
         m_binCount > 0 ? static_cast<std::size_t>(m_binCount) : core::automaticBinCount(counted);
     core::Histogram histogram = core::histogram(m_values, bins, range, coreScale(m_normalization));

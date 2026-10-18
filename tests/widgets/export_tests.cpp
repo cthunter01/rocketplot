@@ -307,8 +307,8 @@ bool isCreatedBy(const QByteArray& pdf, const QString& name)
     QByteArray utf16("/Creator (\xfe\xff");
     for (const QChar character : name)
     {
-        for (const char byte : {static_cast<char>(character.unicode() >> 8),
-                                static_cast<char>(character.unicode() & 0xff)})
+        const auto code = static_cast<unsigned>(character.unicode());
+        for (const char byte : {static_cast<char>(code >> 8U), static_cast<char>(code & 0xffU)})
         {
             if (byte == '(' || byte == ')' || byte == '\\')
             {

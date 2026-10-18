@@ -68,8 +68,8 @@ void following(const QString& /*scratch*/)
     PlotWidget*  plot = &window;
     QLabel       label;
     QLabel*      status = &label;
-    QPushButton  button;
-    QPushButton* backButton = &button;
+    QPushButton  toolbarButton;
+    QPushButton* backButton = &toolbarButton;
     // [interaction-crosshair-signal]
     QObject::connect(plot, &rocketplot::PlotWidget::crosshairMoved, status, [plot, status] {
         if (const std::optional<QPointF> at = plot->crosshairPosition())

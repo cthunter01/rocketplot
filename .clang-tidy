@@ -21,6 +21,7 @@ Checks: >
   -portability-avoid-pragma-once,
   readability-*,
   -readability-identifier-length,
+  -readability-trailing-comma,
   -readability-magic-numbers
 
 WarningsAsErrors: ''
