@@ -120,6 +120,8 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
   `cmake/Licenses.cmake`: the licence files, installed also as a subproject (`ROCKETPLOT_INSTALL_LICENSES`) and
   listed in the target property `ROCKETPLOT_LICENSE_FILES`. `ROCKETPLOT_BUNDLE_MATH_FONT=OFF` leaves the math font
   out (`src/NoBundledMathFont.cpp`; formulas then show as text; `rocketplot_tests` skips the math tests)
+- `tests/consumer/`: a project that uses rocketplot through FetchContent, with its own `-Werror` and sanitizers;
+  `tests/consumer/check.sh` builds, runs and installs it (CI's Linux `asan` job), not part of the main build
 
 ## Conventions
 - Headers are `.h` (never `.hpp`) and use `#pragma once`

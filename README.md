@@ -152,12 +152,27 @@ arrives on another thread, and how much history to keep. The demo's Telemetry pa
 reports a whole simulated flight this way, on linked plots.
 
 ### Use it in your project
-Install it (`cmake --install build/<preset> --prefix <dir>`) or download the `-sdk` release archive, then:
+Build it with your project (only the library is built then):
 ```cmake
-find_package(rocketplot 0.1 REQUIRED)   # with <dir> in CMAKE_PREFIX_PATH
+include(FetchContent)
+FetchContent_Declare(rocketplot
+    GIT_REPOSITORY https://github.com/cthunter01/rocketplot.git
+    GIT_TAG        v0.3.0
+    SYSTEM)   # warnings in its headers don't fail your -Werror or clang-tidy
+FetchContent_MakeAvailable(rocketplot)
 target_link_libraries(my_app PRIVATE rocketplot::rocketplot)
 ```
-Or build it with your project through `FetchContent` or `add_subdirectory()`.
+Or install it (`cmake --install build/<preset> --prefix <dir>`) or download the `-sdk` release archive, then:
+```cmake
+find_package(rocketplot 0.3 REQUIRED)   # with <dir> in CMAKE_PREFIX_PATH
+target_link_libraries(my_app PRIVATE rocketplot::rocketplot)
+```
+A project built with sanitizers sets `ROCKETPLOT_SANITIZERS` to the same list before `FetchContent_MakeAvailable`
+and never uses an installed copy: with libstdc++, a `std::vector` annotated for AddressSanitizer in one part of a
+program and not in another is reported as a `container-overflow`. `cmake --install` of your project installs
+rocketplot's licence files (`share/doc/rocketplot/`), also as a subproject; the target property
+`ROCKETPLOT_LICENSE_FILES` lists them. The [User Guide](docs/user-guide/getting-started.md#adding-rocketplot-to-a-project)
+has the details.
 
 ### Qt Designer
 The build makes a Designer plugin when Qt's UiPlugin module is there (it comes with Qt's tools; Arch:

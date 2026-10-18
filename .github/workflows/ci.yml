@@ -25,6 +25,13 @@ jobs:
       - uses: actions/checkout@v7
       - name: Configure, build and test
         run: cmake --workflow --preset ${{ matrix.preset }}
+      # A project that fetches rocketplot as the User Guide says, with -Werror and sanitizers of its own: it runs
+      # clean, installs rocketplot's licence files, and also builds without the math font.
+      - name: Use rocketplot from a project
+        if: matrix.preset == 'asan'
+        env:
+          CXX: clang++
+        run: tests/consumer/check.sh
 
   # Apple Clang from the runner's default Xcode.
   # No asan here: the Linux asan job sanitizes the same code, and Linux also has leak detection, which Apple's

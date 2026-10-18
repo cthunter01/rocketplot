@@ -27,15 +27,37 @@ the library is compiled with your compiler and your Qt.
 include(FetchContent)
 FetchContent_Declare(rocketplot
     GIT_REPOSITORY https://github.com/cthunter01/rocketplot.git
-    GIT_TAG        main)   # for a build that stays the same, name a release tag or a commit instead
+    GIT_TAG        v0.3.0   # a release tag (or a commit): the same build every time
+    SYSTEM)                 # its headers are system headers to your code
 FetchContent_MakeAvailable(rocketplot)
 
 target_link_libraries(my_app PRIVATE rocketplot::rocketplot)
 ```
 
-If you keep the source in your own tree (a git submodule, a copy), `add_subdirectory(third_party/rocketplot)` does
-the same. Either way only the library is built: its tests, demo, documentation and Designer plugin are built only
-when rocketplot is the top-level project.
+If you keep the source in your own tree (a git submodule, a copy), `add_subdirectory(third_party/rocketplot SYSTEM)`
+does the same. Either way only the library is built: its tests, demo, documentation and Designer plugin are built
+only when rocketplot is the top-level project.
+
+`SYSTEM` keeps your own build checks to your own code: warnings that your compiler or clang-tidy finds in
+rocketplot's headers don't fail a `-Werror` build of yours. Don't add `EXCLUDE_FROM_ALL`: CMake then leaves out every
+install rule of rocketplot, and with them its licence files (see below).
+
+#### Sanitizers
+
+A project that is built with sanitizers builds rocketplot with the same ones, by setting `ROCKETPLOT_SANITIZERS`
+before rocketplot is made available:
+
+```cmake
+set(ROCKETPLOT_SANITIZERS "address;undefined" CACHE STRING "" FORCE)   # or "thread"; GCC and Clang
+FetchContent_MakeAvailable(rocketplot)
+```
+
+With AddressSanitizer and GCC's standard library this is a must, not a nicety. libstdc++ marks the spare capacity of a
+`std::vector` for AddressSanitizer only where `_GLIBCXX_SANITIZE_VECTOR` is defined, and the linker keeps one copy
+of each inline vector function for the whole program: a vector marked by your copy and grown by rocketplot's is a
+`container-overflow`, reported in your code as often as in rocketplot's. For the same reason a sanitized build must
+build rocketplot from source and never use an installed copy: leave `FIND_PACKAGE_ARGS` out of
+`FetchContent_Declare`, or set `FETCHCONTENT_TRY_FIND_PACKAGE_MODE` to `NEVER`.
 
 #### Licence files
 
@@ -70,7 +92,7 @@ Install the library from its build (`cmake --install build/<preset> --prefix <di
 of a release into `<dir>`. Then, with `<dir>` in `CMAKE_PREFIX_PATH`:
 
 ```cmake
-find_package(rocketplot 0.1 REQUIRED)
+find_package(rocketplot 0.3 REQUIRED)
 target_link_libraries(my_app PRIVATE rocketplot::rocketplot)
 ```
 
@@ -130,7 +152,8 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS Widgets)
 include(FetchContent)
 FetchContent_Declare(rocketplot
     GIT_REPOSITORY https://github.com/cthunter01/rocketplot.git
-    GIT_TAG        main)
+    GIT_TAG        v0.3.0
+    SYSTEM)
 FetchContent_MakeAvailable(rocketplot)
 
 add_executable(first_plot main.cpp)

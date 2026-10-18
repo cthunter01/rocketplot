@@ -132,6 +132,9 @@ a timer. See [Data](data.md#live-data).
 | `find_package(rocketplot)` fails | The installation's prefix is not in `CMAKE_PREFIX_PATH` |
 | `find_package(Qt6)` fails inside rocketplot | Qt's prefix is not in `CMAKE_PREFIX_PATH` (macOS and Windows), or Qt's Svg module is not installed |
 | Qt Designer doesn't list the widgets | The plugin was built with another Qt than Designer's. See [Qt Designer](designer.md#when-the-widgets-dont-show-up) |
+| `AddressSanitizer: container-overflow` in your own code after adding rocketplot | Your project is built with AddressSanitizer and rocketplot isn't. Set `ROCKETPLOT_SANITIZERS` to your sanitizers before `FetchContent_MakeAvailable`, and build rocketplot from source. See [Getting started](getting-started.md#sanitizers) |
+| Warnings in rocketplot's headers fail your build (`-Werror`, clang-tidy) | rocketplot isn't declared `SYSTEM`: `FetchContent_Declare(rocketplot ... SYSTEM)` or `add_subdirectory(... SYSTEM)` |
+| rocketplot's licence files aren't installed with your project | It was made available with `EXCLUDE_FROM_ALL`, which drops its install rules; or `ROCKETPLOT_INSTALL_LICENSES` is `OFF`. See [Getting started](getting-started.md#licence-files) |
 
 ## Working on this guide
 
