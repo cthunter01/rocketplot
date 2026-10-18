@@ -7,6 +7,7 @@
 #include <QEventPoint>
 #include <QGuiApplication>
 #include <QInputDevice>
+#include <QLineF>
 #include <QMouseEvent>
 #include <QNativeGestureEvent>
 #include <QPoint>
@@ -153,7 +154,13 @@ std::vector<InteractionController::Target> InteractionController::targetsFor(
     bool x  = region == Region::PLOT || region == Region::X_AXIS;
     bool y  = region == Region::PLOT || region == Region::Y_AXIS;
     bool y2 = (region == Region::PLOT && layout.y2.shown) || region == Region::Y2_AXIS;
-    if (action == PlotAction::ZOOM_X)
+    if (isZoom(action) && region != Region::Y2_AXIS && m_plot->hasFixedAspect())
+    {
+        // x and y zoom together, or the aspect ratio would change.
+        x = true;
+        y = true;
+    }
+    else if (action == PlotAction::ZOOM_X)
     {
         x  = true;
         y  = false;
@@ -216,6 +223,12 @@ void InteractionController::zoom(const std::vector<Target>& targets, QPointF pos
                    core::zoomedRange(target.mapping, along(position, target.horizontal), factor));
     }
     keepUnderPointer(targets, position);
+}
+
+void InteractionController::commitStep() const
+{
+    m_plot->settleAspect();
+    m_plot->history().commitStep();
 }
 
 bool InteractionController::perform(PlotAction action)
@@ -360,7 +373,7 @@ bool InteractionController::wheel(const QWheelEvent& event)
                            core::pannedRange(target.mapping, along(delta, target.horizontal)));
             }
             keepUnderPointer(targets, position + delta);
-            m_plot->history().commitStep();
+            commitStep();
         }
         return true;
     }
@@ -380,7 +393,7 @@ bool InteractionController::wheel(const QWheelEvent& event)
     const double notches = static_cast<double>(units) / kWheelUnitsPerNotch;
     zoom(targetsFor(action, region, position, layout), position,
          std::pow(2.0, -notches * kZoomPerNotch));
-    m_plot->history().commitStep();
+    commitStep();
     return true;
 }
 
@@ -475,7 +488,7 @@ void InteractionController::dragTo(QPointF position)
                        core::pannedRange(target.mapping, along(delta, target.horizontal)));
         }
         keepUnderPointer(m_drag.targets, position);
-        m_plot->history().commitStep();
+        commitStep();
     }
     else if (m_drag.action == PlotAction::BOX_ZOOM)
     {
@@ -502,7 +515,7 @@ void InteractionController::endDrag(QPointF position, bool click)
     }
     if (m_drag.action != PlotAction::NONE)
     {
-        m_plot->history().commitStep();
+        commitStep();
     }
     const Drag drag = std::exchange(m_drag, Drag{});
     m_plot->update();  // without the zoom box
@@ -612,6 +625,11 @@ void InteractionController::applyBoxZoom()
     const BoxAxes axes = boxAxes();
     // The layout now: live data may have scrolled under the box.
     const PlotLayout layout = m_layout();
+    if (m_plot->hasFixedAspect() && m_drag.region != Region::Y2_AXIS)
+    {
+        applyAspectBoxZoom(*box, axes, layout);
+        return;
+    }
     for (const Target& target :
          targetsFor(PlotAction::BOX_ZOOM, m_drag.region, m_drag.start, layout))
     {
@@ -626,6 +644,36 @@ void InteractionController::applyBoxZoom()
         }
     }
     qCDebug(lcInput) << "box zoom to" << *box;
+}
+
+void InteractionController::applyAspectBoxZoom(const QRectF& box, BoxAxes axes,
+                                               const PlotLayout& layout) const
+{
+    // The box at the aspect ratio: a box of both widened to it, a thin one's range kept and the
+    // other axis following it.
+    const Range      x     = axes == BoxAxes::Y
+                                 ? m_plot->xAxis()->range()
+                                 : core::rangeBetween(layout.x.mapping, box.left(), box.right());
+    const Range      y     = axes == BoxAxes::X
+                                 ? m_plot->yAxis()->range()
+                                 : core::rangeBetween(layout.y.mapping, box.top(), box.bottom());
+    Qt::Orientations given = Qt::Horizontal | Qt::Vertical;
+    if (axes == BoxAxes::X)
+    {
+        given = Qt::Horizontal;
+    }
+    else if (axes == BoxAxes::Y)
+    {
+        given = Qt::Vertical;
+    }
+    m_plot->showWithAspect(x, y, given);
+    // The right axis is free: it takes the box's height, as ever.
+    if (axes != BoxAxes::X && m_drag.region == Region::PLOT && layout.y2.shown)
+    {
+        applyRange(*m_plot->yAxis2(),
+                   core::rangeBetween(layout.y2.mapping, box.top(), box.bottom()));
+    }
+    qCDebug(lcInput) << "box zoom at the aspect ratio to" << box;
 }
 
 // Touch and gestures
@@ -801,18 +849,23 @@ void InteractionController::pinchTo(QPointF first, QPointF second)
 {
     const QPointF from = (m_pinch.first + m_pinch.second) / 2.0;
     const QPointF to   = (first + second) / 2.0;
+    // With a fixed aspect ratio, every axis by how far apart the fingers moved.
+    const bool uniform = m_plot->hasFixedAspect();
     for (const Target& target : m_pinch.targets)
     {
         // Each axis zooms by how far the fingers spread along it, and moves with their center.
-        const double before = std::abs(along(m_pinch.first - m_pinch.second, target.horizontal));
-        const double after  = std::abs(along(first - second, target.horizontal));
-        const double scale  = before >= kMinPinchSpan ? std::max(after, 1.0) / before : 1.0;
+        const double before =
+            uniform ? QLineF(m_pinch.first, m_pinch.second).length()
+                    : std::abs(along(m_pinch.first - m_pinch.second, target.horizontal));
+        const double after = uniform ? QLineF(first, second).length()
+                                     : std::abs(along(first - second, target.horizontal));
+        const double scale = before >= kMinPinchSpan ? std::max(after, 1.0) / before : 1.0;
         applyRange(*target.axis,
                    core::transformedRange(target.mapping, along(from, target.horizontal),
                                           along(to, target.horizontal), scale));
     }
     keepUnderPointer(m_pinch.targets, to);
-    m_plot->history().commitStep();
+    commitStep();
 }
 
 void InteractionController::endPinch()
@@ -821,7 +874,7 @@ void InteractionController::endPinch()
     {
         return;
     }
-    m_plot->history().commitStep();
+    commitStep();
     m_pinch = {};
 }
 
@@ -843,7 +896,7 @@ bool InteractionController::nativeGesture(const QNativeGestureEvent& event)
             continueStep(Continuous::PINCH);
             zoom(targetsFor(action, region, event.position(), layout), event.position(),
                  1.0 / magnification);
-            m_plot->history().commitStep();
+            commitStep();
             return true;
         }
         case Qt::BeginNativeGesture:

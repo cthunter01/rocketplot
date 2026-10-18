@@ -93,6 +93,34 @@ QObject::connect(plot->xAxis(), &rocketplot::Axis::rangeChanged, rangeLabel,
 `rangeChanged` comes from one axis. `PlotWidget::viewChanged()` is emitted when the range of any of the plot's
 axes changes, which is what a status bar or a second view of the same data wants.
 
+## To scale
+
+x and y are often the same kind of quantity: positions, a ground track, an orbit. Each axis fits its own range to
+the plot area, so a circle comes out as an ellipse unless you fix the aspect ratio.
+
+![A circular and an elliptical orbit drawn to scale](images/axes-aspect.png)
+
+<!-- example: axes-aspect -->
+```cpp
+plot->setAspectRatio(1.0);  // a unit of y as long as a unit of x: a circle is round
+```
+
+`aspectRatio` is how many times as many pixels a unit of y takes as a unit of x: 1 draws the data to scale, 2
+stretches y twice as tall. 0, the default, leaves each axis to its own range.
+
+The axes still show what they are asked to show: what autoscale fits, a range you set, where the user panned
+or zoomed. One of the two is then widened about its middle, so that the whole of what was asked for stays in
+view at the ratio. Resizing the window widens the other one when the shape calls for it, and the region asked
+for stays in view. So do exports of another size.
+
+- A zoom zooms x and y together, whatever the gesture: the wheel with Ctrl or Shift, over an axis, or
+  `zoom()` with one orientation. A zoom box shows all of the box; a thin one zooms its own axis and the other
+  follows.
+- An x axis that is given, by a [link](multiple-plots.md) or by `FOLLOW_LATEST`, stays as it is: y follows it.
+  A y axis that fits what is visible (`FIT_VISIBLE`) fits all of its data instead, since its range decides x's.
+- The ratio applies while both axes are `LINEAR`; on a logarithmic or time axis it doesn't. The right y axis
+  is not part of it.
+
 ## Logarithmic scale
 
 On a logarithmic axis each power of ten takes the same length.

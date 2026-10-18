@@ -41,6 +41,7 @@
 #include <QRectF>
 #include <QResizeEvent>
 #include <QSaveFile>
+#include <QScopedValueRollback>
 #include <QSize>
 #include <QString>
 #include <QStyleHints>
@@ -77,6 +78,7 @@
 #include "PlotState.h"
 #include "TextPainter.h"
 #include "ViewHistory.h"
+#include "core/Aspect.h"
 #include "core/Autoscale.h"
 #include "core/AxisMapping.h"
 #include "core/CsvWriter.h"
@@ -130,7 +132,9 @@ constexpr double kEdgeTolerance = 0.5;
 constexpr double kHeadroomGap      = 4.0;
 constexpr double kMaxHeadroomShare = 0.5;
 constexpr int    kHeadroomPasses   = 3;
-constexpr double kHeadroomEpsilon  = 1e-9;
+// Layouts at most to settle the aspect ratio: the y labels' width depends a little on the ranges.
+constexpr int    kAspectRounds    = 4;
+constexpr double kHeadroomEpsilon = 1e-9;
 
 // Draws with another theme for as long as it lives, if given one: exports can ask for a theme of
 // their own. The plot is not told and doesn't repaint.
@@ -267,8 +271,14 @@ struct PlotWidget::Private
     bool                           debugOverlay    = false;
     bool                           crosshair       = false;
     bool                           zeroAligned     = false;  // the y axes' zeros line up
-    bool                           dirty           = true;
-    bool                           pointStale      = true;
+    double                         aspectRatio     = 0.0;    // 0: free
+    // What the x and y axes were last asked to show (not by the aspect ratio): the ranges it
+    // widens.
+    std::optional<Range> wantedX;
+    std::optional<Range> wantedY;
+    bool                 settlingAspect = false;
+    bool                 dirty          = true;
+    bool                 pointStale     = true;
 
     // Whether the crosshair is shown at the pointer and goes to the data: a change to the data
     // can then move it.
@@ -353,6 +363,19 @@ PlotWidget::PlotWidget(QWidget* parent) : QWidget(parent), m_impl(std::make_uniq
         });
         connect(axis, &Axis::fitNeeded, this, [this] { applyAutoscale(); });
     }
+    // What the x and y axes are asked to show, unless the aspect ratio is fitting them.
+    connect(m_impl->xAxis, &Axis::rangeChanged, this, [this] {
+        if (!m_impl->settlingAspect)
+        {
+            m_impl->wantedX = m_impl->xAxis->range();
+        }
+    });
+    connect(m_impl->yAxis, &Axis::rangeChanged, this, [this] {
+        if (!m_impl->settlingAspect)
+        {
+            m_impl->wantedY = m_impl->yAxis->range();
+        }
+    });
     // The y axes may fit what's visible in x; a linked plot follows this one's x axis (and
     // crosshair).
     connect(m_impl->xAxis, &Axis::rangeChanged, this, [this] {
@@ -739,6 +762,41 @@ void PlotWidget::setYAxesZeroAligned(bool aligned)
     Q_EMIT yAxesZeroAlignedChanged();
 }
 
+double PlotWidget::aspectRatio() const noexcept
+{
+    return m_impl->aspectRatio;
+}
+
+void PlotWidget::setAspectRatio(double ratio)
+{
+    if (!std::isfinite(ratio) || ratio < 0.0)
+    {
+        qCWarning(lcData) << "PlotWidget::setAspectRatio: ignoring" << ratio;
+        return;
+    }
+    if (ratio == m_impl->aspectRatio)
+    {
+        return;
+    }
+    m_impl->aspectRatio = ratio;
+    if (ratio == 0.0)
+    {
+        // Back to what the axes were asked to show.
+        const QScopedValueRollback settling(m_impl->settlingAspect, true);
+        for (const auto& [axis, wanted] :
+             {std::pair(m_impl->xAxis, m_impl->wantedX), std::pair(m_impl->yAxis, m_impl->wantedY)})
+        {
+            if (!axis->autoscale() && wanted)
+            {
+                axis->applyRange(*wanted);
+            }
+        }
+    }
+    applyAutoscale();  // which settles the aspect
+    invalidate();
+    Q_EMIT aspectRatioChanged();
+}
+
 void PlotWidget::setLink(PlotLink* link)
 {
     m_impl->link    = link;
@@ -847,6 +905,10 @@ void PlotWidget::zoom(double factor, Qt::Orientations orientations, std::optiona
         qCWarning(lcInput) << "PlotWidget::zoom: ignoring the factor" << factor;
         return;
     }
+    if (hasFixedAspect())
+    {
+        orientations = Qt::Horizontal | Qt::Vertical;  // one zoom, or the ratio would change
+    }
     const PlotLayout layout   = m_impl->layout(*this);
     const auto       zoomAxis = [factor](Axis& axis, std::optional<double> anchor) {
         const core::Scale scale = scaleOf(axis);
@@ -877,17 +939,20 @@ void PlotWidget::zoom(double factor, Qt::Orientations orientations, std::optiona
             zoomAxis(*m_impl->yAxis2, right);
         }
     }
+    settleAspect();
     views.commitStep();
 }
 
 void PlotWidget::back()
 {
     history().back();
+    settleAspect();
 }
 
 void PlotWidget::forward()
 {
     history().forward();
+    settleAspect();
 }
 
 bool PlotWidget::canGoBack() const
@@ -1539,6 +1604,7 @@ void PlotWidget::applyAutoscale()
 {
     refitX();
     refitY();
+    settleAspect();
 }
 
 Range PlotWidget::xDataBounds(bool positiveOnly, bool withAnnotations) const
@@ -1594,10 +1660,18 @@ Range PlotWidget::yDataBounds(const Axis& axis, bool positiveOnly, bool visibleO
 
 void PlotWidget::refitX()
 {
-    Axis& axis = *m_impl->xAxis;
+    if (const std::optional<Range> fit = fitX())
+    {
+        m_impl->xAxis->applyRange(*fit);
+    }
+}
+
+std::optional<Range> PlotWidget::fitX() const
+{
+    const Axis& axis = *m_impl->xAxis;
     if (!axis.autoscale())
     {
-        return;
+        return std::nullopt;
     }
     const core::Scale scale = scaleOf(axis);
     const bool        log   = scale == core::Scale::LOG;
@@ -1608,13 +1682,10 @@ void PlotWidget::refitX()
         link != nullptr ? link->xDataBounds(log, !follow) : xDataBounds(log, !follow);
     if (follow)
     {
-        axis.applyRange(core::followRange(bounds, axis.followWindow(), axis.autoscaleMargin()));
+        return core::followRange(bounds, axis.followWindow(), axis.autoscaleMargin());
     }
-    else
-    {
-        axis.applyRange(core::autoscaleRange(bounds, axis.autoscaleMargin(), scale,
-                                             {.includeWithin = axis.autoscaleIncludesZero()}));
-    }
+    return core::autoscaleRange(bounds, axis.autoscaleMargin(), scale,
+                                {.includeWithin = axis.autoscaleIncludesZero()});
 }
 
 std::optional<Range> PlotWidget::fitY(const Axis& axis) const
@@ -1623,9 +1694,11 @@ std::optional<Range> PlotWidget::fitY(const Axis& axis) const
     {
         return std::nullopt;
     }
-    const core::Scale scale   = scaleOf(axis);
-    const bool        visible = axis.autoscaleMode() != AutoscaleMode::FIT_ALL;
-    const Range       bounds  = yDataBounds(axis, scale == core::Scale::LOG, visible);
+    const core::Scale scale = scaleOf(axis);
+    // With a fixed aspect, y's range decides x's, which mustn't decide y's in turn.
+    const bool  visible = axis.autoscaleMode() != AutoscaleMode::FIT_ALL &&
+                          (&axis != m_impl->yAxis || !hasFixedAspect());
+    const Range bounds  = yDataBounds(axis, scale == core::Scale::LOG, visible);
     // Fitting what's visible: with nothing in view, stay put rather than jump to a default.
     if (visible && !bounds.isValid())
     {
@@ -1715,6 +1788,96 @@ void PlotWidget::settleHeadroom()
         m_impl->headroomShare = share;
         refitY();
     }
+}
+
+bool PlotWidget::hasFixedAspect() const
+{
+    return m_impl->aspectRatio > 0.0 && m_impl->xAxis->scaleType() == ScaleType::LINEAR &&
+           m_impl->yAxis->scaleType() == ScaleType::LINEAR;
+}
+
+RangeOverrides PlotWidget::aspectRanges(const QRectF& bounds, double devicePixelRatio,
+                                        const LayoutConstraints& constraints,
+                                        const RangeOverrides&    fitted) const
+{
+    const Axis& x = *m_impl->xAxis;
+    const Axis& y = *m_impl->yAxis;
+    // What each axis is asked to show: what it fits, or the range it was given (a linked x axis:
+    // the link's).
+    const bool  linked = m_impl->link != nullptr;
+    const Range wantedX =
+        linked ? x.range() : (x.autoscale() ? fitX() : m_impl->wantedX).value_or(x.range());
+    const Range     wantedY = (y.autoscale() ? fitted.y : m_impl->wantedY).value_or(y.range());
+    core::AspectFit fit     = core::AspectFit::WIDEN;  // both given alike
+    if (linked || (x.autoscale() && x.autoscaleMode() == AutoscaleMode::FOLLOW_LATEST) ||
+        (!x.autoscale() && y.autoscale()))
+    {
+        fit = core::AspectFit::FOLLOW_X;
+    }
+    else if (x.autoscale() && !y.autoscale())
+    {
+        fit = core::AspectFit::FOLLOW_Y;
+    }
+    // The plot area depends a little on the ranges (through the y labels' width): lay out until
+    // it holds.
+    RangeOverrides ranges = fitted;
+    ranges.x              = wantedX;
+    ranges.y              = wantedY;
+    for (int round = 0; round < kAspectRounds; ++round)
+    {
+        const PlotLayout layout =
+            layoutPlot(*this, bounds, font(), devicePixelRatio, m_impl->text, constraints, ranges);
+        if (!layout.valid)
+        {
+            break;
+        }
+        const core::AspectRanges aspect = core::fitAspect(
+            wantedX, wantedY, layout.plot.width(), layout.plot.height(), m_impl->aspectRatio, fit);
+        if (aspect.x == ranges.x && aspect.y == ranges.y)
+        {
+            break;
+        }
+        ranges.x = aspect.x;
+        ranges.y = aspect.y;
+    }
+    return ranges;
+}
+
+void PlotWidget::settleAspect() const
+{
+    if (!hasFixedAspect() || m_impl->settlingAspect)
+    {
+        return;
+    }
+    const RangeOverrides ranges =
+        aspectRanges(QRectF(rect()), devicePixelRatioF(), m_impl->constraints(*this),
+                     headroomRanges(m_impl->headroomShare));
+    const Range                x = ranges.x.value_or(m_impl->xAxis->range());
+    const Range                y = ranges.y.value_or(m_impl->yAxis->range());
+    const QScopedValueRollback settling(m_impl->settlingAspect, true);
+    // x first: a new x range refits the y axes.
+    m_impl->xAxis->applyRange(x);
+    m_impl->yAxis->applyRange(y);
+}
+
+void PlotWidget::showWithAspect(Range x, Range y, Qt::Orientations given)
+{
+    core::AspectFit fit = core::AspectFit::WIDEN;
+    if (given == Qt::Horizontal)
+    {
+        fit = core::AspectFit::FOLLOW_X;
+    }
+    else if (given == Qt::Vertical)
+    {
+        fit = core::AspectFit::FOLLOW_Y;
+    }
+    const PlotLayout         layout = m_impl->layout(*this);
+    const core::AspectRanges shown =
+        layout.valid ? core::fitAspect(x, y, layout.plot.width(), layout.plot.height(),
+                                       m_impl->aspectRatio, fit)
+                     : core::AspectRanges{.x = x, .y = y};
+    m_impl->xAxis->setRange(shown.x);
+    m_impl->yAxis->setRange(shown.y);
 }
 
 // Appearance
@@ -1834,12 +1997,16 @@ RangeOverrides PlotWidget::exportRanges(const QRectF& bounds, double devicePixel
                                         const LayoutConstraints& constraints) const
 {
     // The flags take as many pixels in an export as on screen, and so another share of a plot
-    // area of another height.
-    if (m_impl->flagPlacement != FlagPlacement::HEADROOM)
+    // area of another height; and a plot area of another shape widens another axis for the
+    // aspect ratio.
+    const bool headroom = m_impl->flagPlacement == FlagPlacement::HEADROOM;
+    if (!headroom && !hasFixedAspect())
     {
         return {};
     }
-    return headroomRanges(headroomShare(bounds, devicePixelRatio, constraints));
+    const RangeOverrides fitted =
+        headroomRanges(headroom ? headroomShare(bounds, devicePixelRatio, constraints) : 0.0);
+    return hasFixedAspect() ? aspectRanges(bounds, devicePixelRatio, constraints, fitted) : fitted;
 }
 
 void PlotWidget::paintLayout(QPainter& painter, const PlotLayout& layout) const
@@ -2052,6 +2219,7 @@ QJsonObject PlotWidget::saveState() const
     state.insert(QLatin1String("crosshair"), m_impl->crosshair);
     state.insert(QLatin1String("crosshairMode"), state::fromEnum(m_impl->crosshairMode));
     state.insert(QLatin1String("yAxesZeroAligned"), m_impl->zeroAligned);
+    state.insert(QLatin1String("aspectRatio"), m_impl->aspectRatio);
     state.insert(QLatin1String("eventFlagPlacement"), state::fromEnum(m_impl->flagPlacement));
     state.insert(QLatin1String("eventFlagOrientation"), state::fromEnum(m_impl->flagOrientation));
     for (const auto& [key, axis] : m_impl->axesByKey())
@@ -2101,6 +2269,10 @@ bool PlotWidget::restoreState(const QJsonObject& state)
     {
         setYAxesZeroAligned(*aligned);
     }
+    if (const auto ratio = state::toNumber(state.value(QLatin1String("aspectRatio"))))
+    {
+        setAspectRatio(*ratio);
+    }
     if (const auto placement =
             state::toEnum<FlagPlacement>(state.value(QLatin1String("eventFlagPlacement"))))
     {
@@ -2147,6 +2319,7 @@ bool PlotWidget::restoreState(const QJsonObject& state)
 
 QRectF PlotWidget::plotArea() const
 {
+    settleAspect();
     return m_impl->layout(*this).plot;
 }
 
@@ -2157,6 +2330,7 @@ QRectF PlotWidget::legendArea() const
 
 QPointF PlotWidget::mapToData(QPointF widgetPosition, const Axis* yAxis) const
 {
+    settleAspect();
     const PlotLayout  layout = m_impl->layout(*this);
     const AxisLayout& y      = yAxis == m_impl->yAxis2 ? layout.y2 : layout.y;
     return {layout.x.mapping.toValue(widgetPosition.x()), y.mapping.toValue(widgetPosition.y())};
@@ -2164,6 +2338,7 @@ QPointF PlotWidget::mapToData(QPointF widgetPosition, const Axis* yAxis) const
 
 QPointF PlotWidget::mapFromData(QPointF dataPosition, const Axis* yAxis) const
 {
+    settleAspect();
     const PlotLayout  layout = m_impl->layout(*this);
     const AxisLayout& y      = yAxis == m_impl->yAxis2 ? layout.y2 : layout.y;
     return {layout.x.mapping.toPixel(dataPosition.x()), y.mapping.toPixel(dataPosition.y())};
@@ -2270,6 +2445,7 @@ void PlotWidget::renderCache()
     }
     m_impl->cache.setDevicePixelRatio(dpr);
     settleHeadroom();
+    settleAspect();
     m_impl->cacheLayout = m_impl->layout(*this);
     RenderStats stats;
     {
@@ -2357,6 +2533,7 @@ void PlotWidget::paintEvent(QPaintEvent* /*event*/)
 
 void PlotWidget::resizeEvent(QResizeEvent* event)
 {
+    settleAspect();
     invalidate();
     QWidget::resizeEvent(event);
 }

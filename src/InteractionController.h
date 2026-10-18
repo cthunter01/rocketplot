@@ -108,6 +108,8 @@ private:
     void keepUnderPointer(const std::vector<Target>& targets, QPointF pointer) const;
     // Zooms the targets by @p factor (< 1 zooms in) about @p position.
     void zoom(const std::vector<Target>& targets, QPointF position, double factor) const;
+    // Ends a change of a step: the plot settles its aspect ratio, and the history records it.
+    void commitStep() const;
     // Performs a CLICK or DOUBLE_CLICK action; returns whether there was one.
     bool perform(PlotAction action);
     // Starts or continues a history step of continuous gesture events.
@@ -121,6 +123,8 @@ private:
     void                  endDrag(QPointF position, bool click);
     [[nodiscard]] BoxAxes boxAxes() const;
     void                  applyBoxZoom();
+    // A zoom box on a plot with a fixed aspect ratio, in @p layout.
+    void applyAspectBoxZoom(const QRectF& box, BoxAxes axes, const PlotLayout& layout) const;
     void beginPinch(QPointF first, QPointF second, Qt::KeyboardModifiers modifiers);
     void pinchTo(QPointF first, QPointF second);
     void endPinch();

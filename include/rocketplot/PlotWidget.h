@@ -120,6 +120,8 @@ class ROCKETPLOT_EXPORT PlotWidget : public QWidget
                    setEventFlagOrientation NOTIFY eventFlagOrientationChanged)
     Q_PROPERTY(bool yAxesZeroAligned READ areYAxesZeroAligned WRITE setYAxesZeroAligned NOTIFY
                    yAxesZeroAlignedChanged)
+    Q_PROPERTY(double aspectRatio READ aspectRatio WRITE setAspectRatio RESET resetAspectRatio
+                   NOTIFY aspectRatioChanged)
 
 public:
     explicit PlotWidget(QWidget* parent = nullptr);
@@ -264,6 +266,18 @@ public:
     /// takes a range to 0 first where the data comes close.
     [[nodiscard]] bool areYAxesZeroAligned() const noexcept;
     void               setYAxesZeroAligned(bool aligned);
+
+    /// How many times as many pixels a unit of y takes as a unit of x: 1 shows the data to scale
+    /// (a circle is round), and 0, the default, leaves each axis to its range. While the x axis
+    /// and yAxis() are both LINEAR, the plot shows what they are asked to show (by autoscale, by
+    /// setRange(), by a pan or zoom) with one of them widened to keep the ratio, about its middle;
+    /// a resize widens the other way when it has to, and keeps the region asked for in view. With
+    /// an x axis given by a PlotLink or by FOLLOW_LATEST, y follows it instead, and a y axis
+    /// fitting what's visible (FIT_VISIBLE) fits all of its data. A zoom then always zooms both
+    /// axes. yAxis2() is left to itself.
+    [[nodiscard]] double aspectRatio() const noexcept;
+    void                 setAspectRatio(double ratio);
+    void                 resetAspectRatio() { setAspectRatio(0.0); }
 
     [[nodiscard]] QString title() const;
     void                  setTitle(const QString& title);
@@ -453,6 +467,7 @@ Q_SIGNALS:
     void eventFlagPlacementChanged();
     void eventFlagOrientationChanged();
     void yAxesZeroAlignedChanged();
+    void aspectRatioChanged();
     /// The crosshair moved, appeared or disappeared, or the data under it moved or changed (see
     /// crosshairPosition() and crosshairSeries()).
     void crosshairMoved();
@@ -519,6 +534,21 @@ private:
     [[nodiscard]] RangeOverrides headroomRanges(double share) const;
     // Brings the y axes' headroom up to date for the widget's size; before it is drawn.
     void settleHeadroom();
+    // The range autoscale fits the x axis to; nothing when it doesn't autoscale.
+    [[nodiscard]] std::optional<Range> fitX() const;
+    // Whether aspectRatio() applies: set, with both axes linear.
+    [[nodiscard]] bool hasFixedAspect() const;
+    // The x and y ranges that show what the axes are asked to show at the aspect ratio when laid
+    // out in @p bounds, with @p fitted (headroomRanges()) for the y axes that autoscale.
+    [[nodiscard]] RangeOverrides aspectRanges(const QRectF& bounds, double devicePixelRatio,
+                                              const LayoutConstraints& constraints,
+                                              const RangeOverrides&    fitted) const;
+    // Brings the x and y ranges to the aspect ratio in the widget, where it applies. It changes
+    // only how the axes show what they were asked to, so even the geometry getters call it.
+    void settleAspect() const;
+    // Shows @p x and @p y (turning autoscale off), fitted to the aspect ratio: @p given are the
+    // ranges to keep; with both, the one that shows less is widened.
+    void showWithAspect(Range x, Range y, Qt::Orientations given);
     void updateSystemTheme();
     void setLink(PlotLink* link);
     void setGrid(PlotGrid* grid);

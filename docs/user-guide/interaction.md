@@ -71,6 +71,7 @@ plot->zoom(4.0, Qt::Horizontal, QPointF(150.0, 0.0));  // in on x = 150 s
 A factor over 1 zooms in, under 1 out. Without a center it zooms about the middle of each axis; a center is in
 data coordinates, its y on the left axis. The right axis follows the left one, a logarithmic axis zooms in
 decades, linked plots follow in x, and autoscale goes off for the axes it zoomed, as it does when the user zooms.
+On a plot drawn [to scale](axes.md#to-scale), every zoom, the user's and `zoom()`, zooms x and y together.
 
 ## The crosshair
 

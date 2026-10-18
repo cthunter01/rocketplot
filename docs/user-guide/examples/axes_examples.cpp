@@ -89,6 +89,34 @@ void ranges(const QString& /*scratch*/)
     static_cast<void>(area);
 }
 
+void toScale(PlotWidget* plot)
+{
+    // A circular orbit and an elliptical one, in thousands of km.
+    const std::size_t   count = 181;
+    std::vector<double> circleX(count);
+    std::vector<double> circleY(count);
+    std::vector<double> ellipseX(count);
+    std::vector<double> ellipseY(count);
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        const double angle =
+            2.0 * std::numbers::pi * static_cast<double>(i) / static_cast<double>(count - 1);
+        circleX[i]  = 7.0 * std::cos(angle);
+        circleY[i]  = 7.0 * std::sin(angle);
+        ellipseX[i] = 4.0 + (11.0 * std::cos(angle));
+        ellipseY[i] = 10.2 * std::sin(angle);
+    }
+    plot->addLine(circleX, circleY, "Circular");
+    plot->addLine(ellipseX, ellipseY, "Elliptical");
+    plot->addScatter(std::vector<double>{0.0}, std::vector<double>{0.0}, "Earth");
+    plot->xAxis()->setLabel("x (1000 km)");
+    plot->yAxis()->setLabel("y (1000 km)");
+    plot->legend()->setAnchor(LegendAnchor::TOP_LEFT);
+    // [axes-aspect]
+    plot->setAspectRatio(1.0);  // a unit of y as long as a unit of x: a circle is round
+    // [/axes-aspect]
+}
+
 void logScale(PlotWidget* plot)
 {
     // The magnitude of a low-pass filter with its corner at 1 kHz.
@@ -235,6 +263,7 @@ void addAxesExamples(Examples& examples)
     examples.demonstrations.push_back(
         {.name = QStringLiteral("time values"), .run = timeConversions});
     examples.demonstrations.push_back({.name = QStringLiteral("grid"), .run = grid});
+    examples.addPlot(QStringLiteral("axes-aspect"), toScale, {720, 400});
     examples.addPlot(QStringLiteral("axes-log"), logScale);
     examples.addPlot(QStringLiteral("axes-time"), dateTime);
     examples.addPlot(QStringLiteral("axes-two"), twoAxes);

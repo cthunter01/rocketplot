@@ -71,7 +71,7 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
   plot area), `CsvWriter` (the data in view as CSV text),
   `NearestPoint` (the data point a snapping or tracing crosshair goes to: sorted series through the pyramid),
   `Interpolate` (the y a drawn line passes through at an x, `Series::valueAt()`),
-  axis mapping (linear/log), ticks (`TickGenerator` linear/log, `TimeTicks` calendar), labels and readouts
+  axis mapping (linear/log), `Aspect` (ranges widened to an aspect ratio), ticks (`TickGenerator` linear/log, `TimeTicks` calendar), labels and readouts
   (`NumberFormatter`), `AxisTicks` (picks per axis kind), autoscale. Math in labels: `MathSegments` (the `$` rule),
   `MathParser` (a TeX subset into a list of `MathAtom`s, with `MathSymbols`' tables), `MathPlainText` (a formula as
   text for CSV headers), `OpenTypeReader`, `MathTable` and `GlyphSubstitutions` (a font's MATH and GSUB tables),

@@ -12,7 +12,7 @@ The key idea is the split between what a plot *shows* and how it is *set up to s
 
 | Part of the state | Not part of it (your code provides it) |
 | --- | --- |
-| The theme mode; whether the crosshair is on, and what it follows; where event flags go and which way; whether the y axes' zeros line up | The data |
+| The theme mode; whether the crosshair is on, and what it follows; where event flags go and which way; whether the y axes' zeros line up; the aspect ratio | The data |
 | Each axis: range; autoscale, its mode, margin, zero rule and follow window; scale type, number format and time zone; grid, minor grid, visibility, tick labels | The series' names |
 | The legend: visibility, anchor, position, values at the crosshair | The title and the axis labels |
 | Each series: visibility, color, marker, its size, fill and ring width; line width, style, dash pattern and caps, markers always shown; error style, cap size and band opacity, y axis | The annotations |
@@ -67,6 +67,7 @@ A plot of two series, after the user zoomed in, hid one series and recolored the
 <!-- output: state-json -->
 ```json
 {
+    "aspectRatio": 0,
     "crosshair": false,
     "crosshairMode": "FREE",
     "eventFlagOrientation": "Horizontal",
@@ -193,8 +194,8 @@ plot->restoreState(view);  // the axes, the legend and the crosshair
 ```
 
 The top-level keys are `themeMode`, `crosshair`, `crosshairMode`, `eventFlagPlacement`, `eventFlagOrientation`,
-`yAxesZeroAligned`, `xAxis`, `yAxis`, `yAxis2`, `legend` and `series`. This is also how to copy only the view from
-one plot to another: save the first, keep the axis keys, restore on the second.
+`yAxesZeroAligned`, `aspectRatio`, `xAxis`, `yAxis`, `yAxis2`, `legend` and `series`. This is also how to copy
+only the view from one plot to another: save the first, keep the axis keys, restore on the second.
 
 ## A grid's state
 

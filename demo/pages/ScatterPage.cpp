@@ -89,6 +89,9 @@ QWidget* create(QWidget* parent)
     auto* limit = plot->addLine(x, y, "100 m keep-out");
     limit->setDashPattern({10.0, 4.0});  // pixels: 10 on, 4 off
     limit->setCapStyle(Qt::FlatCap);
+
+    // Meters across as long as meters down: the circle is round however the window is shaped.
+    plot->setAspectRatio(1.0);
     // [/snippet]
     return plot;
 }
@@ -102,7 +105,8 @@ DemoPage scatterPage()
         .description = QStringLiteral(
             "Scatter series draw a marker per point, each inside a ring of the background color so "
             "overlapping markers stay apart. Lines can be unsorted in x: the dashed keep-out ring "
-            "is a line traced around a circle."),
+            "is a line traced around a circle. The plot is to scale (an aspect ratio of 1): resize "
+            "the window, zoom or zoom to a box, and the ring stays round."),
         .sourceFile = QStringLiteral("ScatterPage.cpp"),
         .create     = create,
     };

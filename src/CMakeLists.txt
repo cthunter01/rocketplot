@@ -4,6 +4,7 @@ include(GenerateExportHeader)
 # so a Qt include in src/core fails to compile. Its objects are built into the rocketplot library, and the core
 # tests link them directly, so its symbols never need exporting, even from a shared library.
 add_library(rocketplot_core OBJECT
+    core/Aspect.cpp
     core/Autoscale.cpp
     core/AxisMapping.cpp
     core/AxisTicks.cpp

@@ -2,6 +2,7 @@ include(GoogleTest)
 
 # Core tests: the Qt-free code, linked straight from its object files (works for static and shared builds).
 add_executable(rocketplot_core_tests
+    core/AspectTests.cpp
     core/AutoscaleTests.cpp
     core/AxisMappingTests.cpp
     core/AxisTicksTests.cpp
@@ -64,6 +65,7 @@ add_executable(rocketplot_tests
     widgets/TextAnnotationTests.cpp
     widgets/ThemeTests.cpp
     widgets/PlotForm.ui
+    widgets/aspect_tests.cpp
     widgets/event_flags_tests.cpp
     widgets/export_tests.cpp
     widgets/form_tests.cpp
