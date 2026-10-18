@@ -155,6 +155,8 @@ TEST_F(PlotStateTest, PlotSettingsComeBack)
     m_saved.setThemeMode(ThemeMode::DARK);
     m_saved.setCrosshairEnabled(true);
     m_saved.setCrosshairMode(rocketplot::CrosshairMode::TRACE);
+    m_saved.setEventFlagPlacement(rocketplot::FlagPlacement::ABOVE_PLOT_AREA);
+    m_saved.setEventFlagOrientation(Qt::Vertical);
 
     carryOver();
 
@@ -162,6 +164,8 @@ TEST_F(PlotStateTest, PlotSettingsComeBack)
     EXPECT_EQ(m_restored.theme(), Theme::dark());
     EXPECT_TRUE(m_restored.isCrosshairEnabled());
     EXPECT_EQ(m_restored.crosshairMode(), rocketplot::CrosshairMode::TRACE);
+    EXPECT_EQ(m_restored.eventFlagPlacement(), rocketplot::FlagPlacement::ABOVE_PLOT_AREA);
+    EXPECT_EQ(m_restored.eventFlagOrientation(), Qt::Vertical);
 }
 
 TEST_F(PlotStateTest, ACustomThemeIsNotSaved)

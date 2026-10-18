@@ -62,6 +62,7 @@ add_executable(rocketplot_tests
     widgets/TextAnnotationTests.cpp
     widgets/ThemeTests.cpp
     widgets/PlotForm.ui
+    widgets/event_flags_tests.cpp
     widgets/export_tests.cpp
     widgets/form_tests.cpp
     widgets/interaction_tests.cpp

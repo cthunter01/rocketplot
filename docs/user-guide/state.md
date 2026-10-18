@@ -69,6 +69,8 @@ A plot of two series, after the user zoomed in, hid one series and recolored the
 {
     "crosshair": false,
     "crosshairMode": "FREE",
+    "eventFlagOrientation": "Horizontal",
+    "eventFlagPlacement": "OVER_DATA",
     "format": "rocketplot.state",
     "legend": {
         "anchor": "TOP_RIGHT",

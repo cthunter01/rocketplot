@@ -83,6 +83,8 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
   placement, values and drawing), `Occupancy` (where data was drawn, for the legend's BEST spot), `Overlays`
   (crosshair and zoom box), `AnnotationPainter` (annotations are part of the cached rendering: under the series, over
   them, then their labels; it records what the pointer can be on, for `PlotWidget::annotationAt()` and tool tips),
+  `FlagLayout` (where event flags go: rows over the data, or a band above the plot area that `layoutPlot()` settles;
+  HEADROOM's room above the data is `PlotWidget::settleHeadroom()`),
   `PlotLink` (linked x axes, crosshair and history), `TextPainter` (plain text, rich text, and math between `$`
   signs: a `QTextDocument` in which each formula is an inline object of `MathTextObject`),
   `MathRenderer` (formulas typeset into cached outline paths), `RawMathFont` (a math font through `QRawFont`: the

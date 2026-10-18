@@ -171,6 +171,7 @@ void PlotRenderer::render(QPainter& painter, RenderStats& stats, const RenderOpt
     drawAnnotations(painter, *m_plot, *m_layout, *m_text, AnnotationLayer::ABOVE_SERIES, record);
     drawAnnotationLabels(painter, *m_plot, *m_layout, *m_text, record);
     painter.restore();
+    drawFlagBand(painter, *m_plot, *m_layout, *m_text, record);
     painter.setRenderHint(QPainter::Antialiasing, false);
     drawAxes(painter);
     painter.setRenderHint(QPainter::Antialiasing, true);
@@ -744,6 +745,7 @@ void drawDebugOverlay(QPainter& painter, const PlotLayout& layout, const RenderS
     outline(layout.plot, magenta);
     outline(layout.title, orange);
     outline(layout.subtitle, orange);
+    outline(layout.flagBand, orange);
     outline(legend, orange);
     for (const AxisLayout* axis : {&layout.x, &layout.y, &layout.y2})
     {

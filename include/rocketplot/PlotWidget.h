@@ -8,6 +8,7 @@
 #include <QSize>
 #include <QString>
 #include <QWidget>
+#include <Qt>
 #include <cstddef>
 #include <functional>
 #include <memory>
@@ -59,6 +60,7 @@ class TextAnnotation;
 class ViewHistory;
 struct CrosshairPoint;
 struct LayoutConstraints;
+struct RangeOverrides;
 struct LegendEntry;
 struct PlotLayout;
 
@@ -110,6 +112,10 @@ class ROCKETPLOT_EXPORT PlotWidget : public QWidget
                    crosshairEnabledChanged)
     Q_PROPERTY(rocketplot::CrosshairMode crosshairMode READ crosshairMode WRITE setCrosshairMode
                    NOTIFY crosshairModeChanged)
+    Q_PROPERTY(rocketplot::FlagPlacement eventFlagPlacement READ eventFlagPlacement WRITE
+                   setEventFlagPlacement NOTIFY eventFlagPlacementChanged)
+    Q_PROPERTY(Qt::Orientation eventFlagOrientation READ eventFlagOrientation WRITE
+                   setEventFlagOrientation NOTIFY eventFlagOrientationChanged)
 
 public:
     explicit PlotWidget(QWidget* parent = nullptr);
@@ -204,6 +210,25 @@ public:
     RectAnnotation* addRect(const QRectF& rect, const QString& label = {});
     /// @p icon at the point (@p x, @p y), 16 × 16 pixels by default.
     IconAnnotation* addIcon(double x, double y, const QIcon& icon);
+
+    /// Where the flags of event markers go. OVER_DATA (the default) flies them at the top of the
+    /// plot area, over the data; HEADROOM does too, with each autoscaling y axis leaving room
+    /// above its highest data for the rows of flags in use (in pixels, so at any height), so that
+    /// no flag covers data; ABOVE_PLOT_AREA puts them in a band between the title and the plot
+    /// area, their lines reaching up to them. With no flags, every placement lays the plot out the
+    /// same.
+    ///
+    /// @code
+    /// plot->setEventFlagPlacement(rocketplot::FlagPlacement::HEADROOM);
+    /// @endcode
+    [[nodiscard]] FlagPlacement eventFlagPlacement() const noexcept;
+    void                        setEventFlagPlacement(FlagPlacement placement);
+    /// How the flags read: Qt::Horizontal (the default), staggered into rows where they would
+    /// cover each other; or Qt::Vertical, turned to read upward in one row, which covers little
+    /// of the plot's width (a flag too long for the room is shortened, plain text elided; flags
+    /// closer together than their width overlap, the later on top).
+    [[nodiscard]] Qt::Orientation eventFlagOrientation() const noexcept;
+    void                          setEventFlagOrientation(Qt::Orientation orientation);
 
     /// Every annotation, in the order added (later ones are drawn on top within their layer).
     [[nodiscard]] QList<Annotation*> annotations() const;
@@ -353,7 +378,8 @@ public:
     // ----------------------------------------------------------------------------------------------------
 
     /// How the plot is set up to show what it shows, as JSON for restoreState() to bring back,
-    /// in a later session too: the theme mode, the crosshair being on, for each axis its range,
+    /// in a later session too: the theme mode, the crosshair being on, where event flags go and
+    /// how they read, for each axis its range,
     /// autoscale, scale, number format and grid, the legend's place, and for each series its
     /// visibility, color, marker, line, error style and y axis. A setting that follows the theme
     /// (a series color nobody chose) is saved as following it.
@@ -393,6 +419,8 @@ Q_SIGNALS:
     void debugOverlayChanged();
     void crosshairEnabledChanged();
     void crosshairModeChanged();
+    void eventFlagPlacementChanged();
+    void eventFlagOrientationChanged();
     /// The crosshair moved, appeared or disappeared, or the data under it moved or changed (see
     /// crosshairPosition() and crosshairSeries()).
     void crosshairMoved();
@@ -441,9 +469,19 @@ private:
     void            applyAutoscale();
     void            refitX();
     void            refitY();
-    void            updateSystemTheme();
-    void            setLink(PlotLink* link);
-    void            setGrid(PlotGrid* grid);
+    // The range autoscale fits @p axis (a y axis) to, before any headroom; nothing when it doesn't
+    // autoscale, or keeps its range (fitting what's visible with nothing in view).
+    [[nodiscard]] std::optional<Range> fitY(const Axis& axis) const;
+    // Headroom for event flags (FlagPlacement::HEADROOM): the share of the plot area's height the
+    // y axes leave free above their data when laid out in @p bounds, and the ranges that leaves.
+    [[nodiscard]] double         headroomShare(const QRectF& bounds, double devicePixelRatio,
+                                               const LayoutConstraints& constraints) const;
+    [[nodiscard]] RangeOverrides headroomRanges(double share) const;
+    // Brings the y axes' headroom up to date for the widget's size; before it is drawn.
+    void settleHeadroom();
+    void updateSystemTheme();
+    void setLink(PlotLink* link);
+    void setGrid(PlotGrid* grid);
     // Repaints after a change to what the plot shows (the cached rendering is redrawn); linked
     // plots repaint too, as their margins may follow.
     void invalidate();
@@ -469,7 +507,11 @@ private:
     void paintExport(QPainter& painter, const QRectF& bounds, double devicePixelRatio,
                      const LayoutConstraints& constraints, const std::optional<Theme>& theme) const;
     void paintLayout(QPainter& painter, const PlotLayout& layout) const;
-    [[nodiscard]] QSize exportSize(const ExportOptions& options) const;
+    // The ranges an export laid out in @p bounds draws with: the axes' own, or with headroom for
+    // the flags at that size.
+    [[nodiscard]] RangeOverrides exportRanges(const QRectF& bounds, double devicePixelRatio,
+                                              const LayoutConstraints& constraints) const;
+    [[nodiscard]] QSize          exportSize(const ExportOptions& options) const;
     void writeCsv(QChar separator, const std::function<void(std::string_view)>& write) const;
     void exportWithDialog();
     // The legend: what the pointer is on (as last drawn, and if the legend is interactive), what

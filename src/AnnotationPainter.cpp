@@ -23,6 +23,7 @@
 #include <optional>
 #include <vector>
 
+#include "FlagLayout.h"
 #include "PlotLayout.h"
 #include "PlotRenderer.h"
 #include "TextPainter.h"
@@ -59,15 +60,6 @@ constexpr double kLabelPaddingY = 1.0;
 constexpr double kLabelRadius   = 3.0;
 constexpr double kLabelInset    = 6.0;
 constexpr double kLabelGap      = 3.0;
-// Event flags: padding, the space between flags in a row and between rows, and the share of the
-// plot's height the rows may take.
-constexpr double kFlagPaddingX = 5.0;
-constexpr double kFlagPaddingY = 1.0;
-constexpr double kFlagGap      = 4.0;
-constexpr double kFlagRowGap   = 2.0;
-constexpr double kFlagTop      = 2.0;
-constexpr double kFlagRowShare = 0.5;
-constexpr double kFlagIconGap  = 3.0;  // between a flag's icon and its label
 // Icons in drawings (SVG, PDF, print) are images of at least this many pixels per unit.
 constexpr double kDrawingIconRatio = 4.0;
 // Text annotations: padding, and how far outside the plot a point may be for its text to be drawn.
@@ -199,6 +191,7 @@ struct Context
     TextPainter*                text;
     core::Occupancy*            occupancy;
     std::vector<AnnotationHit>* hits;
+    QRectF                      clip;  // where what is drawn shows
 
     void occupy(const QRectF& rect) const
     {
@@ -208,10 +201,10 @@ struct Context
         }
     }
 
-    // Records that @p annotation drew @p box, as far as it is in the plot area.
+    // Records that @p annotation drew @p box, as far as it shows.
     void hit(const Annotation& annotation, const QRectF& box) const
     {
-        const QRectF shown = box.intersected(layout->plot);
+        const QRectF shown = box.intersected(clip);
         if (hits != nullptr && !shown.isEmpty())
         {
             hits->push_back({.annotation = &annotation, .box = shown});
@@ -488,88 +481,48 @@ void drawLineLabel(const Context& context, const ReferenceLine& line)
 // Event flags
 // ------------------------------------------------------------------------------------------------------
 
-// The flags of the plot's events, each in the row that keeps it clear of its neighbors. Events out
-// of view count too, so that panning doesn't move flags between rows.
-void drawEventFlags(const Context& context, const QList<Annotation*>& annotations)
+// The flags of the plot's events, as laid out, where they show in @p area (the plot area, or the
+// band above it).
+void drawEventFlags(const Context& context, const FlagLayout& flags, const QRectF& area)
 {
-    const QRectF&                   plot = context.layout->plot;
-    const QFont&                    font = context.layout->annotationFont;
-    const double                    side = QFontMetricsF(font).height();  // of an icon
-    std::vector<const EventMarker*> events;
-    std::vector<core::LabelSpan>    spans;
-    double                          height = 0.0;
-    for (const Annotation* annotation : annotations)
+    QPainter&    painter = *context.painter;
+    const QFont& font    = context.layout->annotationFont;
+    const double dpr     = context.layout->devicePixelRatio;
+    for (const EventFlag& flag : flags.flags)
     {
-        const auto* event = qobject_cast<const EventMarker*>(annotation);
-        if (event == nullptr || !event->isVisible() ||
-            (event->label().isEmpty() && event->icon().isNull()))
+        if (!flag.box.intersects(area))
         {
             continue;
         }
-        const double pixel = context.layout->mappingsFor(*event).x.toPixel(event->x());
-        if (!std::isfinite(pixel))
-        {
-            continue;
-        }
-        const QSizeF text =
-            event->label().isEmpty() ? QSizeF(0.0, side) : context.text->size(event->label(), font);
-        const double icon  = event->icon().isNull()     ? 0.0
-                             : event->label().isEmpty() ? side
-                                                        : side + kFlagIconGap;
-        const double width = text.width() + icon + (2.0 * kFlagPaddingX);
-        // A flag flies to the right of its line, or to the left where it would leave the plot,
-        // flush with the pixel column the line is drawn in.
-        const double dpr    = context.layout->devicePixelRatio;
-        const double column = std::floor(pixel * dpr) / dpr;
-        const bool   flipped =
-            pixel <= plot.right() && column + width > plot.right() && column - width >= plot.left();
-        const double left = flipped ? column + (1.0 / dpr) - width : column;
-        events.push_back(event);
-        spans.push_back({.left = left, .right = left + width});
-        height = std::max(height,
-                          std::max(text.height(), icon > 0.0 ? side : 0.0) + (2.0 * kFlagPaddingY));
-    }
-    if (events.empty())
-    {
-        return;
-    }
-    const double pitch   = height + kFlagRowGap;
-    const int    maxRows = std::max(1, static_cast<int>(plot.height() * kFlagRowShare / pitch));
-    const std::vector<int> rows = core::staggerLabels(spans, kFlagGap, maxRows);
-    for (std::size_t i = 0; i < events.size(); ++i)
-    {
-        const QRectF box(spans[i].left, plot.top() + kFlagTop + (rows[i] * pitch),
-                         spans[i].right - spans[i].left, height);
-        if (rows[i] == core::kNoRow || !box.intersects(plot))
-        {
-            continue;
-        }
-        const EventMarker& event = *events[i];
+        const EventMarker& event = *flag.event;
         const QColor       fill  = event.color();
-        if (event.icon().isNull())
+        // Drawn as a horizontal flag, turned to read upward for a vertical one.
+        painter.save();
+        if (flags.vertical)
         {
-            context.drawBoxedText(event.label(), textOn(fill, *context.theme), box, fill);
+            painter.translate(flag.box.bottomLeft());
+            painter.rotate(-90.0);
         }
         else
         {
-            // The icon at the start of the flag, the label in the rest of it.
-            const QRectF icon(box.left() + kFlagPaddingX, box.center().y() - (side / 2.0), side,
-                              side);
-            context.drawBoxedText({}, textOn(fill, *context.theme), box, fill);
-            drawIcon(*context.painter, event.icon(),
-                     snappedToDevice(icon, context.layout->devicePixelRatio),
-                     context.layout->devicePixelRatio);
-            if (!event.label().isEmpty())
-            {
-                const QRectF rest(icon.right() + kFlagIconGap, box.top(),
-                                  box.right() - kFlagPaddingX - icon.right() - kFlagIconGap,
-                                  box.height());
-                context.text->draw(*context.painter, event.label(), font,
-                                   textOn(fill, *context.theme), rest, Qt::AlignCenter);
-            }
+            painter.translate(flag.box.topLeft());
         }
-        context.occupy(box);
-        context.hit(event, box);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(fill);
+        painter.drawRoundedRect(QRectF(QPointF(), flag.size), kLabelRadius, kLabelRadius);
+        painter.setBrush(Qt::NoBrush);
+        if (!flag.icon.isNull())
+        {
+            drawIcon(painter, event.icon(), flag.icon, dpr);
+        }
+        if (!flag.text.isNull())
+        {
+            context.text->draw(painter, event.label(), font, textOn(fill, *context.theme),
+                               flag.text, Qt::AlignLeft | Qt::AlignVCenter, flags.vertical);
+        }
+        painter.restore();
+        context.occupy(flag.box);
+        context.hit(event, flag.box);
     }
 }
 
@@ -700,6 +653,7 @@ void drawAnnotations(QPainter& painter, const PlotWidget& plot, const PlotLayout
         .text      = &text,
         .occupancy = record.occupancy,
         .hits      = record.hits,
+        .clip      = layout.plot,
     };
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing, true);
@@ -752,6 +706,7 @@ void drawAnnotationLabels(QPainter& painter, const PlotWidget& plot, const PlotL
         .text      = &text,
         .occupancy = record.occupancy,
         .hits      = record.hits,
+        .clip      = layout.plot,
     };
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing, true);
@@ -775,7 +730,10 @@ void drawAnnotationLabels(QPainter& painter, const PlotWidget& plot, const PlotL
             drawLineLabel(context, *line);
         }
     }
-    drawEventFlags(context, annotations);  // on top: they are the most crowded
+    if (layout.flagBand.isNull())
+    {
+        drawEventFlags(context, layout.flags, layout.plot);  // on top: they are the most crowded
+    }
     painter.restore();
 }
 
@@ -791,6 +749,47 @@ void drawIcon(QPainter& painter, const QIcon& icon, const QRectF& box, double de
     {
         painter.drawPixmap(box, pixmap, QRectF(QPointF(), QSizeF(pixmap.size())));
     }
+}
+
+void drawFlagBand(QPainter& painter, const PlotWidget& plot, const PlotLayout& layout,
+                  TextPainter& text, const AnnotationRecord& record)
+{
+    if (layout.flagBand.isNull() || layout.flags.flags.empty())
+    {
+        return;
+    }
+    // From the top of the band down to the plot area, as wide as the plot area.
+    const QRectF  area(layout.flagBand.topLeft(), QPointF(layout.plot.right(), layout.plot.top()));
+    const Context context{
+        .painter   = &painter,
+        .layout    = &layout,
+        .theme     = &plot.theme(),
+        .text      = &text,
+        .occupancy = nullptr,  // the legend is inside the plot area
+        .hits      = record.hits,
+        .clip      = area,
+    };
+    painter.save();
+    painter.setClipRect(area, Qt::IntersectClip);
+    // Each flag's line, from the flag down to the plot area, where the event's line goes on.
+    const double width       = plot.theme().annotationLineWidth;
+    const double dpr         = layout.devicePixelRatio;
+    const double deviceWidth = width * dpr;
+    painter.setRenderHint(QPainter::Antialiasing,
+                          std::abs(deviceWidth - std::round(deviceWidth)) >= kWholePixelTolerance);
+    for (const EventFlag& flag : layout.flags.flags)
+    {
+        const double x = crispLine(flag.line, width, dpr);
+        if (x < layout.plot.left() || x > layout.plot.right())
+        {
+            continue;
+        }
+        painter.setPen(QPen(flag.event->color(), width, Qt::SolidLine, Qt::FlatCap));
+        painter.drawLine(QPointF(x, flag.box.bottom()), QPointF(x, layout.plot.top()));
+    }
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    drawEventFlags(context, layout.flags, area);
+    painter.restore();
 }
 
 }  // namespace rocketplot

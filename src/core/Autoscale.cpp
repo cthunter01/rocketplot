@@ -81,4 +81,22 @@ Range followRange(Range bounds, double window, double margin)
     return {.min = end - window, .max = end};
 }
 
+Range withHeadroom(Range range, double share, Scale scale)
+{
+    if (!(share > 0.0 && share < 1.0) || !isUsableRange(range, scale))
+    {
+        return range;
+    }
+    if (scale == Scale::LOG)
+    {
+        const double low   = std::log10(range.min);
+        const double high  = std::log10(range.max);
+        const Range  grown = {.min = range.min,
+                              .max = std::pow(10.0, low + ((high - low) / (1.0 - share)))};
+        return isUsableRange(grown, scale) ? grown : range;
+    }
+    const Range grown{.min = range.min, .max = range.min + (range.span() / (1.0 - share))};
+    return isUsableRange(grown) ? grown : range;
+}
+
 }  // namespace rocketplot::core

@@ -51,6 +51,12 @@ void drawAnnotations(QPainter& painter, const PlotWidget& plot, const PlotLayout
 void drawAnnotationLabels(QPainter& painter, const PlotWidget& plot, const PlotLayout& layout,
                           TextPainter& text, const AnnotationRecord& record);
 
+/// Draws the flags of event markers in their band above the plot area, with their lines down to it
+/// (FlagPlacement::ABOVE_PLOT_AREA; nothing otherwise). The painter must not be clipped to the plot
+/// area.
+void drawFlagBand(QPainter& painter, const PlotWidget& plot, const PlotLayout& layout,
+                  TextPainter& text, const AnnotationRecord& record);
+
 /// Draws @p icon into @p box (device-independent pixels): sharp on the screen and in images (a
 /// pixmap at @p devicePixelRatio), and in drawings (SVG, PDF, print) at four times the size at
 /// least, as those keep it as an image.

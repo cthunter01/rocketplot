@@ -17,4 +17,9 @@ namespace rocketplot::core
 /// the window, the window starts at the oldest value instead.
 [[nodiscard]] Range followRange(Range bounds, double window, double margin);
 
+/// @p range made taller at the top so that its top @p share is left free (room for what is drawn
+/// over the data there, such as event flags): @p range takes the bottom 1 - share of the result.
+/// On a log scale, in log space. A share outside [0, 1) leaves @p range as it is.
+[[nodiscard]] Range withHeadroom(Range range, double share, Scale scale = Scale::LINEAR);
+
 }  // namespace rocketplot::core

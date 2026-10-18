@@ -79,6 +79,8 @@ target_sources(rocketplot
         BundledMathFont.h
         ${rocketplot_math_font_source}
         EventMarker.cpp
+        FlagLayout.cpp
+        FlagLayout.h
         IconAnnotation.cpp
         InputBindings.cpp
         InteractionController.cpp

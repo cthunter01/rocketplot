@@ -123,6 +123,13 @@ constexpr double kSnapReach = 20.0;
 // outside still counts as inside.
 constexpr double kEdgeTolerance = 0.5;
 
+// Headroom for event flags: the gap left between the flags and the data, the share of the plot
+// area it may take at most, the layouts finding it may take, and the change in share that counts.
+constexpr double kHeadroomGap      = 4.0;
+constexpr double kMaxHeadroomShare = 0.5;
+constexpr int    kHeadroomPasses   = 3;
+constexpr double kHeadroomEpsilon  = 1e-9;
+
 // Draws with another theme for as long as it lives, if given one: exports can ask for a theme of
 // their own. The plot is not told and doesn't repaint.
 class ThemeOverride
@@ -224,11 +231,14 @@ struct PlotWidget::Private
         double    devicePixelRatio = 0.0;
     };
     std::optional<NaturalMargins> naturalMargins;
-    CrosshairMode                 crosshairMode = CrosshairMode::FREE;
-    bool                          debugOverlay  = false;
-    bool                          crosshair     = false;
-    bool                          dirty         = true;
-    bool                          pointStale    = true;
+    CrosshairMode                 crosshairMode   = CrosshairMode::FREE;
+    FlagPlacement                 flagPlacement   = FlagPlacement::OVER_DATA;
+    Qt::Orientation               flagOrientation = Qt::Horizontal;
+    double                        headroomShare   = 0.0;  // left free above autoscaled y data
+    bool                          debugOverlay    = false;
+    bool                          crosshair       = false;
+    bool                          dirty           = true;
+    bool                          pointStale      = true;
 
     // Whether the crosshair is shown at the pointer and goes to the data: a change to the data
     // can then move it.
@@ -248,22 +258,28 @@ struct PlotWidget::Private
         };
     }
 
-    // The layout in @p bounds (with the link's margins).
-    [[nodiscard]] PlotLayout layoutIn(const PlotWidget& plot, const QRectF& bounds,
-                                      double devicePixelRatio)
+    // The margins the plot lines up with: its grid's or its link's.
+    [[nodiscard]] LayoutConstraints constraints(const PlotWidget& plot) const
     {
-        LayoutConstraints constraints;
-        const PlotLink*   current = link.data();
+        const PlotLink* current = link.data();
         if (const PlotGrid* inGrid = grid.data(); inGrid != nullptr)
         {
-            constraints = inGrid->constraintsFor(&plot);
+            return inGrid->constraintsFor(&plot);
         }
-        else if (current != nullptr && current->alignsMargins())
+        if (current != nullptr && current->alignsMargins())
         {
             const auto [left, right] = current->alignedMargins();
-            constraints              = {.minLeft = left, .minRight = right};
+            return {.minLeft = left, .minRight = right};
         }
-        return layoutPlot(plot, bounds, plot.font(), devicePixelRatio, text, constraints);
+        return {};
+    }
+
+    // The layout in @p bounds (with the link's margins).
+    [[nodiscard]] PlotLayout layoutIn(const PlotWidget& plot, const QRectF& bounds,
+                                      double devicePixelRatio, const RangeOverrides& overrides = {})
+    {
+        return layoutPlot(plot, bounds, plot.font(), devicePixelRatio, text, constraints(plot),
+                          overrides);
     }
 
     // The widget's current layout.
@@ -555,6 +571,40 @@ RectAnnotation* PlotWidget::addRect(const QRectF& rect, const QString& label)
     auto* annotation = new RectAnnotation(this, rect);
     annotation->setLabel(label);
     return adoptAnnotation(annotation);
+}
+
+FlagPlacement PlotWidget::eventFlagPlacement() const noexcept
+{
+    return m_impl->flagPlacement;
+}
+
+void PlotWidget::setEventFlagPlacement(FlagPlacement placement)
+{
+    if (placement == m_impl->flagPlacement)
+    {
+        return;
+    }
+    m_impl->flagPlacement = placement;
+    m_impl->headroomShare = 0.0;  // settled again as it is drawn
+    refitY();
+    invalidate();
+    Q_EMIT eventFlagPlacementChanged();
+}
+
+Qt::Orientation PlotWidget::eventFlagOrientation() const noexcept
+{
+    return m_impl->flagOrientation;
+}
+
+void PlotWidget::setEventFlagOrientation(Qt::Orientation orientation)
+{
+    if (orientation == m_impl->flagOrientation)
+    {
+        return;
+    }
+    m_impl->flagOrientation = orientation;
+    invalidate();
+    Q_EMIT eventFlagOrientationChanged();
 }
 
 QList<Annotation*> PlotWidget::annotations() const
@@ -1316,23 +1366,89 @@ void PlotWidget::refitX()
     }
 }
 
+std::optional<Range> PlotWidget::fitY(const Axis& axis) const
+{
+    if (!axis.autoscale())
+    {
+        return std::nullopt;
+    }
+    const core::Scale scale   = scaleOf(axis);
+    const bool        visible = axis.autoscaleMode() != AutoscaleMode::FIT_ALL;
+    const Range       bounds  = yDataBounds(axis, scale == core::Scale::LOG, visible);
+    // Fitting what's visible: with nothing in view, stay put rather than jump to a default.
+    if (visible && !bounds.isValid())
+    {
+        return std::nullopt;
+    }
+    return core::autoscaleRange(bounds, axis.autoscaleMargin(), scale);
+}
+
 void PlotWidget::refitY()
 {
-    for (Axis* axis : {m_impl->yAxis, m_impl->yAxis2})
+    const RangeOverrides fitted = headroomRanges(m_impl->headroomShare);
+    if (fitted.y)
     {
-        if (!axis->autoscale())
+        m_impl->yAxis->applyRange(*fitted.y);
+    }
+    if (fitted.y2)
+    {
+        m_impl->yAxis2->applyRange(*fitted.y2);
+    }
+}
+
+RangeOverrides PlotWidget::headroomRanges(double share) const
+{
+    const bool headroom = m_impl->flagPlacement == FlagPlacement::HEADROOM;
+    const auto fitted   = [&](const Axis& axis) -> std::optional<Range> {
+        const std::optional<Range> fit = fitY(axis);
+        if (!fit || !headroom)
         {
-            continue;
+            return fit;
         }
-        const core::Scale scale   = scaleOf(*axis);
-        const bool        visible = axis->autoscaleMode() != AutoscaleMode::FIT_ALL;
-        const Range       bounds  = yDataBounds(*axis, scale == core::Scale::LOG, visible);
-        // Fitting what's visible: with nothing in view, stay put rather than jump to a default.
-        if (visible && !bounds.isValid())
+        return core::withHeadroom(*fit, share, scaleOf(axis));
+    };
+    return {.x = std::nullopt, .y = fitted(*m_impl->yAxis), .y2 = fitted(*m_impl->yAxis2)};
+}
+
+double PlotWidget::headroomShare(const QRectF& bounds, double devicePixelRatio,
+                                 const LayoutConstraints& constraints) const
+{
+    if (m_impl->flagPlacement != FlagPlacement::HEADROOM)
+    {
+        return 0.0;
+    }
+    // The room the rows of flags in use take, as a share of the plot area's height: the rows
+    // depend a little on the ranges (through the y labels' width), which depend on the share. It
+    // only grows from one layout to the next, so it settles.
+    double share = 0.0;
+    for (int pass = 0; pass < kHeadroomPasses; ++pass)
+    {
+        const PlotLayout layout = layoutPlot(*this, bounds, font(), devicePixelRatio, m_impl->text,
+                                             constraints, headroomRanges(share));
+        if (!layout.valid || layout.flags.flags.empty())
         {
-            continue;
+            break;
         }
-        axis->applyRange(core::autoscaleRange(bounds, axis->autoscaleMargin(), scale));
+        const double needed =
+            std::min((kFlagTop + layout.flags.height + kHeadroomGap) / layout.plot.height(),
+                     kMaxHeadroomShare);
+        if (needed <= share + kHeadroomEpsilon)
+        {
+            break;
+        }
+        share = needed;
+    }
+    return share;
+}
+
+void PlotWidget::settleHeadroom()
+{
+    const double share =
+        headroomShare(QRectF(rect()), devicePixelRatioF(), m_impl->constraints(*this));
+    if (std::abs(share - m_impl->headroomShare) > kHeadroomEpsilon)
+    {
+        m_impl->headroomShare = share;
+        refitY();
     }
 }
 
@@ -1434,7 +1550,9 @@ void PlotWidget::setDebugOverlay(bool enabled)
 
 void PlotWidget::paintExport(QPainter& painter, const QRectF& bounds, double devicePixelRatio) const
 {
-    paintLayout(painter, m_impl->layoutIn(*this, bounds, devicePixelRatio));
+    const LayoutConstraints constraints = m_impl->constraints(*this);
+    paintLayout(painter, m_impl->layoutIn(*this, bounds, devicePixelRatio,
+                                          exportRanges(bounds, devicePixelRatio, constraints)));
 }
 
 void PlotWidget::paintExport(QPainter& painter, const QRectF& bounds, double devicePixelRatio,
@@ -1443,7 +1561,20 @@ void PlotWidget::paintExport(QPainter& painter, const QRectF& bounds, double dev
 {
     const ThemeOverride used(m_impl->theme, theme);
     paintLayout(painter,
-                layoutPlot(*this, bounds, font(), devicePixelRatio, m_impl->text, constraints));
+                layoutPlot(*this, bounds, font(), devicePixelRatio, m_impl->text, constraints,
+                           exportRanges(bounds, devicePixelRatio, constraints)));
+}
+
+RangeOverrides PlotWidget::exportRanges(const QRectF& bounds, double devicePixelRatio,
+                                        const LayoutConstraints& constraints) const
+{
+    // The flags take as many pixels in an export as on screen, and so another share of a plot
+    // area of another height.
+    if (m_impl->flagPlacement != FlagPlacement::HEADROOM)
+    {
+        return {};
+    }
+    return headroomRanges(headroomShare(bounds, devicePixelRatio, constraints));
 }
 
 void PlotWidget::paintLayout(QPainter& painter, const PlotLayout& layout) const
@@ -1656,6 +1787,8 @@ QJsonObject PlotWidget::saveState() const
     state.insert(QLatin1String("themeMode"), state::fromEnum(m_impl->themeMode));
     state.insert(QLatin1String("crosshair"), m_impl->crosshair);
     state.insert(QLatin1String("crosshairMode"), state::fromEnum(m_impl->crosshairMode));
+    state.insert(QLatin1String("eventFlagPlacement"), state::fromEnum(m_impl->flagPlacement));
+    state.insert(QLatin1String("eventFlagOrientation"), state::fromEnum(m_impl->flagOrientation));
     for (const auto& [key, axis] : m_impl->axesByKey())
     {
         QJsonObject settings;
@@ -1698,6 +1831,16 @@ bool PlotWidget::restoreState(const QJsonObject& state)
     if (const auto mode = state::toEnum<CrosshairMode>(state.value(QLatin1String("crosshairMode"))))
     {
         setCrosshairMode(*mode);
+    }
+    if (const auto placement =
+            state::toEnum<FlagPlacement>(state.value(QLatin1String("eventFlagPlacement"))))
+    {
+        setEventFlagPlacement(*placement);
+    }
+    if (const auto orientation =
+            state::toEnum<Qt::Orientation>(state.value(QLatin1String("eventFlagOrientation"))))
+    {
+        setEventFlagOrientation(*orientation);
     }
     // The series before the axes: which of them are shown, and against which y axis, decides
     // what an autoscaling axis fits.
@@ -1857,6 +2000,7 @@ void PlotWidget::renderCache()
         m_impl->cache = QPixmap(pixels);
     }
     m_impl->cache.setDevicePixelRatio(dpr);
+    settleHeadroom();
     m_impl->cacheLayout = m_impl->layout(*this);
     RenderStats stats;
     {

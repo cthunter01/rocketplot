@@ -1,8 +1,15 @@
+#include <QCheckBox>
 #include <QColor>
+#include <QComboBox>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QObject>
 #include <QPointF>
 #include <QRectF>
 #include <QString>
 #include <QStyle>
+#include <QVBoxLayout>
+#include <QVariant>
 #include <QWidget>
 #include <Qt>
 #include <optional>
@@ -28,8 +35,11 @@ namespace
 
 QWidget* create(QWidget* parent)
 {
+    auto* page   = new QWidget(parent);
+    auto* layout = new QVBoxLayout(page);
+    layout->setContentsMargins(0, 0, 0, 0);
     // [snippet]
-    auto* plot = new rocketplot::PlotWidget(parent);
+    auto* plot = new rocketplot::PlotWidget(page);
     plot->setTitle("Ascent acceleration");
     plot->xAxis()->setLabel("Time (s)");
     plot->yAxis()->setLabel("Acceleration (m/s²)");
@@ -75,8 +85,33 @@ QWidget* create(QWidget* parent)
     summary->setCoordinates(rocketplot::AnnotationCoordinates::PLOT_AREA);
     summary->setAlignment(Qt::AlignRight | Qt::AlignTop);
     summary->setFrameVisible(true);
+
+    // Where the flags go: over the data (the default), with room left above it, or in a band of
+    // their own above the plot area; and turned to read upward.
+    auto* placement = new QComboBox(page);
+    placement->addItem(QStringLiteral("Over the data"),
+                       QVariant::fromValue(rocketplot::FlagPlacement::OVER_DATA));
+    placement->addItem(QStringLiteral("Room above the data"),
+                       QVariant::fromValue(rocketplot::FlagPlacement::HEADROOM));
+    placement->addItem(QStringLiteral("Above the plot area"),
+                       QVariant::fromValue(rocketplot::FlagPlacement::ABOVE_PLOT_AREA));
+    QObject::connect(placement, &QComboBox::currentIndexChanged, plot, [plot, placement] {
+        plot->setEventFlagPlacement(placement->currentData().value<rocketplot::FlagPlacement>());
+    });
+    auto* upright = new QCheckBox(QStringLiteral("Upright flags"), page);
+    QObject::connect(upright, &QCheckBox::toggled, plot, [plot](bool on) {
+        plot->setEventFlagOrientation(on ? Qt::Vertical : Qt::Horizontal);
+    });
     // [/snippet]
-    return plot;
+
+    auto* controls = new QHBoxLayout;
+    controls->addWidget(new QLabel(QStringLiteral("Event flags:"), page));
+    controls->addWidget(placement);
+    controls->addWidget(upright);
+    controls->addStretch(1);
+    layout->addWidget(plot, 1);
+    layout->addLayout(controls);
+    return page;
 }
 
 }  // namespace
@@ -86,10 +121,11 @@ DemoPage annotationsPage()
     return {
         .title       = QStringLiteral("Annotations"),
         .description = QStringLiteral(
-            "Reference lines, shaded spans, text with an arrow and named events mark up the data "
-            "and move with it. Zoom in around 155 s: the event flags move onto one row as they "
-            "come apart. Labels keep to the plot's text colors; the line or flag beside them "
-            "carries the color."),
+            "Reference lines, shaded spans, rectangles, text with an arrow, icons and named events "
+            "mark up the data and move with it. Zoom in around 155 s: the event flags move onto "
+            "one row as they come apart; below, put them above the data or the plot area. Point "
+            "at the warning icon for its tool tip. Labels keep to the plot's text colors; the "
+            "line or flag beside them carries the color."),
         .sourceFile = QStringLiteral("AnnotationsPage.cpp"),
         .create     = create,
     };

@@ -1,5 +1,7 @@
 #include "core/Autoscale.h"
 
+#include <limits>
+
 #include <gtest/gtest.h>
 
 #include "core/AxisMapping.h"
@@ -59,6 +61,24 @@ TEST(Autoscale, FollowShowsTheLatestWindow)
     EXPECT_DOUBLE_EQ(r.max, 101.0);
     EXPECT_DOUBLE_EQ(r.min, 91.0);
     EXPECT_EQ(followRange(Range::empty(), 10.0, 0.0), (Range{.min = 0.0, .max = 10.0}));
+}
+
+TEST(Autoscale, HeadroomLeavesTheTopShareFree)
+{
+    using rocketplot::core::withHeadroom;
+    const Range grown = withHeadroom({.min = 0.0, .max = 75.0}, 0.25);
+    EXPECT_DOUBLE_EQ(grown.min, 0.0);
+    EXPECT_DOUBLE_EQ(grown.max, 100.0);
+    // On a log scale, in decades: 1 to 100 is two of three.
+    const Range log =
+        withHeadroom({.min = 1.0, .max = 100.0}, 1.0 / 3.0, rocketplot::core::Scale::LOG);
+    EXPECT_DOUBLE_EQ(log.min, 1.0);
+    EXPECT_NEAR(log.max, 1000.0, 1e-9);
+    // No share, or none that can be left free, changes nothing.
+    for (const double share : {0.0, -0.1, 1.0, std::numeric_limits<double>::quiet_NaN()})
+    {
+        EXPECT_EQ(withHeadroom({.min = 2.0, .max = 3.0}, share), (Range{.min = 2.0, .max = 3.0}));
+    }
 }
 
 }  // namespace

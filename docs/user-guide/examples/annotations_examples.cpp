@@ -87,6 +87,23 @@ void icons(PlotWidget* plot)
     // [/annotations-icons]
 }
 
+void flagsAbove(PlotWidget* plot)
+{
+    const Ascent ascent = sampleAscent();
+    plot->setTitle("Ascent acceleration");
+    plot->xAxis()->setLabel("Time (s)");
+    plot->yAxis()->setLabel("Acceleration (m/s²)");
+    plot->addLine(ascent.time, ascent.acceleration);
+    plot->addEvent(0.0, "Liftoff");
+    plot->addEvent(150.0, "MECO");
+    plot->addEvent(153.0, "Stage separation");
+    plot->addEvent(160.0, "Second-stage ignition");
+    // [annotations-flags]
+    // Flags in a band of their own between the title and the plot area.
+    plot->setEventFlagPlacement(rocketplot::FlagPlacement::ABOVE_PLOT_AREA);
+    // [/annotations-flags]
+}
+
 void options(const QString& /*scratch*/)
 {
     PlotWidget  window;
@@ -152,6 +169,13 @@ void options(const QString& /*scratch*/)
                      });
     // [/annotations-hover]
 
+    // [annotations-flags-options]
+    // At the top of the plot area, with autoscaling y axes leaving room for them above the data.
+    plot->setEventFlagPlacement(rocketplot::FlagPlacement::HEADROOM);
+    // Turned to read upward, in one row: narrow, for events close together.
+    plot->setEventFlagOrientation(Qt::Vertical);
+    // [/annotations-flags-options]
+
     // [annotations-common]
     rocketplot::Annotation* any = peak;
     any->setVisible(false);
@@ -171,6 +195,7 @@ void addAnnotationExamples(Examples& examples)
 {
     examples.addPlot(QStringLiteral("annotations"), annotated, {720, 440});
     examples.addPlot(QStringLiteral("annotations-icons"), icons);
+    examples.addPlot(QStringLiteral("annotations-flags"), flagsAbove);
     examples.demonstrations.push_back(
         {.name = QStringLiteral("annotation options"), .run = options});
 }

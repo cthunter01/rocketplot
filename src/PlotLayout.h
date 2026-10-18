@@ -4,9 +4,12 @@
 #include <QRectF>
 #include <QString>
 #include <QStringList>
+#include <optional>
 #include <vector>
 
+#include "FlagLayout.h"
 #include "core/AxisMapping.h"
+#include "rocketplot/Range.h"
 
 namespace rocketplot
 {
@@ -42,6 +45,15 @@ struct LayoutConstraints
     double minBottom = 0.0;
 };
 
+/// Ranges to lay a plot out with instead of its axes' own, which stay as they are: an export
+/// that needs other ranges than the screen does (headroom for event flags at another height).
+struct RangeOverrides
+{
+    std::optional<Range> x;
+    std::optional<Range> y;
+    std::optional<Range> y2;
+};
+
 /// The mappings an annotation's x and y values are drawn with.
 struct AnnotationMappings
 {
@@ -60,6 +72,11 @@ struct PlotLayout
     QRectF plot;    ///< Inside the axes: where data is drawn
     QRectF title;
     QRectF subtitle;
+    /// The band between the title and the plot area that event flags fly in
+    /// (FlagPlacement::ABOVE_PLOT_AREA); null otherwise.
+    QRectF flagBand;
+    /// The flags of the plot's events: over the plot area, or in the band.
+    FlagLayout flags;
 
     AxisLayout x;
     AxisLayout y;
@@ -86,10 +103,12 @@ struct PlotLayout
     [[nodiscard]] AnnotationMappings mappingsFor(const Annotation& annotation) const;
 };
 
-/// Lays out @p plot in @p bounds, using @p font as the base font.
+/// Lays out @p plot in @p bounds, using @p font as the base font, with @p overrides of its axes'
+/// ranges (if any).
 [[nodiscard]] PlotLayout layoutPlot(const PlotWidget& plot, const QRectF& bounds, const QFont& font,
                                     double devicePixelRatio, TextPainter& text,
-                                    LayoutConstraints constraints = {});
+                                    LayoutConstraints     constraints = {},
+                                    const RangeOverrides& overrides   = {});
 
 /// @p base at @p scale times its size (a theme's font scales).
 [[nodiscard]] QFont scaledFont(const QFont& base, double scale);

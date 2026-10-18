@@ -52,6 +52,28 @@ constexpr int kXLayoutAttempts = 4;
 constexpr double kProbeShare = 0.7;
 // The x label spacing assumed by that guess.
 constexpr double kProbeSpacing = 80.0;
+// Event flags: the share of the plot area's height their rows may take over the data, and of the
+// whole height a band above the plot area may take; the gap between the band and the plot area;
+// and how many layouts a band's height may take to settle.
+constexpr double kFlagRowShare = 0.5;
+constexpr double kMaxBandShare = 0.3;
+constexpr double kBandGap      = 4.0;
+constexpr int    kBandPasses   = 3;
+
+// The ranges a layout uses: the axes' own, or overrides of them.
+struct Ranges
+{
+    Range x;
+    Range y;
+    Range y2;
+};
+
+Ranges rangesOf(const PlotWidget& plot, const RangeOverrides& overrides)
+{
+    return {.x  = overrides.x.value_or(plot.xAxis()->range()),
+            .y  = overrides.y.value_or(plot.yAxis()->range()),
+            .y2 = overrides.y2.value_or(plot.yAxis2()->range())};
+}
 
 double widestLabel(const QStringList& labels, const QFontMetricsF& metrics)
 {
@@ -127,19 +149,20 @@ QString formatAxisValue(const Axis& axis, double value, double resolution)
                             time ? utcOffsetOf(axis.timeZone()) : core::UtcOffset{}));
 }
 
-// Fills ticks, labels and annotation for @p axis drawn over @p lengthPx.
-void fillTicks(AxisLayout& layout, const Axis& axis, double lengthPx, double minSpacingPx)
+// Fills ticks, labels and annotation for @p axis showing @p range over @p lengthPx.
+void fillTicks(AxisLayout& layout, const Axis& axis, Range range, double lengthPx,
+               double minSpacingPx)
 {
     const bool              time = axis.scaleType() == ScaleType::DATE_TIME;
     const core::TickRequest request{
-        .range             = axis.range(),
+        .range             = range,
         .kind              = kindOf(axis),
         .style             = styleOf(axis),
         .lengthPx          = lengthPx,
         .minSpacingPx      = minSpacingPx,
         .minMinorSpacingPx = kMinorSpacing,
         .utcOffset         = time ? utcOffsetOf(axis.timeZone()) : core::UtcOffset{},
-        .zoneName = time ? zoneNameOf(axis.timeZone(), axis.min()).toStdString() : std::string(),
+        .zoneName = time ? zoneNameOf(axis.timeZone(), range.min).toStdString() : std::string(),
     };
     core::AxisTicks ticks = core::makeTicks(request);
     layout.major          = std::move(ticks.major);
@@ -190,19 +213,19 @@ double tickLabelHeight(const PlotLayout& layout)
 
 // Whether @p axis, shown, needs a row for an annotation (offset, multiplier, date): a guess from
 // ticks over a rough share of the target.
-bool needsAnnotation(const Axis& axis, bool shown, double length, double spacing)
+bool needsAnnotation(const Axis& axis, Range range, bool shown, double length, double spacing)
 {
     if (!shown)
     {
         return false;
     }
     AxisLayout probe;
-    fillTicks(probe, axis, length, spacing);
+    fillTicks(probe, axis, range, length, spacing);
     return !probe.annotation.isEmpty();
 }
 
-// The vertical stack: title, subtitle, the y axes' annotation row, the plot, the x axis, the x
-// label and annotation row.
+// The vertical stack: title, subtitle, the y axes' annotation row, the band of event flags (if
+// any), the plot, the x axis, the x label and annotation row.
 struct Vertical
 {
     double plotTop       = 0.0;
@@ -211,20 +234,24 @@ struct Vertical
     double xRowTop       = 0.0;  // of the x label and annotation
     double xRow          = 0.0;
     double xAxisHeight   = 0.0;
+    double flagBand      = 0.0;  // the band's height, above the plot area and its gap
 };
 
 Vertical layoutVertically(const PlotWidget& plot, PlotLayout& layout, TextPainter& text,
-                          const LayoutConstraints& constraints)
+                          const LayoutConstraints& constraints, const Ranges& ranges,
+                          double flagBand)
 {
     const QRectF& bounds      = layout.bounds;
     const double  tickHeight  = tickLabelHeight(layout);
     const double  probeHeight = bounds.height() * kProbeShare;
-    const bool    xAnnotation = needsAnnotation(*plot.xAxis(), layout.x.shown && layout.x.labeled,
-                                                bounds.width() * kProbeShare, kProbeSpacing);
-    const bool yAnnotations = needsAnnotation(*plot.yAxis(), layout.y.shown && layout.y.labeled,
-                                              probeHeight, tickHeight * kYLabelSpacing) ||
-                              needsAnnotation(*plot.yAxis2(), layout.y2.shown && layout.y2.labeled,
-                                              probeHeight, tickHeight * kYLabelSpacing);
+    const bool    xAnnotation =
+        needsAnnotation(*plot.xAxis(), ranges.x, layout.x.shown && layout.x.labeled,
+                        bounds.width() * kProbeShare, kProbeSpacing);
+    const bool yAnnotations =
+        needsAnnotation(*plot.yAxis(), ranges.y, layout.y.shown && layout.y.labeled, probeHeight,
+                        tickHeight * kYLabelSpacing) ||
+        needsAnnotation(*plot.yAxis2(), ranges.y2, layout.y2.shown && layout.y2.labeled,
+                        probeHeight, tickHeight * kYLabelSpacing);
 
     Vertical vertical;
     double   top = bounds.top() + kOuterPadding;
@@ -248,6 +275,11 @@ Vertical layoutVertically(const PlotWidget& plot, PlotLayout& layout, TextPainte
     vertical.annotationTop = top;
     // Without annotations, room for the top y label, which sticks out above the plot.
     top += yAnnotations ? tickHeight + kAnnotationGap : tickHeight / 2.0;
+    if (flagBand > 0.0)
+    {
+        vertical.flagBand = flagBand;
+        top += flagBand + kBandGap;
+    }
 
     const QSizeF xTitle =
         layout.x.shown ? text.size(plot.xAxis()->label(), layout.labelFont) : QSizeF();
@@ -281,8 +313,8 @@ Vertical layoutVertically(const PlotWidget& plot, PlotLayout& layout, TextPainte
 
 // The y axis: its ticks, and how far right of the target's left edge it reaches (title, labels,
 // ticks). Returns the left edge of the plot area it leaves.
-double layoutLeftAxis(const PlotWidget& plot, PlotLayout& layout, TextPainter& text, double plotTop,
-                      double plotHeight)
+double layoutLeftAxis(const PlotWidget& plot, PlotLayout& layout, TextPainter& text, Range range,
+                      double plotTop, double plotHeight)
 {
     double left = layout.bounds.left() + kOuterPadding;
     if (!layout.y.shown)
@@ -290,7 +322,7 @@ double layoutLeftAxis(const PlotWidget& plot, PlotLayout& layout, TextPainter& t
         return left;
     }
     const QFontMetricsF metrics(layout.tickFont);
-    fillTicks(layout.y, *plot.yAxis(), plotHeight, metrics.height() * kYLabelSpacing);
+    fillTicks(layout.y, *plot.yAxis(), range, plotHeight, metrics.height() * kYLabelSpacing);
     const QSizeF title = text.size(plot.yAxis()->label(), layout.labelFont);
     if (!title.isEmpty())
     {
@@ -303,7 +335,7 @@ double layoutLeftAxis(const PlotWidget& plot, PlotLayout& layout, TextPainter& t
 }
 
 // The same for the secondary y axis on the right. Returns the right edge of the plot area.
-double layoutRightAxis(const PlotWidget& plot, PlotLayout& layout, TextPainter& text,
+double layoutRightAxis(const PlotWidget& plot, PlotLayout& layout, TextPainter& text, Range range,
                        double plotTop, double plotHeight)
 {
     double right = layout.bounds.right() - kOuterPadding;
@@ -312,7 +344,7 @@ double layoutRightAxis(const PlotWidget& plot, PlotLayout& layout, TextPainter& 
         return right;
     }
     const QFontMetricsF metrics(layout.tickFont);
-    fillTicks(layout.y2, *plot.yAxis2(), plotHeight, metrics.height() * kYLabelSpacing);
+    fillTicks(layout.y2, *plot.yAxis2(), range, plotHeight, metrics.height() * kYLabelSpacing);
     const QSizeF title = text.size(plot.yAxis2()->label(), layout.labelFont);
     if (!title.isEmpty())
     {
@@ -326,7 +358,8 @@ double layoutRightAxis(const PlotWidget& plot, PlotLayout& layout, TextPainter& 
 
 // The x ticks, spaced by their labels' width, with the last label kept inside the target (which
 // may move the plot's right edge in). Returns the plot area's right edge.
-double layoutXTicks(const Axis& xAxis, PlotLayout& layout, double plotLeft, double right)
+double layoutXTicks(const Axis& xAxis, Range range, PlotLayout& layout, double plotLeft,
+                    double right)
 {
     const QFontMetricsF metrics(layout.tickFont);
     const QRectF&       bounds = layout.bounds;
@@ -339,8 +372,8 @@ double layoutXTicks(const Axis& xAxis, PlotLayout& layout, double plotLeft, doub
         {
             break;
         }
-        fillTicks(layout.x, xAxis, plotRight - plotLeft, minSpacing);
-        const core::AxisMapping mapping(xAxis.range(), plotLeft, plotRight, scaleOf(xAxis));
+        fillTicks(layout.x, xAxis, range, plotRight - plotLeft, minSpacing);
+        const core::AxisMapping mapping(range, plotLeft, plotRight, scaleOf(xAxis));
         double                  overflow = 0.0;
         if (layout.x.labeled && !layout.x.major.empty())
         {
@@ -367,16 +400,17 @@ double layoutXTicks(const Axis& xAxis, PlotLayout& layout, double plotLeft, doub
 }
 
 // Mappings and the rectangles around the plot area for every axis.
-void placeAxes(const PlotWidget& plot, PlotLayout& layout, const Vertical& vertical)
+void placeAxes(const PlotWidget& plot, PlotLayout& layout, const Vertical& vertical,
+               const Ranges& ranges)
 {
     const QRectF& area   = layout.plot;
     const QRectF& bounds = layout.bounds;
     const Axis&   x      = *plot.xAxis();
     const Axis&   y      = *plot.yAxis();
     const Axis&   y2     = *plot.yAxis2();
-    layout.x.mapping     = core::AxisMapping(x.range(), area.left(), area.right(), scaleOf(x));
-    layout.y.mapping     = core::AxisMapping(y.range(), area.bottom(), area.top(), scaleOf(y));
-    layout.y2.mapping    = core::AxisMapping(y2.range(), area.bottom(), area.top(), scaleOf(y2));
+    layout.x.mapping     = core::AxisMapping(ranges.x, area.left(), area.right(), scaleOf(x));
+    layout.y.mapping     = core::AxisMapping(ranges.y, area.bottom(), area.top(), scaleOf(y));
+    layout.y2.mapping    = core::AxisMapping(ranges.y2, area.bottom(), area.top(), scaleOf(y2));
 
     const double tickHeight   = tickLabelHeight(layout);
     const double contentLeft  = bounds.left() + kOuterPadding;
@@ -398,6 +432,12 @@ void placeAxes(const PlotWidget& plot, PlotLayout& layout, const Vertical& verti
     layout.y2.area = QRectF(area.right(), area.top(), y2AreaRight - area.right(), area.height());
     layout.y2.annotationRect = QRectF(area.center().x(), vertical.annotationTop,
                                       contentRight - area.center().x(), tickHeight);
+
+    if (vertical.flagBand > 0.0)
+    {
+        layout.flagBand = QRectF(area.left(), area.top() - kBandGap - vertical.flagBand,
+                                 area.width(), vertical.flagBand);
+    }
 
     // The title and subtitle are centered over the plot area, not the whole widget.
     for (QRectF* heading : {&layout.title, &layout.subtitle})
@@ -464,8 +504,13 @@ QString valueLabel(const Axis& axis, const core::AxisMapping& mapping, double va
     return formatAxisValue(axis, value, std::abs(mapping.toValue(pixel + 1.0) - value));
 }
 
-PlotLayout layoutPlot(const PlotWidget& plot, const QRectF& bounds, const QFont& font,
-                      double devicePixelRatio, TextPainter& text, LayoutConstraints constraints)
+namespace
+{
+
+// One layout, with a band of @p flagBand pixels for event flags above the plot area (0: none).
+PlotLayout layoutOnce(const PlotWidget& plot, const QRectF& bounds, const QFont& font,
+                      double devicePixelRatio, TextPainter& text,
+                      const LayoutConstraints& constraints, const Ranges& ranges, double flagBand)
 {
     PlotLayout layout;
     layout.bounds           = bounds;
@@ -478,28 +523,79 @@ PlotLayout layoutPlot(const PlotWidget& plot, const QRectF& bounds, const QFont&
     layout.y.labeled  = plot.yAxis()->areTickLabelsVisible();
     layout.y2.labeled = plot.yAxis2()->areTickLabelsVisible();
 
-    const Vertical vertical = layoutVertically(plot, layout, text, constraints);
+    const Vertical vertical = layoutVertically(plot, layout, text, constraints, ranges, flagBand);
     if (vertical.plotBottom - vertical.plotTop < kMinPlotSize)
     {
         return layout;
     }
     const double plotHeight = vertical.plotBottom - vertical.plotTop;
-    const double left       = layoutLeftAxis(plot, layout, text, vertical.plotTop, plotHeight);
-    double       right      = layoutRightAxis(plot, layout, text, vertical.plotTop, plotHeight);
-    layout.naturalLeft      = left - bounds.left();
-    layout.naturalRight     = bounds.right() - right;
+    const double left = layoutLeftAxis(plot, layout, text, ranges.y, vertical.plotTop, plotHeight);
+    double right = layoutRightAxis(plot, layout, text, ranges.y2, vertical.plotTop, plotHeight);
+    layout.naturalLeft  = left - bounds.left();
+    layout.naturalRight = bounds.right() - right;
     const double plotLeft =
         snap(std::max(left, bounds.left() + constraints.minLeft), devicePixelRatio);
     right                  = std::min(right, bounds.right() - constraints.minRight);
-    const double plotRight = layoutXTicks(*plot.xAxis(), layout, plotLeft, right);
+    const double plotRight = layoutXTicks(*plot.xAxis(), ranges.x, layout, plotLeft, right);
     if (plotRight - plotLeft < kMinPlotSize)
     {
         return layout;
     }
 
     layout.plot = QRectF(plotLeft, vertical.plotTop, plotRight - plotLeft, plotHeight);
-    placeAxes(plot, layout, vertical);
+    placeAxes(plot, layout, vertical, ranges);
     layout.valid = true;
+    return layout;
+}
+
+}  // namespace
+
+PlotLayout layoutPlot(const PlotWidget& plot, const QRectF& bounds, const QFont& font,
+                      double devicePixelRatio, TextPainter& text, LayoutConstraints constraints,
+                      const RangeOverrides& overrides)
+{
+    const Ranges          ranges      = rangesOf(plot, overrides);
+    const Qt::Orientation orientation = plot.eventFlagOrientation();
+    if (plot.eventFlagPlacement() != FlagPlacement::ABOVE_PLOT_AREA)
+    {
+        PlotLayout layout =
+            layoutOnce(plot, bounds, font, devicePixelRatio, text, constraints, ranges, 0.0);
+        if (layout.valid)
+        {
+            layout.flags = layoutEventFlags(plot, layout, text, layout.plot.top() + kFlagTop,
+                                            layout.plot.height() * kFlagRowShare, orientation);
+        }
+        return layout;
+    }
+    // Flags in a band above the plot area, as tall as their rows: which rows they take depends on
+    // the x axis, which depends on the band's height (through the y labels' width). A few layouts
+    // settle it.
+    const double maxBand = bounds.height() * kMaxBandShare;
+    double       band    = 0.0;
+    PlotLayout   layout;
+    for (int pass = 0; pass < kBandPasses; ++pass)
+    {
+        layout = layoutOnce(plot, bounds, font, devicePixelRatio, text, constraints, ranges, band);
+        if (!layout.valid)
+        {
+            return layout;
+        }
+        const double top    = layout.plot.top() - kBandGap - band;
+        layout.flags        = layoutEventFlags(plot, layout, text, top, maxBand, orientation);
+        const double needed = std::min(layout.flags.height, maxBand);
+        if (std::abs(needed - band) < 0.5)
+        {
+            return layout;
+        }
+        band = needed;
+    }
+    // Not settled: the flags that fit the band of the last layout.
+    layout = layoutOnce(plot, bounds, font, devicePixelRatio, text, constraints, ranges, band);
+    if (layout.valid)
+    {
+        layout.flags = layoutEventFlags(plot, layout, text, layout.flagBand.top(),
+                                        layout.flagBand.height(), orientation);
+    }
     return layout;
 }
 

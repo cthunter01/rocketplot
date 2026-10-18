@@ -163,6 +163,32 @@ zoomed in; their lines stay.
 An event without a label is only the line, unless it has an icon (`setIcon()`, see above): the icon then flies
 alone on the flag.
 
+Flags fly over the data by default, which is where the data often is highest. The plot can put them elsewhere:
+
+![The flags of four events in a band above the plot area, their lines reaching up to them](images/annotations-flags.png)
+
+<!-- example: annotations-flags -->
+```cpp
+// Flags in a band of their own between the title and the plot area.
+plot->setEventFlagPlacement(rocketplot::FlagPlacement::ABOVE_PLOT_AREA);
+```
+
+<!-- example: annotations-flags-options -->
+```cpp
+// At the top of the plot area, with autoscaling y axes leaving room for them above the data.
+plot->setEventFlagPlacement(rocketplot::FlagPlacement::HEADROOM);
+// Turned to read upward, in one row: narrow, for events close together.
+plot->setEventFlagOrientation(Qt::Vertical);
+```
+
+| `FlagPlacement` | Where the flags go |
+| --- | --- |
+| `OVER_DATA` | At the top of the plot area, over the data (the default) |
+| `HEADROOM` | At the top of the plot area; each y axis that autoscales leaves room above its data for the rows of flags in use, so no flag covers data. The room is in pixels, so it holds at any height of the plot, and in exports of any size |
+| `ABOVE_PLOT_AREA` | In a band between the title and the plot area, as tall as the rows in use (at most 30% of the plot's height), with the events' lines reaching up to their flags. The plots of a grid stay lined up |
+
+Without flags, every placement lays the plot out the same. Both settings are part of the plot's saved state.
+
 ## Pinned to the plot area
 
 An annotation can also stay in one place of the plot, whatever the view: its values are then fractions of the plot

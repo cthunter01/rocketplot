@@ -52,6 +52,17 @@ enum class AnnotationCoordinates : std::uint8_t
 };
 Q_ENUM_NS(AnnotationCoordinates)
 
+/// Where the flags of event markers go (PlotWidget::setEventFlagPlacement()).
+enum class FlagPlacement : std::uint8_t
+{
+    OVER_DATA,  ///< At the top of the plot area, over whatever data is there (the default)
+    HEADROOM,  ///< At the top of the plot area, with autoscaling y axes leaving room for them above
+               ///< the highest data
+    ABOVE_PLOT_AREA,  ///< In a band of their own between the title and the plot area, with their
+                      ///< lines reaching up to them
+};
+Q_ENUM_NS(FlagPlacement)
+
 /// Where the legend sits inside the plot area.
 enum class LegendAnchor : std::uint8_t
 {

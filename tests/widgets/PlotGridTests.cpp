@@ -276,6 +276,17 @@ TEST(PlotGrid, PlotAreasLineUpWithASubtitleInARow)
     EXPECT_DOUBLE_EQ(grid.plot(0, 0)->plotArea().top(), grid.plot(0, 1)->plotArea().top());
 }
 
+TEST(PlotGrid, PlotAreasLineUpWithEventFlagsAboveOne)
+{
+    PlotGrid grid(1, 2);
+    grid.resize(800, 400);
+    grid.plot(0, 0)->addEvent(0.5, "Burnout");
+    grid.plot(0, 0)->setEventFlagPlacement(rocketplot::FlagPlacement::ABOVE_PLOT_AREA);
+    static_cast<void>(grid.grab());
+    EXPECT_DOUBLE_EQ(grid.plot(0, 0)->plotArea().top(), grid.plot(0, 1)->plotArea().top());
+    EXPECT_GT(grid.plot(0, 1)->plotArea().top(), 30.0);  // made room as its neighbor did
+}
+
 TEST(PlotGrid, TheTitleGoesAboveThePlots)
 {
     PlotGrid grid(2, 1);
