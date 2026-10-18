@@ -2,6 +2,7 @@
 
 #include <QColor>
 #include <QObject>
+#include <QString>
 #include <optional>
 
 #include "rocketplot/Range.h"
@@ -32,6 +33,7 @@ class ROCKETPLOT_EXPORT Annotation : public QObject
         bool onSecondaryYAxis READ isOnSecondaryYAxis WRITE setOnSecondaryYAxis NOTIFY changed)
     Q_PROPERTY(bool includedInAutoscale READ isIncludedInAutoscale WRITE setIncludedInAutoscale
                    NOTIFY changed)
+    Q_PROPERTY(QString toolTip READ toolTip WRITE setToolTip NOTIFY changed)
 
 public:
     ~Annotation() override;
@@ -79,6 +81,13 @@ public:
     [[nodiscard]] bool isIncludedInAutoscale() const noexcept { return m_includedInAutoscale; }
     void               setIncludedInAutoscale(bool included);
 
+    /// Text shown in a tool tip while the pointer rests on what the annotation draws that the
+    /// pointer can be on: a text's box, an icon, an event's flag, the label of a line, a span or a
+    /// rectangle (see PlotWidget::annotationAt()). Rich text works, as in any QToolTip. Empty
+    /// (the default) for none.
+    [[nodiscard]] QString toolTip() const { return m_toolTip; }
+    void                  setToolTip(const QString& toolTip);
+
 Q_SIGNALS:
     /// A property changed.
     void changed();
@@ -97,6 +106,7 @@ private:
 
     PlotWidget*           m_plot;
     std::optional<QColor> m_color;
+    QString               m_toolTip;
     AnnotationLayer       m_layer;
     AnnotationCoordinates m_coordinates         = AnnotationCoordinates::DATA;
     bool                  m_visible             = true;

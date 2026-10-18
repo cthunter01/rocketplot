@@ -1,7 +1,9 @@
 #include "rocketplot/EventMarker.h"
 
 #include <QColor>
+#include <QIcon>
 #include <QImage>
+#include <QPixmap>
 #include <QPointF>
 #include <QRect>
 #include <QSignalSpy>
@@ -208,6 +210,71 @@ TEST_F(EventMarkerTest, TheFlagTextStandsOutOnItsColor)
     };
     EXPECT_GT(lightest(columnOf(2.0)), 0.6F);
     EXPECT_LT(darkest(columnOf(6.0)), 0.4F);
+}
+
+// A solid red square.
+QIcon redIcon()
+{
+    QPixmap pixmap(16, 16);
+    pixmap.fill(Qt::red);
+    return {pixmap};
+}
+
+TEST_F(EventMarkerTest, AnIconAloneMakesAFlag)
+{
+    EventMarker* event = addEvent(5.0, QString(), Qt::blue);
+    event->setIcon(redIcon());
+    const QImage image  = render();
+    const int    column = columnOf(5.0);
+    EXPECT_NE(flagTop(image, column + 1, Qt::blue), kNoFlag);  // the flag's padding
+    bool red = false;
+    for (int x = column; x < column + 30 && !red; ++x)
+    {
+        red = flagTop(image, x, Qt::red) != kNoFlag;
+    }
+    EXPECT_TRUE(red);
+}
+
+TEST_F(EventMarkerTest, TheIconGoesBeforeTheLabelAndWidensTheFlag)
+{
+    EventMarker* event = addEvent(2.0, "MECO", Qt::blue);
+    const QImage plain = render();
+    const QRect  area  = m_plot.plotArea().toRect();
+    const auto   width = [&](const QImage& image) {
+        // The flag's width along its middle row.
+        const int y     = flagTop(image, columnOf(2.0) + 1, Qt::blue) + 3;
+        int       right = columnOf(2.0);
+        while (right < area.right() && image.pixelColor(right + 1, y) != m_plot.theme().background)
+        {
+            ++right;
+        }
+        return right - columnOf(2.0);
+    };
+    event->setIcon(redIcon());
+    const QImage withIcon = render();
+    EXPECT_GT(width(withIcon), width(plain) + 10);
+    // The icon is at the start of the flag.
+    bool red = false;
+    for (int x = columnOf(2.0); x < columnOf(2.0) + 25 && !red; ++x)
+    {
+        red = flagTop(withIcon, x, Qt::red) != kNoFlag;
+    }
+    EXPECT_TRUE(red);
+}
+
+TEST_F(EventMarkerTest, TheIconCountsWhenFlagsAreStaggered)
+{
+    // Two flags that just fit side by side without icons share a row; with icons they don't.
+    EventMarker* first  = addEvent(2.0, "A", Qt::blue);
+    EventMarker* second = addEvent(2.4, "B", Qt::darkGreen);
+    const QImage plain  = render();
+    ASSERT_EQ(flagTop(plain, columnOf(2.0) + 1, Qt::blue),
+              flagTop(plain, columnOf(2.4) + 1, Qt::darkGreen));
+    first->setIcon(redIcon());
+    second->setIcon(redIcon());
+    const QImage staggered = render();
+    EXPECT_GT(flagTop(staggered, columnOf(2.4) + 1, Qt::darkGreen),
+              flagTop(staggered, columnOf(2.0) + 1, Qt::blue));
 }
 
 }  // namespace

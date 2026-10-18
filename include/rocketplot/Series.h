@@ -121,6 +121,18 @@ public:
     /// (between its first and last point); nothing otherwise. The legend shows its y at the
     /// crosshair.
     [[nodiscard]] std::optional<std::size_t> nearestIndex(double x) const;
+    /// The y that the series' line passes through at @p x, as it is drawn: linear between the
+    /// points around @p x in the axes' scales (along the straight segment a log axis shows), and
+    /// at a point's own x its y. For putting an icon or a note on a curve:
+    ///
+    /// @code
+    /// if (const std::optional<double> y = altitude->valueAt(apogeeTime))
+    ///     plot->addIcon(apogeeTime, *y, apogeeIcon);
+    /// @endcode
+    ///
+    /// Nothing for a series not sorted by x, an @p x outside its x range, or where the line has a
+    /// gap. A scatter series interpolates the same way between its points.
+    [[nodiscard]] std::optional<double> valueAt(double x) const;
     /// Whether x is implicit (UniformX) rather than an array.
     [[nodiscard]] bool hasUniformX() const noexcept;
     /// Whether the series reads the caller's memory (setDataView()) rather than its own copy.

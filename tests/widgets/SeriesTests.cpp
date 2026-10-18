@@ -450,4 +450,20 @@ TEST(Series, AutoscaleMakesRoomForErrors)
     EXPECT_GT(plot.xAxis()->min(), -1.0);
 }
 
+TEST(Series, ValueAtIsWhereTheLinePassesThrough)
+{
+    PlotWidget  plot;
+    LineSeries* line =
+        plot.addLine(std::vector<double>{0, 10, 20}, std::vector<double>{1, 100, 10});
+    EXPECT_DOUBLE_EQ(*line->valueAt(5.0), 50.5);
+    EXPECT_DOUBLE_EQ(*line->valueAt(10.0), 100.0);
+    EXPECT_FALSE(line->valueAt(25.0));
+    // On a log y axis, along the straight segment drawn there.
+    plot.yAxis()->setScaleType(rocketplot::ScaleType::LOGARITHMIC);
+    EXPECT_NEAR(*line->valueAt(5.0), 10.0, 1e-9);
+    // A path has no single y at an x.
+    LineSeries* path = plot.addLine(std::vector<double>{0, 10, 5}, std::vector<double>{1, 2, 3});
+    EXPECT_FALSE(path->valueAt(5.0));
+}
+
 }  // namespace

@@ -59,7 +59,7 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
 
 ## Layout
 - `include/rocketplot/`: public headers (`PlotWidget`, `Series`/`LineSeries`/`ScatterSeries`, `Axis`, `Legend`,
-  `Annotation`/`ReferenceLine`/`ShadedSpan`/`RectAnnotation`/`TextAnnotation`/`EventMarker`, `PlotLink`, `PlotGrid` (plots in rows
+  `Annotation`/`ReferenceLine`/`ShadedSpan`/`RectAnnotation`/`TextAnnotation`/`IconAnnotation`/`EventMarker`, `PlotLink`, `PlotGrid` (plots in rows
   and columns: it makes the plots, links each column's x axes with `PlotLink`s and lines the plot areas up through
   `LayoutConstraints`), `InputBindings`, `Theme`,
   `ExportOptions`, `enums.h`, `plottime.h`, `text.h` (`literalText()`: user text shown as typed); Qt-free value types
@@ -69,6 +69,7 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
   decimation, line band outlines, clipping, errors (`ErrorData` holds the ends of the bars, `ErrorGeometry` turns them
   into bars and band outlines), `LabelStagger` (rows for event flags), `CsvWriter` (the data in view as CSV text),
   `NearestPoint` (the data point a snapping or tracing crosshair goes to: sorted series through the pyramid),
+  `Interpolate` (the y a drawn line passes through at an x, `Series::valueAt()`),
   axis mapping (linear/log), ticks (`TickGenerator` linear/log, `TimeTicks` calendar), labels and readouts
   (`NumberFormatter`), `AxisTicks` (picks per axis kind), autoscale. Math in labels: `MathSegments` (the `$` rule),
   `MathParser` (a TeX subset into a list of `MathAtom`s, with `MathSymbols`' tables), `MathPlainText` (a formula as
@@ -81,8 +82,9 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
   trackpad and touch input through the `InputBindings`), `ViewHistory` (back/forward), `LegendLayout` (legend
   placement, values and drawing), `Occupancy` (where data was drawn, for the legend's BEST spot), `Overlays`
   (crosshair and zoom box), `AnnotationPainter` (annotations are part of the cached rendering: under the series, over
-  them, then their labels), `PlotLink` (linked x axes, crosshair and history), `TextPainter` (plain text, rich text,
-  and math between `$` signs: a `QTextDocument` in which each formula is an inline object of `MathTextObject`),
+  them, then their labels; it records what the pointer can be on, for `PlotWidget::annotationAt()` and tool tips),
+  `PlotLink` (linked x axes, crosshair and history), `TextPainter` (plain text, rich text, and math between `$`
+  signs: a `QTextDocument` in which each formula is an inline object of `MathTextObject`),
   `MathRenderer` (formulas typeset into cached outline paths), `RawMathFont` (a math font through `QRawFont`: the
   bundled Latin Modern Math, `src/fonts/`, compiled in by `cmake/EmbedFile.cmake`, or an installed one),
   `MarkerPainter`, `PlotState` (how settings are written in the JSON of `PlotWidget::saveState()`; each class

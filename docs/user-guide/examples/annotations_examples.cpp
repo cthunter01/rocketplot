@@ -1,11 +1,15 @@
 // Examples of annotations.md.
 
 #include <QColor>
+#include <QIcon>
+#include <QObject>
 #include <QPointF>
 #include <QRectF>
 #include <QString>
+#include <QStyle>
 #include <Qt>
 #include <limits>
+#include <optional>
 #include <vector>
 
 #include "Examples.h"
@@ -13,6 +17,8 @@
 #include "rocketplot/Annotation.h"
 #include "rocketplot/Axis.h"
 #include "rocketplot/EventMarker.h"
+#include "rocketplot/IconAnnotation.h"
+#include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/RectAnnotation.h"
 #include "rocketplot/ReferenceLine.h"
@@ -54,6 +60,31 @@ void annotated(PlotWidget* plot)
     note->setOffset({10.0, 100.0});                       // pixels: right and down
     note->setAlignment(Qt::AlignHCenter | Qt::AlignTop);  // the middle of the text's top goes there
     // [/annotations]
+}
+
+void icons(PlotWidget* plot)
+{
+    const Ascent ascent = sampleAscent();
+    plot->setTitle("Ascent acceleration");
+    plot->xAxis()->setLabel("Time (s)");
+    plot->yAxis()->setLabel("Acceleration (m/s²)");
+    rocketplot::LineSeries* acceleration = plot->addLine(ascent.time, ascent.acceleration);
+    // [annotations-icons]
+    const QIcon warning = plot->style()->standardIcon(QStyle::SP_MessageBoxWarning);
+    const QIcon start   = plot->style()->standardIcon(QStyle::SP_MediaPlay);  // or QIcon(":/...")
+
+    // On the curve: valueAt() is the y its line passes through at an x.
+    if (const std::optional<double> y = acceleration->valueAt(140.0))
+    {
+        rocketplot::IconAnnotation* peak = plot->addIcon(140.0, *y, warning);
+        peak->setAlignment(Qt::AlignHCenter | Qt::AlignBottom);  // standing on the point
+        peak->setToolTip("<b>3.2 g</b> just before cutoff");     // while the pointer is on it
+    }
+
+    // On an event's flag, before its name; or alone, without one.
+    plot->addEvent(0.0, "Liftoff")->setIcon(start);
+    plot->addEvent(150.0, {})->setIcon(warning);
+    // [/annotations-icons]
 }
 
 void options(const QString& /*scratch*/)
@@ -109,6 +140,18 @@ void options(const QString& /*scratch*/)
     plot->addHorizontalLine(0.75)->setCoordinates(rocketplot::AnnotationCoordinates::PLOT_AREA);
     // [/annotations-pinned]
 
+    // [annotations-hover]
+    // What the pointer is on: show its details elsewhere (a status bar, a side panel).
+    QObject::connect(plot, &rocketplot::PlotWidget::annotationHovered, plot,
+                     [](rocketplot::Annotation* annotation) {
+                         if (annotation == nullptr)
+                         {
+                             return;  // the pointer moved off it
+                         }
+                         // ...
+                     });
+    // [/annotations-hover]
+
     // [annotations-common]
     rocketplot::Annotation* any = peak;
     any->setVisible(false);
@@ -127,6 +170,7 @@ void options(const QString& /*scratch*/)
 void addAnnotationExamples(Examples& examples)
 {
     examples.addPlot(QStringLiteral("annotations"), annotated, {720, 440});
+    examples.addPlot(QStringLiteral("annotations-icons"), icons);
     examples.demonstrations.push_back(
         {.name = QStringLiteral("annotation options"), .run = options});
 }

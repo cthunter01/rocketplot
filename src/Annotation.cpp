@@ -2,6 +2,7 @@
 
 #include <QColor>
 #include <QObject>
+#include <QString>
 
 #include "Logging.h"
 #include "rocketplot/Axis.h"
@@ -77,6 +78,16 @@ void Annotation::setCoordinates(AnnotationCoordinates coordinates)
         return;
     }
     m_coordinates = coordinates;
+    Q_EMIT changed();
+}
+
+void Annotation::setToolTip(const QString& toolTip)
+{
+    if (toolTip == m_toolTip)
+    {
+        return;
+    }
+    m_toolTip = toolTip;
     Q_EMIT changed();
 }
 

@@ -43,6 +43,7 @@ namespace rocketplot
 class Annotation;
 class Axis;
 class EventMarker;
+class IconAnnotation;
 class InputBindings;
 class InteractionController;
 class Legend;
@@ -201,6 +202,8 @@ public:
     EventMarker* addEvent(double x, const QString& label);
     /// A rectangle at data coordinates (y on yAxis()), outlined in the theme's annotation color.
     RectAnnotation* addRect(const QRectF& rect, const QString& label = {});
+    /// @p icon at the point (@p x, @p y), 16 × 16 pixels by default.
+    IconAnnotation* addIcon(double x, double y, const QIcon& icon);
 
     /// Every annotation, in the order added (later ones are drawn on top within their layer).
     [[nodiscard]] QList<Annotation*> annotations() const;
@@ -208,6 +211,12 @@ public:
     void removeAnnotation(Annotation* annotation);
     /// Removes and deletes every annotation.
     void clearAnnotations();
+    /// The annotation that drew what is at @p position (widget coordinates) and that the pointer
+    /// can be on: a text's box, an icon, an event's flag, or the label of a line, a span or a
+    /// rectangle; the one on top where several overlap. Null where there is none, and over the
+    /// legend. As last drawn: what the pointer is on, for tool tips (Annotation::setToolTip())
+    /// and annotationHovered().
+    [[nodiscard]] Annotation* annotationAt(QPointF position) const;
 
     // Axes, legend, title
     // --------------------------------------------------------------------------------------
@@ -401,6 +410,8 @@ Q_SIGNALS:
     void annotationAdded(rocketplot::Annotation* annotation);
     /// Emitted just before @p annotation is deleted.
     void annotationRemoved(rocketplot::Annotation* annotation);
+    /// The pointer moved onto what @p annotation drew (see annotationAt()), or off it: null.
+    void annotationHovered(rocketplot::Annotation* annotation);
 
 protected:
     bool event(QEvent* event) override;

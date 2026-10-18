@@ -20,6 +20,7 @@ class QPen;
 namespace rocketplot
 {
 
+struct AnnotationHit;
 class LineSeries;
 class MarkerPainter;
 struct MarkerStyle;
@@ -58,6 +59,8 @@ struct RenderOptions
     const Series* highlighted = nullptr;
     /// Records where data is drawn, for placing the legend.
     core::Occupancy* occupancy = nullptr;
+    /// Records what annotations drew that the pointer can be on.
+    std::vector<AnnotationHit>* annotationHits = nullptr;
 };
 
 /// Paints a plot with a precomputed layout: background, grid, annotations, series, axes and labels

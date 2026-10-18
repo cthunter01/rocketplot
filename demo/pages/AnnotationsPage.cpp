@@ -2,13 +2,16 @@
 #include <QPointF>
 #include <QRectF>
 #include <QString>
+#include <QStyle>
 #include <QWidget>
 #include <Qt>
+#include <optional>
 
 #include "DemoPage.h"
 #include "Generators.h"
 #include "rocketplot/Axis.h"
 #include "rocketplot/EventMarker.h"
+#include "rocketplot/IconAnnotation.h"
 #include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/RectAnnotation.h"
@@ -30,11 +33,11 @@ QWidget* create(QWidget* parent)
     plot->setTitle("Ascent acceleration");
     plot->xAxis()->setLabel("Time (s)");
     plot->yAxis()->setLabel("Acceleration (m/s²)");
-    const Ascent ascent = simulateAscent(300.0, 10.0, 3);
-    plot->addLine(ascent.time, ascent.acceleration);
+    const Ascent            ascent       = simulateAscent(300.0, 10.0, 3);
+    rocketplot::LineSeries* acceleration = plot->addLine(ascent.time, ascent.acceleration);
 
     // Events: a line with a flag. Flags too close to share a row are staggered.
-    plot->addEvent(0.0, "Liftoff");
+    plot->addEvent(0.0, "Liftoff")->setIcon(plot->style()->standardIcon(QStyle::SP_MediaPlay));
     plot->addEvent(150.0, "MECO");
     plot->addEvent(153.0, "Stage separation");
     plot->addEvent(160.0, "Second-stage ignition");
@@ -51,6 +54,15 @@ QWidget* create(QWidget* parent)
     // Text at a data point; an offset (in pixels) moves it away and draws an arrow back.
     auto* note = plot->addText(95.0, 14.6, "Thrust is steady: the vehicle<br>gets lighter");
     note->setOffset(QPointF(60.0, 80.0));
+
+    // An icon on the curve, with a tool tip: point at it. valueAt() is where the line is at an x.
+    if (const std::optional<double> peak = acceleration->valueAt(148.0))
+    {
+        auto* warning =
+            plot->addIcon(148.0, *peak, plot->style()->standardIcon(QStyle::SP_MessageBoxWarning));
+        warning->setAlignment(Qt::AlignHCenter | Qt::AlignBottom);
+        warning->setToolTip("<b>Peak acceleration</b><br>just before main engine cutoff");
+    }
 
     // A rectangle at data coordinates: here around the coast between the stages.
     auto* staging = plot->addRect(QRectF(QPointF(145.0, -13.0), QPointF(167.0, -3.0)), "Staging");

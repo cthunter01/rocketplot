@@ -2,11 +2,16 @@
 
 #include <QColor>
 #include <QFont>
+#include <QFontMetricsF>
+#include <QIcon>
 #include <QList>
+#include <QPaintEngine>
 #include <QPainter>
 #include <QPen>
+#include <QPixmap>
 #include <QPointF>
 #include <QRectF>
+#include <QSize>
 #include <QSizeF>
 #include <QString>
 #include <Qt>
@@ -27,6 +32,7 @@
 #include "core/Occupancy.h"
 #include "rocketplot/Annotation.h"
 #include "rocketplot/EventMarker.h"
+#include "rocketplot/IconAnnotation.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/Range.h"
 #include "rocketplot/RectAnnotation.h"
@@ -61,6 +67,9 @@ constexpr double kFlagGap      = 4.0;
 constexpr double kFlagRowGap   = 2.0;
 constexpr double kFlagTop      = 2.0;
 constexpr double kFlagRowShare = 0.5;
+constexpr double kFlagIconGap  = 3.0;  // between a flag's icon and its label
+// Icons in drawings (SVG, PDF, print) are images of at least this many pixels per unit.
+constexpr double kDrawingIconRatio = 4.0;
 // Text annotations: padding, and how far outside the plot a point may be for its text to be drawn.
 constexpr double kTextPaddingX = 4.0;
 constexpr double kTextPaddingY = 2.0;
@@ -184,17 +193,28 @@ QColor textOn(const QColor& fill, const Theme& theme)
 // What every drawing function here needs.
 struct Context
 {
-    QPainter*         painter;
-    const PlotLayout* layout;
-    const Theme*      theme;
-    TextPainter*      text;
-    core::Occupancy*  occupancy;
+    QPainter*                   painter;
+    const PlotLayout*           layout;
+    const Theme*                theme;
+    TextPainter*                text;
+    core::Occupancy*            occupancy;
+    std::vector<AnnotationHit>* hits;
 
     void occupy(const QRectF& rect) const
     {
         if (occupancy != nullptr)
         {
             occupancy->addBox(toBox(rect));
+        }
+    }
+
+    // Records that @p annotation drew @p box, as far as it is in the plot area.
+    void hit(const Annotation& annotation, const QRectF& box) const
+    {
+        const QRectF shown = box.intersected(layout->plot);
+        if (hits != nullptr && !shown.isEmpty())
+        {
+            hits->push_back({.annotation = &annotation, .box = shown});
         }
     }
 
@@ -254,8 +274,8 @@ void drawSpan(const Context& context, const ShadedSpan& span)
 }
 
 // @p label inside @p region (the part of a span or rectangle in view) where @p alignment says.
-void drawRegionLabel(const Context& context, const QRectF& region, const QString& label,
-                     Qt::Alignment alignment)
+void drawRegionLabel(const Context& context, const Annotation& annotation, const QRectF& region,
+                     const QString& label, Qt::Alignment alignment)
 {
     if (label.isEmpty() || region.isEmpty())
     {
@@ -267,11 +287,13 @@ void drawRegionLabel(const Context& context, const QRectF& region, const QString
     context.text->draw(*context.painter, label, context.layout->annotationFont,
                        context.theme->secondaryText, box, Qt::AlignCenter);
     context.occupy(box);
+    context.hit(annotation, box);
 }
 
 void drawSpanLabel(const Context& context, const ShadedSpan& span)
 {
-    drawRegionLabel(context, spanRect(span, *context.layout), span.label(), span.labelAlignment());
+    drawRegionLabel(context, span, spanRect(span, *context.layout), span.label(),
+                    span.labelAlignment());
 }
 
 // Rectangles
@@ -460,6 +482,7 @@ void drawLineLabel(const Context& context, const ReferenceLine& line)
     context.drawBoxedText(line.label(), context.theme->secondaryText, box,
                           context.theme->legendBackground);
     context.occupy(box);
+    context.hit(line, box);
 }
 
 // Event flags
@@ -471,13 +494,15 @@ void drawEventFlags(const Context& context, const QList<Annotation*>& annotation
 {
     const QRectF&                   plot = context.layout->plot;
     const QFont&                    font = context.layout->annotationFont;
+    const double                    side = QFontMetricsF(font).height();  // of an icon
     std::vector<const EventMarker*> events;
     std::vector<core::LabelSpan>    spans;
     double                          height = 0.0;
     for (const Annotation* annotation : annotations)
     {
         const auto* event = qobject_cast<const EventMarker*>(annotation);
-        if (event == nullptr || !event->isVisible() || event->label().isEmpty())
+        if (event == nullptr || !event->isVisible() ||
+            (event->label().isEmpty() && event->icon().isNull()))
         {
             continue;
         }
@@ -486,8 +511,12 @@ void drawEventFlags(const Context& context, const QList<Annotation*>& annotation
         {
             continue;
         }
-        const QSizeF size  = context.text->size(event->label(), font);
-        const double width = size.width() + (2.0 * kFlagPaddingX);
+        const QSizeF text =
+            event->label().isEmpty() ? QSizeF(0.0, side) : context.text->size(event->label(), font);
+        const double icon  = event->icon().isNull()     ? 0.0
+                             : event->label().isEmpty() ? side
+                                                        : side + kFlagIconGap;
+        const double width = text.width() + icon + (2.0 * kFlagPaddingX);
         // A flag flies to the right of its line, or to the left where it would leave the plot,
         // flush with the pixel column the line is drawn in.
         const double dpr    = context.layout->devicePixelRatio;
@@ -497,7 +526,8 @@ void drawEventFlags(const Context& context, const QList<Annotation*>& annotation
         const double left = flipped ? column + (1.0 / dpr) - width : column;
         events.push_back(event);
         spans.push_back({.left = left, .right = left + width});
-        height = std::max(height, size.height() + (2.0 * kFlagPaddingY));
+        height = std::max(height,
+                          std::max(text.height(), icon > 0.0 ? side : 0.0) + (2.0 * kFlagPaddingY));
     }
     if (events.empty())
     {
@@ -514,10 +544,56 @@ void drawEventFlags(const Context& context, const QList<Annotation*>& annotation
         {
             continue;
         }
-        const QColor fill = events[i]->color();
-        context.drawBoxedText(events[i]->label(), textOn(fill, *context.theme), box, fill);
+        const EventMarker& event = *events[i];
+        const QColor       fill  = event.color();
+        if (event.icon().isNull())
+        {
+            context.drawBoxedText(event.label(), textOn(fill, *context.theme), box, fill);
+        }
+        else
+        {
+            // The icon at the start of the flag, the label in the rest of it.
+            const QRectF icon(box.left() + kFlagPaddingX, box.center().y() - (side / 2.0), side,
+                              side);
+            context.drawBoxedText({}, textOn(fill, *context.theme), box, fill);
+            drawIcon(*context.painter, event.icon(),
+                     snappedToDevice(icon, context.layout->devicePixelRatio),
+                     context.layout->devicePixelRatio);
+            if (!event.label().isEmpty())
+            {
+                const QRectF rest(icon.right() + kFlagIconGap, box.top(),
+                                  box.right() - kFlagPaddingX - icon.right() - kFlagIconGap,
+                                  box.height());
+                context.text->draw(*context.painter, event.label(), font,
+                                   textOn(fill, *context.theme), rest, Qt::AlignCenter);
+            }
+        }
         context.occupy(box);
+        context.hit(event, box);
     }
+}
+
+// Icons
+// -----------------------------------------------------------------------------------------------------------
+
+void drawIconAnnotation(const Context& context, const IconAnnotation& annotation)
+{
+    const PlotLayout&        layout   = *context.layout;
+    const AnnotationMappings mappings = layout.mappingsFor(annotation);
+    const QPointF            target(mappings.x.toPixel(annotation.position().x()),
+                                    mappings.y.toPixel(annotation.position().y()));
+    const QRectF reach = layout.plot.adjusted(-kTextReach, -kTextReach, kTextReach, kTextReach);
+    if (annotation.icon().isNull() || !std::isfinite(target.x()) || !std::isfinite(target.y()) ||
+        !reach.contains(target))
+    {
+        return;
+    }
+    const QRectF box = snappedToDevice(
+        boxAt(target + annotation.offset(), annotation.size(), annotation.alignment()),
+        layout.devicePixelRatio);
+    drawIcon(*context.painter, annotation.icon(), box, layout.devicePixelRatio);
+    context.occupy(box.intersected(layout.plot));
+    context.hit(annotation, box);
 }
 
 // Text
@@ -604,12 +680,13 @@ void drawText(const Context& context, const TextAnnotation& annotation)
             kLabelRadius);
     }
     context.occupy(box);
+    context.hit(annotation, box);
 }
 
 }  // namespace
 
 void drawAnnotations(QPainter& painter, const PlotWidget& plot, const PlotLayout& layout,
-                     TextPainter& text, AnnotationLayer layer, core::Occupancy* occupancy)
+                     TextPainter& text, AnnotationLayer layer, const AnnotationRecord& record)
 {
     const QList<Annotation*> annotations = plot.annotations();
     if (annotations.isEmpty())
@@ -621,7 +698,8 @@ void drawAnnotations(QPainter& painter, const PlotWidget& plot, const PlotLayout
         .layout    = &layout,
         .theme     = &plot.theme(),
         .text      = &text,
-        .occupancy = occupancy,
+        .occupancy = record.occupancy,
+        .hits      = record.hits,
     };
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing, true);
@@ -651,12 +729,16 @@ void drawAnnotations(QPainter& painter, const PlotWidget& plot, const PlotLayout
         {
             drawText(context, *note);
         }
+        else if (const auto* icon = qobject_cast<const IconAnnotation*>(annotation))
+        {
+            drawIconAnnotation(context, *icon);
+        }
     }
     painter.restore();
 }
 
 void drawAnnotationLabels(QPainter& painter, const PlotWidget& plot, const PlotLayout& layout,
-                          TextPainter& text, core::Occupancy* occupancy)
+                          TextPainter& text, const AnnotationRecord& record)
 {
     const QList<Annotation*> annotations = plot.annotations();
     if (annotations.isEmpty())
@@ -668,7 +750,8 @@ void drawAnnotationLabels(QPainter& painter, const PlotWidget& plot, const PlotL
         .layout    = &layout,
         .theme     = &plot.theme(),
         .text      = &text,
-        .occupancy = occupancy,
+        .occupancy = record.occupancy,
+        .hits      = record.hits,
     };
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing, true);
@@ -684,7 +767,7 @@ void drawAnnotationLabels(QPainter& painter, const PlotWidget& plot, const PlotL
         }
         else if (const auto* rect = qobject_cast<const RectAnnotation*>(annotation))
         {
-            drawRegionLabel(context, visibleRect(*rect, *context.layout), rect->label(),
+            drawRegionLabel(context, *rect, visibleRect(*rect, *context.layout), rect->label(),
                             rect->labelAlignment());
         }
         else if (const auto* line = qobject_cast<const ReferenceLine*>(annotation))
@@ -694,6 +777,20 @@ void drawAnnotationLabels(QPainter& painter, const PlotWidget& plot, const PlotL
     }
     drawEventFlags(context, annotations);  // on top: they are the most crowded
     painter.restore();
+}
+
+void drawIcon(QPainter& painter, const QIcon& icon, const QRectF& box, double devicePixelRatio)
+{
+    const QPaintEngine* engine = painter.paintEngine();
+    const bool          raster = engine == nullptr || engine->type() == QPaintEngine::Raster;
+    const double  ratio = raster ? devicePixelRatio : std::max(devicePixelRatio, kDrawingIconRatio);
+    const QSize   size(std::max(1, static_cast<int>(std::lround(box.width()))),
+                       std::max(1, static_cast<int>(std::lround(box.height()))));
+    const QPixmap pixmap = icon.pixmap(size, ratio);
+    if (!pixmap.isNull())
+    {
+        painter.drawPixmap(box, pixmap, QRectF(QPointF(), QSizeF(pixmap.size())));
+    }
 }
 
 }  // namespace rocketplot

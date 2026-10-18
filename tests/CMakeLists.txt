@@ -12,6 +12,7 @@ add_executable(rocketplot_core_tests
     core/FakeMathFont.h
     core/FontFile.h
     core/GlyphSubstitutionsTests.cpp
+    core/InterpolateTests.cpp
     core/LabelStaggerTests.cpp
     core/LineBandTests.cpp
     core/MathDump.h
@@ -46,6 +47,7 @@ add_executable(rocketplot_tests
     widgets/AnnotationTests.cpp
     widgets/AxisTests.cpp
     widgets/EventMarkerTests.cpp
+    widgets/IconAnnotationTests.cpp
     widgets/InputBindingsTests.cpp
     widgets/LegendTests.cpp
     widgets/PlotGridTests.cpp

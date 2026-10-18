@@ -164,12 +164,12 @@ void PlotRenderer::render(QPainter& painter, RenderStats& stats, const RenderOpt
     painter.save();
     // Within whatever clip the painter came with: PlotWidget::paint() draws into others' drawings.
     painter.setClipRect(m_layout->plot, Qt::IntersectClip);
-    drawAnnotations(painter, *m_plot, *m_layout, *m_text, AnnotationLayer::BELOW_SERIES,
-                    m_options.occupancy);
+    const AnnotationRecord record{.occupancy = m_options.occupancy,
+                                  .hits      = m_options.annotationHits};
+    drawAnnotations(painter, *m_plot, *m_layout, *m_text, AnnotationLayer::BELOW_SERIES, record);
     drawSeries(painter, stats);
-    drawAnnotations(painter, *m_plot, *m_layout, *m_text, AnnotationLayer::ABOVE_SERIES,
-                    m_options.occupancy);
-    drawAnnotationLabels(painter, *m_plot, *m_layout, *m_text, m_options.occupancy);
+    drawAnnotations(painter, *m_plot, *m_layout, *m_text, AnnotationLayer::ABOVE_SERIES, record);
+    drawAnnotationLabels(painter, *m_plot, *m_layout, *m_text, record);
     painter.restore();
     painter.setRenderHint(QPainter::Antialiasing, false);
     drawAxes(painter);

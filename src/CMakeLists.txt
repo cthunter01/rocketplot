@@ -12,6 +12,7 @@ add_library(rocketplot_core OBJECT
     core/ErrorData.cpp
     core/ErrorGeometry.cpp
     core/GlyphSubstitutions.cpp
+    core/Interpolate.cpp
     core/LabelStagger.cpp
     core/LineBand.cpp
     core/MathLayout.cpp
@@ -78,6 +79,7 @@ target_sources(rocketplot
         BundledMathFont.h
         ${rocketplot_math_font_source}
         EventMarker.cpp
+        IconAnnotation.cpp
         InputBindings.cpp
         InteractionController.cpp
         InteractionController.h
@@ -129,6 +131,7 @@ target_sources(rocketplot
             ${PROJECT_SOURCE_DIR}/include/rocketplot/Axis.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/EventMarker.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/ExportOptions.h
+            ${PROJECT_SOURCE_DIR}/include/rocketplot/IconAnnotation.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/InputBindings.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/Legend.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/LineSeries.h

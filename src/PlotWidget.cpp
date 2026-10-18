@@ -14,6 +14,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QHelpEvent>
 #include <QIODevice>
 #include <QIcon>
 #include <QImage>
@@ -42,6 +43,7 @@
 #include <QSize>
 #include <QString>
 #include <QStyleHints>
+#include <QToolTip>
 #include <QTouchEvent>
 #include <QWheelEvent>
 #include <QWidget>
@@ -54,12 +56,14 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <span>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "AnnotationPainter.h"
 #include "InteractionController.h"
 #include "LegendLayout.h"
 #include "Logging.h"
@@ -81,6 +85,7 @@
 #include "rocketplot/Axis.h"
 #include "rocketplot/EventMarker.h"
 #include "rocketplot/ExportOptions.h"
+#include "rocketplot/IconAnnotation.h"
 #include "rocketplot/InputBindings.h"
 #include "rocketplot/Legend.h"
 #include "rocketplot/LineSeries.h"
@@ -203,6 +208,10 @@ struct PlotWidget::Private
     double                 valueWidth = 0.0;  // the widest values while the crosshair is shown
     std::optional<QPointF> pointer;           // over the widget
     QPointer<Series>       pointed;           // the series whose legend entry the pointer is on
+    // What the annotations of the cached rendering drew that the pointer can be on, and the
+    // annotation the pointer is on.
+    std::vector<AnnotationHit> annotationHits;
+    QPointer<Annotation>       hovered;
 
     ThemeMode                   themeMode = ThemeMode::SYSTEM;
     std::optional<LegendAnchor> bestAnchor;  // where a BEST legend went last
@@ -536,6 +545,11 @@ EventMarker* PlotWidget::addEvent(double x, const QString& label)
     return adoptAnnotation(new EventMarker(this, x, label));
 }
 
+IconAnnotation* PlotWidget::addIcon(double x, double y, const QIcon& icon)
+{
+    return adoptAnnotation(new IconAnnotation(this, QPointF(x, y), icon));
+}
+
 RectAnnotation* PlotWidget::addRect(const QRectF& rect, const QString& label)
 {
     auto* annotation = new RectAnnotation(this, rect);
@@ -555,6 +569,14 @@ void PlotWidget::removeAnnotation(Annotation* annotation)
         return;
     }
     Q_EMIT annotationRemoved(annotation);
+    // Nothing the pointer can be on may point at it until the plot is drawn again.
+    std::erase_if(m_impl->annotationHits,
+                  [annotation](const AnnotationHit& hit) { return hit.annotation == annotation; });
+    if (m_impl->hovered == annotation)
+    {
+        m_impl->hovered = nullptr;
+        Q_EMIT annotationHovered(nullptr);
+    }
     delete annotation;
     applyAutoscale();
     invalidate();
@@ -566,6 +588,24 @@ void PlotWidget::clearAnnotations()
     {
         removeAnnotation(m_impl->annotations.back());
     }
+}
+
+Annotation* PlotWidget::annotationAt(QPointF position) const
+{
+    if (m_impl->legendLayout.box.contains(position))
+    {
+        return nullptr;
+    }
+    // The last drawn is on top.
+    for (const AnnotationHit& hit : std::views::reverse(m_impl->annotationHits))
+    {
+        if (hit.box.contains(position))
+        {
+            const auto found = std::ranges::find(m_impl->annotations, hit.annotation);
+            return found != m_impl->annotations.end() ? *found : nullptr;
+        }
+    }
+    return nullptr;
 }
 
 // Axes, legend, title
@@ -1037,6 +1077,12 @@ bool PlotWidget::isOnLegend(QPointF position) const
 
 void PlotWidget::pointAt(std::optional<QPointF> position)
 {
+    if (Annotation* under = position ? annotationAt(*position) : nullptr;
+        under != m_impl->hovered.data())
+    {
+        m_impl->hovered = under;
+        Q_EMIT annotationHovered(under);
+    }
     m_impl->pointer             = position;
     const LegendEntry* entry    = position ? legendEntryAt(*position) : nullptr;
     Series*            series   = entry != nullptr ? entry->series : nullptr;
@@ -1407,7 +1453,9 @@ void PlotWidget::paintLayout(QPainter& painter, const PlotLayout& layout) const
     const bool      best = m_impl->legend->anchor() == LegendAnchor::BEST;
     PlotRenderer    renderer(*this, layout, m_impl->markers, m_impl->text);
     renderer.render(painter, stats,
-                    {.highlighted = nullptr, .occupancy = best ? &occupancy : nullptr});
+                    {.highlighted    = nullptr,
+                     .occupancy      = best ? &occupancy : nullptr,
+                     .annotationHits = nullptr});
     // The legend where it hides the least in this layout, staying where it is on screen if that is
     // about as good.
     const LegendLayout legend = layoutLegend(*this, layout, m_impl->text,
@@ -1772,6 +1820,25 @@ bool PlotWidget::event(QEvent* event)
         case QEvent::Hide:
             invalidate();  // linked plots line up with the plots shown
             break;
+        case QEvent::ToolTip:
+            // An annotation's tool tip, as long as the pointer stays on what it drew; else the
+            // widget's own, if it has one.
+            if (const auto* help = dynamic_cast<QHelpEvent*>(event); help != nullptr)
+            {
+                const QPointF position(help->pos());
+                const auto hit = std::ranges::find_if(std::views::reverse(m_impl->annotationHits),
+                                                      [&position](const AnnotationHit& candidate) {
+                                                          return candidate.box.contains(position);
+                                                      });
+                if (const Annotation* annotation = annotationAt(position);
+                    annotation != nullptr && !annotation->toolTip().isEmpty())
+                {
+                    QToolTip::showText(help->globalPos(), annotation->toolTip(), this,
+                                       hit->box.toAlignedRect());
+                    return true;
+                }
+            }
+            break;
         default:
             break;
     }
@@ -1801,10 +1868,12 @@ void PlotWidget::renderCache()
         }
         QPainter     painter(&m_impl->cache);
         PlotRenderer renderer(*this, m_impl->cacheLayout, m_impl->markers, m_impl->text);
+        m_impl->annotationHits.clear();
         renderer.render(painter, stats,
                         {
-                            .highlighted = highlightedSeries(),
-                            .occupancy   = best ? &m_impl->occupancy : nullptr,
+                            .highlighted    = highlightedSeries(),
+                            .occupancy      = best ? &m_impl->occupancy : nullptr,
+                            .annotationHits = &m_impl->annotationHits,
                         });
     }
     stats.milliseconds = static_cast<double>(timer.nsecsElapsed()) / 1e6;

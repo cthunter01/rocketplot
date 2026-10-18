@@ -1,5 +1,6 @@
 #include "rocketplot/EventMarker.h"
 
+#include <QIcon>
 #include <QString>
 #include <utility>
 
@@ -34,6 +35,17 @@ void EventMarker::setLabel(const QString& label)
         return;
     }
     m_label = label;
+    Q_EMIT changed();
+}
+
+void EventMarker::setIcon(const QIcon& icon)
+{
+    if ((icon.isNull() && m_icon.isNull()) ||
+        (!icon.isNull() && !m_icon.isNull() && icon.cacheKey() == m_icon.cacheKey()))
+    {
+        return;
+    }
+    m_icon = icon;
     Q_EMIT changed();
 }
 

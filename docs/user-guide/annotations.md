@@ -37,6 +37,7 @@ note->setAlignment(Qt::AlignHCenter | Qt::AlignTop);  // the middle of the text'
 | `RectAnnotation` | `addRect(rect, label)` | A rectangle between two x and two y values |
 | `TextAnnotation` | `addText(x, y, text)` | Text at a point, optionally set off from it with an arrow |
 | `EventMarker` | `addEvent(x, label)` | A vertical line with its name on a flag at the top |
+| `IconAnnotation` | `addIcon(x, y, icon)` | An icon at a point |
 
 Like series, annotations are made and owned by the plot, which returns a pointer to set them up with.
 
@@ -121,6 +122,35 @@ peak->setPosition(79.5, 31.9);      // the point it is about, in data coordinate
   and the data. `setBackgroundColor()` gives the box a color of its own, and `setFrameVisible(true)` draws a
   hairline around it, as around the legend.
 
+## Icons
+
+An icon marks a point of the data: an event on a curve, a warning, a waypoint. It is drawn at its size whatever the
+zoom (16 × 16 pixels by default; `setSize()`), and stays sharp on high-DPI screens and in exports. Event markers
+can have one on their flag too.
+
+![A curve with a warning icon standing on it, and event flags with icons](images/annotations-icons.png)
+
+<!-- example: annotations-icons -->
+```cpp
+const QIcon warning = plot->style()->standardIcon(QStyle::SP_MessageBoxWarning);
+const QIcon start   = plot->style()->standardIcon(QStyle::SP_MediaPlay);  // or QIcon(":/...")
+
+// On the curve: valueAt() is the y its line passes through at an x.
+if (const std::optional<double> y = acceleration->valueAt(140.0))
+{
+    rocketplot::IconAnnotation* peak = plot->addIcon(140.0, *y, warning);
+    peak->setAlignment(Qt::AlignHCenter | Qt::AlignBottom);  // standing on the point
+    peak->setToolTip("<b>3.2 g</b> just before cutoff");     // while the pointer is on it
+}
+
+// On an event's flag, before its name; or alone, without one.
+plot->addEvent(0.0, "Liftoff")->setIcon(start);
+plot->addEvent(150.0, {})->setIcon(warning);
+```
+
+`valueAt()` is the y the line passes through at an x, between the points around it as the line is drawn (also on a
+logarithmic axis). It has none outside the data, in a gap, or for a series whose x values aren't sorted.
+
 ## Event markers
 
 Something that happened at one x: a vertical line with a flag.
@@ -130,7 +160,8 @@ their flags are staggered onto rows: a flag that would cover its neighbor goes o
 the top. When there are more events than the rows that fit, the flags without room are left out until the view is
 zoomed in; their lines stay.
 
-An event without a label is only the line.
+An event without a label is only the line, unless it has an icon (`setIcon()`, see above): the icon then flies
+alone on the flag.
 
 ## Pinned to the plot area
 
@@ -153,6 +184,26 @@ plot->addHorizontalLine(0.75)->setCoordinates(rocketplot::AnnotationCoordinates:
 
 Any annotation can be pinned. A text's offset is still in pixels, and autoscale never makes room for a pinned
 annotation.
+
+## Tool tips and the pointer
+
+Every annotation can have a tool tip (`setToolTip()`), shown while the pointer rests on what it draws: a text's box,
+an icon, an event's flag, or the label of a line, a span or a rectangle. `plot->annotationAt(position)` says which
+annotation is there, and the plot emits `annotationHovered()` as the pointer moves onto one (and with null as it
+moves off):
+
+<!-- example: annotations-hover -->
+```cpp
+// What the pointer is on: show its details elsewhere (a status bar, a side panel).
+QObject::connect(plot, &rocketplot::PlotWidget::annotationHovered, plot,
+                 [](rocketplot::Annotation* annotation) {
+                     if (annotation == nullptr)
+                     {
+                         return;  // the pointer moved off it
+                     }
+                     // ...
+                 });
+```
 
 ## Common settings
 

@@ -1,10 +1,18 @@
 #include "rocketplot/Annotation.h"
 
+#include <QApplication>
 #include <QColor>
+#include <QHelpEvent>
+#include <QIcon>
 #include <QImage>
 #include <QList>
+#include <QPixmap>
+#include <QPoint>
+#include <QPointF>
 #include <QPointer>
 #include <QSignalSpy>
+#include <QTest>
+#include <QToolTip>
 #include <QVariant>
 #include <Qt>
 #include <vector>
@@ -14,6 +22,8 @@
 #include "RenderedPlotTest.h"
 #include "rocketplot/Axis.h"
 #include "rocketplot/EventMarker.h"
+#include "rocketplot/IconAnnotation.h"
+#include "rocketplot/Legend.h"
 #include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/ReferenceLine.h"
@@ -30,6 +40,27 @@ using rocketplot::AnnotationLayer;
 using rocketplot::PlotWidget;
 
 using AnnotationTest = rocketplot::test::RenderedPlotTest;
+
+// A solid red square.
+QIcon redIcon()
+{
+    QPixmap pixmap(16, 16);
+    pixmap.fill(Qt::red);
+    return {pixmap};
+}
+
+// A plot on screen, for the pointer and tool tips.
+class PointingTest : public rocketplot::test::RenderedPlotTest
+{
+protected:
+    void SetUp() override
+    {
+        RenderedPlotTest::SetUp();
+        m_plot.show();
+        ASSERT_TRUE(QTest::qWaitForWindowExposed(&m_plot));
+    }
+    void TearDown() override { QToolTip::hideText(); }
+};
 
 TEST(Annotation, AddedAndRemoved)
 {
@@ -181,6 +212,89 @@ TEST_F(AnnotationTest, TheLayerDecidesWhatCoversWhat)
     EXPECT_EQ(render().pixelColor(pixelAt(5.0, 7.0)), QColor(Qt::red));
     span->setLayer(AnnotationLayer::ABOVE_SERIES);
     EXPECT_EQ(render().pixelColor(pixelAt(5.0, 5.0)), QColor(Qt::red));
+}
+
+TEST_F(AnnotationTest, AnnotationAtFindsWhatThePointerCanBeOn)
+{
+    Annotation* icon  = m_plot.addIcon(2.0, 2.0, redIcon());
+    Annotation* note  = m_plot.addText(5.0, 5.0, "note");
+    Annotation* event = m_plot.addEvent(8.0, "Burnout");
+    Annotation* line  = m_plot.addHorizontalLine(3.0, "limit");     // labeled above its right end
+    Annotation* span  = m_plot.addVerticalSpan(0.5, 1.5, "phase");  // labeled at its bottom left
+    static_cast<void>(render());
+    EXPECT_EQ(m_plot.annotationAt(pixelAt(2.0, 2.0)), icon);
+    EXPECT_EQ(m_plot.annotationAt(pixelAt(5.0, 5.0)), note);
+    const QPointF flag(m_plot.mapFromData(QPointF(8.0, 0.0)).x() + 6.0,
+                       m_plot.plotArea().top() + 6.0);
+    EXPECT_EQ(m_plot.annotationAt(flag), event);
+    EXPECT_EQ(m_plot.annotationAt(pixelAt(10.0, 3.0, QPoint(-12, -9))), line);
+    EXPECT_EQ(m_plot.annotationAt(pixelAt(0.5, 0.0, QPoint(10, -8))), span);
+    // Not the line itself, nor anywhere else.
+    EXPECT_EQ(m_plot.annotationAt(pixelAt(4.0, 3.0)), nullptr);
+    EXPECT_EQ(m_plot.annotationAt(pixelAt(3.5, 7.0)), nullptr);
+
+    // Where two overlap, the one on top: drawn later.
+    Annotation* over = m_plot.addText(5.0, 5.0, "over");
+    static_cast<void>(render());
+    EXPECT_EQ(m_plot.annotationAt(pixelAt(5.0, 5.0)), over);
+    // A removed one is gone at once; a hidden one once drawn again.
+    m_plot.removeAnnotation(over);
+    EXPECT_EQ(m_plot.annotationAt(pixelAt(5.0, 5.0)), note);
+    note->setVisible(false);
+    static_cast<void>(render());
+    EXPECT_EQ(m_plot.annotationAt(pixelAt(5.0, 5.0)), nullptr);
+}
+
+TEST_F(AnnotationTest, TheLegendCoversThem)
+{
+    m_plot.addLine(std::vector<double>{0, 10}, std::vector<double>{0, 10}, "up");
+    m_plot.addLine(std::vector<double>{0, 10}, std::vector<double>{10, 0}, "down");
+    m_plot.legend()->setAnchor(rocketplot::LegendAnchor::TOP_LEFT);
+    static_cast<void>(render());
+    const QPointF under = m_plot.legendArea().center();
+    m_plot.addIcon(m_plot.mapToData(under).x(), m_plot.mapToData(under).y(), redIcon());
+    static_cast<void>(render());
+    EXPECT_EQ(m_plot.annotationAt(under), nullptr);
+}
+
+TEST_F(PointingTest, AToolTipOverIt)
+{
+    Annotation* note = m_plot.addText(5.0, 5.0, "note");
+    note->setToolTip("A <b>note</b>");
+    m_plot.addIcon(2.0, 2.0, redIcon());  // without a tool tip
+    static_cast<void>(render());
+    const auto help = [this](QPoint position) {
+        QHelpEvent event(QEvent::ToolTip, position, m_plot.mapToGlobal(position));
+        QApplication::sendEvent(&m_plot, &event);
+    };
+    help(pixelAt(5.0, 5.0));
+    EXPECT_TRUE(QToolTip::isVisible());
+    EXPECT_EQ(QToolTip::text(), "A <b>note</b>");
+    QToolTip::hideText();  // after a moment
+    ASSERT_TRUE(QTest::qWaitFor([] { return !QToolTip::isVisible(); }));
+    help(pixelAt(2.0, 2.0));
+    EXPECT_FALSE(QToolTip::isVisible());
+}
+
+TEST_F(PointingTest, HoveringSignalsOnAndOff)
+{
+    Annotation* icon = m_plot.addIcon(2.0, 2.0, redIcon());
+    static_cast<void>(render());
+    QTest::mouseMove(&m_plot, QPoint(1, 1));
+    QSignalSpy hovered(&m_plot, &PlotWidget::annotationHovered);
+    QTest::mouseMove(&m_plot, pixelAt(2.0, 2.0));
+    ASSERT_EQ(hovered.count(), 1);
+    EXPECT_EQ(qvariant_cast<Annotation*>(hovered.at(0).at(0)), icon);
+    QTest::mouseMove(&m_plot, pixelAt(2.0, 2.0, QPoint(2, 2)));  // still on it
+    EXPECT_EQ(hovered.count(), 1);
+    QTest::mouseMove(&m_plot, pixelAt(6.0, 6.0));
+    ASSERT_EQ(hovered.count(), 2);
+    EXPECT_EQ(qvariant_cast<Annotation*>(hovered.at(1).at(0)), nullptr);
+    // Removing the one the pointer is on is moving off it.
+    QTest::mouseMove(&m_plot, pixelAt(2.0, 2.0));
+    m_plot.removeAnnotation(icon);
+    ASSERT_EQ(hovered.count(), 4);
+    EXPECT_EQ(qvariant_cast<Annotation*>(hovered.at(3).at(0)), nullptr);
 }
 
 }  // namespace

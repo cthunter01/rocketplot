@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QIcon>
 #include <QObject>
 #include <QString>
 
@@ -12,10 +13,11 @@ namespace rocketplot
 
 class PlotWidget;
 
-/// Something that happened at one x: a vertical line across the plot with its name on a flag at
-/// the top. Created by PlotWidget::addEvent(). The flags of events close together are staggered
-/// onto rows so they don't cover each other; when there are too many for the rows that fit, the
-/// flags without room are left out until the view is zoomed in (their lines stay).
+/// Something that happened at one x: a vertical line across the plot with its name (and an icon,
+/// if it has one) on a flag at the top. Created by PlotWidget::addEvent(). The flags of events
+/// close together are staggered onto rows so they don't cover each other; when there are too many
+/// for the rows that fit, the flags without room are left out until the view is zoomed in (their
+/// lines stay).
 ///
 /// @code
 /// plot->addEvent(150.0, "MECO");
@@ -27,6 +29,7 @@ class ROCKETPLOT_EXPORT EventMarker : public Annotation
     Q_OBJECT
     Q_PROPERTY(double x READ x WRITE setX NOTIFY changed)
     Q_PROPERTY(QString label READ label WRITE setLabel NOTIFY changed)
+    Q_PROPERTY(QIcon icon READ icon WRITE setIcon NOTIFY changed)
 
 public:
     ~EventMarker() override;
@@ -41,6 +44,11 @@ public:
     [[nodiscard]] QString label() const { return m_label; }
     void                  setLabel(const QString& label);
 
+    /// An icon on the flag, before the label, at the height of the label's text; with no label, a
+    /// flag of the icon alone. None (a null QIcon) by default.
+    [[nodiscard]] QIcon icon() const { return m_icon; }
+    void                setIcon(const QIcon& icon);
+
 private:
     friend class PlotWidget;
     EventMarker(PlotWidget* plot, double x, QString label);
@@ -49,6 +57,7 @@ private:
 
     double  m_x;
     QString m_label;
+    QIcon   m_icon;
 };
 
 }  // namespace rocketplot

@@ -15,8 +15,10 @@
 #include <vector>
 
 #include "Logging.h"
+#include "PlotLayout.h"
 #include "PlotState.h"
 #include "core/ErrorData.h"
+#include "core/Interpolate.h"
 #include "core/SeriesData.h"
 #include "rocketplot/Axis.h"
 #include "rocketplot/PlotWidget.h"
@@ -191,6 +193,11 @@ bool Series::isSortedByX() const noexcept
 std::optional<std::size_t> Series::nearestIndex(double x) const
 {
     return m_data->nearestIndex(x);
+}
+
+std::optional<double> Series::valueAt(double x) const
+{
+    return core::interpolateY(*m_data, x, scaleOf(*plot()->xAxis()), scaleOf(*yAxis()));
 }
 
 bool Series::hasUniformX() const noexcept
