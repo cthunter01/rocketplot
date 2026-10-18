@@ -6,6 +6,7 @@
 #include <QPointF>
 #include <QString>
 #include <cmath>
+#include <limits>
 #include <optional>
 
 namespace rocketplot::state
@@ -50,6 +51,28 @@ std::optional<double> toNumber(const QJsonValue& value)
         return std::nullopt;
     }
     return value.toDouble();
+}
+
+QJsonValue fromUnbounded(double value)
+{
+    if (std::isinf(value))
+    {
+        return value > 0.0 ? QStringLiteral("inf") : QStringLiteral("-inf");
+    }
+    return value;
+}
+
+std::optional<double> toUnbounded(const QJsonValue& value)
+{
+    if (value == QJsonValue(QStringLiteral("inf")))
+    {
+        return std::numeric_limits<double>::infinity();
+    }
+    if (value == QJsonValue(QStringLiteral("-inf")))
+    {
+        return -std::numeric_limits<double>::infinity();
+    }
+    return toNumber(value);
 }
 
 std::optional<bool> toBool(const QJsonValue& value)

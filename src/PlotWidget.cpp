@@ -266,6 +266,7 @@ struct PlotWidget::Private
     double                         headroomShare   = 0.0;  // left free above autoscaled y data
     bool                           debugOverlay    = false;
     bool                           crosshair       = false;
+    bool                           zeroAligned     = false;  // the y axes' zeros line up
     bool                           dirty           = true;
     bool                           pointStale      = true;
 
@@ -719,6 +720,23 @@ Legend* PlotWidget::legend() const noexcept
 PlotLink* PlotWidget::link() const noexcept
 {
     return m_impl->link;
+}
+
+bool PlotWidget::areYAxesZeroAligned() const noexcept
+{
+    return m_impl->zeroAligned;
+}
+
+void PlotWidget::setYAxesZeroAligned(bool aligned)
+{
+    if (aligned == m_impl->zeroAligned)
+    {
+        return;
+    }
+    m_impl->zeroAligned = aligned;
+    refitY();
+    invalidate();
+    Q_EMIT yAxesZeroAlignedChanged();
 }
 
 void PlotWidget::setLink(PlotLink* link)
@@ -1594,7 +1612,8 @@ void PlotWidget::refitX()
     }
     else
     {
-        axis.applyRange(core::autoscaleRange(bounds, axis.autoscaleMargin(), scale));
+        axis.applyRange(core::autoscaleRange(bounds, axis.autoscaleMargin(), scale,
+                                             {.includeWithin = axis.autoscaleIncludesZero()}));
     }
 }
 
@@ -1612,7 +1631,8 @@ std::optional<Range> PlotWidget::fitY(const Axis& axis) const
     {
         return std::nullopt;
     }
-    return core::autoscaleRange(bounds, axis.autoscaleMargin(), scale);
+    return core::autoscaleRange(bounds, axis.autoscaleMargin(), scale,
+                                {.includeWithin = axis.autoscaleIncludesZero()});
 }
 
 void PlotWidget::refitY()
@@ -1630,16 +1650,29 @@ void PlotWidget::refitY()
 
 RangeOverrides PlotWidget::headroomRanges(double share) const
 {
-    const bool headroom = m_impl->flagPlacement == FlagPlacement::HEADROOM;
-    const auto fitted   = [&](const Axis& axis) -> std::optional<Range> {
-        const std::optional<Range> fit = fitY(axis);
-        if (!fit || !headroom)
-        {
-            return fit;
-        }
-        return core::withHeadroom(*fit, share, scaleOf(axis));
-    };
-    return {.x = std::nullopt, .y = fitted(*m_impl->yAxis), .y2 = fitted(*m_impl->yAxis2)};
+    // Fit, line the zeros up, then leave the headroom: the same share of both keeps them in line.
+    std::optional<Range> y  = fitY(*m_impl->yAxis);
+    std::optional<Range> y2 = fitY(*m_impl->yAxis2);
+    if (m_impl->zeroAligned && y && y2 && scaleOf(*m_impl->yAxis) == core::Scale::LINEAR &&
+        scaleOf(*m_impl->yAxis2) == core::Scale::LINEAR && m_impl->yAxis->isShown(true) &&
+        m_impl->yAxis2->isShown(hasSeriesOnSecondary(*this)))
+    {
+        const core::AlignedZeros aligned = core::alignZeros(*y, *y2);
+        y                                = aligned.first;
+        y2                               = aligned.second;
+    }
+    if (m_impl->flagPlacement == FlagPlacement::HEADROOM)
+    {
+        const auto withHeadroom = [&](std::optional<Range>& range, const Axis& axis) {
+            if (range)
+            {
+                range = core::withHeadroom(*range, share, scaleOf(axis));
+            }
+        };
+        withHeadroom(y, *m_impl->yAxis);
+        withHeadroom(y2, *m_impl->yAxis2);
+    }
+    return {.x = std::nullopt, .y = y, .y2 = y2};
 }
 
 double PlotWidget::headroomShare(const QRectF& bounds, double devicePixelRatio,
@@ -2018,6 +2051,7 @@ QJsonObject PlotWidget::saveState() const
     state.insert(QLatin1String("themeMode"), state::fromEnum(m_impl->themeMode));
     state.insert(QLatin1String("crosshair"), m_impl->crosshair);
     state.insert(QLatin1String("crosshairMode"), state::fromEnum(m_impl->crosshairMode));
+    state.insert(QLatin1String("yAxesZeroAligned"), m_impl->zeroAligned);
     state.insert(QLatin1String("eventFlagPlacement"), state::fromEnum(m_impl->flagPlacement));
     state.insert(QLatin1String("eventFlagOrientation"), state::fromEnum(m_impl->flagOrientation));
     for (const auto& [key, axis] : m_impl->axesByKey())
@@ -2062,6 +2096,10 @@ bool PlotWidget::restoreState(const QJsonObject& state)
     if (const auto mode = state::toEnum<CrosshairMode>(state.value(QLatin1String("crosshairMode"))))
     {
         setCrosshairMode(*mode);
+    }
+    if (const auto aligned = state::toBool(state.value(QLatin1String("yAxesZeroAligned"))))
+    {
+        setYAxesZeroAligned(*aligned);
     }
     if (const auto placement =
             state::toEnum<FlagPlacement>(state.value(QLatin1String("eventFlagPlacement"))))

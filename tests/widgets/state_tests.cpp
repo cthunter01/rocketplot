@@ -13,6 +13,8 @@
 #include <QTimeZone>
 #include <Qt>
 #include <array>
+#include <cmath>
+#include <limits>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -105,6 +107,7 @@ TEST_F(PlotStateTest, AxisSettingsComeBack)
     axis.setTimeZone(QTimeZone(QByteArrayLiteral("UTC+02:00")));
     axis.setAutoscaleMode(AutoscaleMode::FOLLOW_LATEST);
     axis.setAutoscaleMargin(0.1);
+    axis.setAutoscaleIncludesZero(0.25);
     axis.setFollowWindow(60.0);
     axis.setGridVisible(false);
     axis.setMinorGridVisible(true);
@@ -118,6 +121,7 @@ TEST_F(PlotStateTest, AxisSettingsComeBack)
     EXPECT_EQ(restored.timeZone(), QTimeZone(QByteArrayLiteral("UTC+02:00")));
     EXPECT_EQ(restored.autoscaleMode(), AutoscaleMode::FOLLOW_LATEST);
     EXPECT_DOUBLE_EQ(restored.autoscaleMargin(), 0.1);
+    EXPECT_DOUBLE_EQ(restored.autoscaleIncludesZero(), 0.25);
     EXPECT_DOUBLE_EQ(restored.followWindow(), 60.0);
     EXPECT_FALSE(restored.isGridVisible());
     EXPECT_TRUE(restored.isMinorGridVisible());
@@ -158,6 +162,7 @@ TEST_F(PlotStateTest, PlotSettingsComeBack)
     m_saved.setCrosshairMode(rocketplot::CrosshairMode::TRACE);
     m_saved.setEventFlagPlacement(rocketplot::FlagPlacement::ABOVE_PLOT_AREA);
     m_saved.setEventFlagOrientation(Qt::Vertical);
+    m_saved.setYAxesZeroAligned(true);
 
     carryOver();
 
@@ -167,6 +172,7 @@ TEST_F(PlotStateTest, PlotSettingsComeBack)
     EXPECT_EQ(m_restored.crosshairMode(), rocketplot::CrosshairMode::TRACE);
     EXPECT_EQ(m_restored.eventFlagPlacement(), rocketplot::FlagPlacement::ABOVE_PLOT_AREA);
     EXPECT_EQ(m_restored.eventFlagOrientation(), Qt::Vertical);
+    EXPECT_TRUE(m_restored.areYAxesZeroAligned());
 }
 
 TEST_F(PlotStateTest, ACustomThemeIsNotSaved)
@@ -326,6 +332,15 @@ TEST_F(PlotStateTest, SurvivesBeingWrittenAsText)
 
     EXPECT_EQ(m_restored.xAxis()->range(), m_saved.xAxis()->range());
     EXPECT_EQ(m_restored.saveState(), m_saved.saveState());
+}
+
+TEST_F(PlotStateTest, ZeroAlwaysIncludedSurvivesBeingWrittenAsText)
+{
+    // JSON has no infinity.
+    m_saved.yAxis()->setAutoscaleIncludesZero(std::numeric_limits<double>::infinity());
+    const QByteArray text = QJsonDocument(m_saved.saveState()).toJson();
+    ASSERT_TRUE(m_restored.restoreState(QJsonDocument::fromJson(text).object()));
+    EXPECT_TRUE(std::isinf(m_restored.yAxis()->autoscaleIncludesZero()));
 }
 
 TEST_F(PlotStateTest, RejectsWhatIsNotAState)

@@ -118,6 +118,8 @@ class ROCKETPLOT_EXPORT PlotWidget : public QWidget
                    setEventFlagPlacement NOTIFY eventFlagPlacementChanged)
     Q_PROPERTY(Qt::Orientation eventFlagOrientation READ eventFlagOrientation WRITE
                    setEventFlagOrientation NOTIFY eventFlagOrientationChanged)
+    Q_PROPERTY(bool yAxesZeroAligned READ areYAxesZeroAligned WRITE setYAxesZeroAligned NOTIFY
+                   yAxesZeroAlignedChanged)
 
 public:
     explicit PlotWidget(QWidget* parent = nullptr);
@@ -255,6 +257,13 @@ public:
     [[nodiscard]] Legend* legend() const noexcept;
     /// The link this plot's x axis is tied to, if any (see PlotLink).
     [[nodiscard]] PlotLink* link() const noexcept;
+
+    /// Whether 0 is at the same height on both y axes (off by default): while both autoscale, are
+    /// linear and are shown, and both their ranges hold 0, autoscaling widens them so that the
+    /// zeros line up, each at one end and as little as it can. Axis::setAutoscaleIncludesZero()
+    /// takes a range to 0 first where the data comes close.
+    [[nodiscard]] bool areYAxesZeroAligned() const noexcept;
+    void               setYAxesZeroAligned(bool aligned);
 
     [[nodiscard]] QString title() const;
     void                  setTitle(const QString& title);
@@ -443,6 +452,7 @@ Q_SIGNALS:
     void crosshairModeChanged();
     void eventFlagPlacementChanged();
     void eventFlagOrientationChanged();
+    void yAxesZeroAlignedChanged();
     /// The crosshair moved, appeared or disappeared, or the data under it moved or changed (see
     /// crosshairPosition() and crosshairSeries()).
     void crosshairMoved();

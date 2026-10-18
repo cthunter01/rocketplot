@@ -125,6 +125,9 @@ struct PlotLayout
                                     LayoutConstraints     constraints = {},
                                     const RangeOverrides& overrides   = {});
 
+/// Whether a series of @p plot is on its secondary y axis (which shows it then).
+[[nodiscard]] bool hasSeriesOnSecondary(const PlotWidget& plot);
+
 /// @p base at @p scale times its size (a theme's font scales).
 [[nodiscard]] QFont scaledFont(const QFont& base, double scale);
 

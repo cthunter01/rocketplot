@@ -159,6 +159,18 @@ void Axis::setAutoscaleMargin(double margin)
     Q_EMIT fitNeeded();
 }
 
+void Axis::setAutoscaleIncludesZero(double share)
+{
+    share = share > 0.0 ? share : 0.0;  // NaN too; infinity is "always"
+    if (share == m_autoscaleIncludesZero)
+    {
+        return;
+    }
+    m_autoscaleIncludesZero = share;
+    Q_EMIT changed();
+    Q_EMIT fitNeeded();
+}
+
 void Axis::setFollowWindow(double window)
 {
     if (!std::isfinite(window) || window <= 0.0)
@@ -241,6 +253,8 @@ void Axis::saveState(QJsonObject& state) const
     state.insert(QLatin1String("autoscale"), m_autoscale);
     state.insert(QLatin1String("autoscaleMode"), state::fromEnum(m_autoscaleMode));
     state.insert(QLatin1String("autoscaleMargin"), m_autoscaleMargin);
+    state.insert(QLatin1String("autoscaleIncludesZero"),
+                 state::fromUnbounded(m_autoscaleIncludesZero));
     state.insert(QLatin1String("followWindow"), m_followWindow);
     state.insert(QLatin1String("scaleType"), state::fromEnum(m_scaleType));
     state.insert(QLatin1String("numberFormat"), state::fromEnum(m_numberFormat));
@@ -273,6 +287,10 @@ void Axis::restoreState(const QJsonObject& state)
     if (const auto margin = state::toNumber(state.value(QLatin1String("autoscaleMargin"))))
     {
         setAutoscaleMargin(*margin);
+    }
+    if (const auto zero = state::toUnbounded(state.value(QLatin1String("autoscaleIncludesZero"))))
+    {
+        setAutoscaleIncludesZero(*zero);
     }
     if (const auto window = state::toNumber(state.value(QLatin1String("followWindow"))))
     {

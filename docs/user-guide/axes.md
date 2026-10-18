@@ -62,6 +62,23 @@ plot->xAxis()->setFollowWindow(30.0);
   ([Annotations](annotations.md#common-settings)).
 - `FIT_VISIBLE` and `FOLLOW_LATEST` together make a strip chart; see [Live data](data.md#live-data).
 
+#### Zero
+
+Data that starts at 5 and climbs to 100 is shown from 5, so the curve fills the plot. When 0 means something, as it
+does for a count, a speed or a mass, show the range from there: `autoscaleIncludesZero` is how close the data has
+to come to 0, as a share of its span, for the axis to take the range down to it (or up to it, for data below 0).
+
+<!-- example: axes-zero -->
+```cpp
+// Data within 30% of its span of 0 is shown from 0: 5 to 100 is, 50 to 100 is not.
+plot->yAxis()->setAutoscaleIncludesZero(0.3);
+// From 0 (or to it, below it) whatever the data.
+plot->yAxis()->setAutoscaleIncludesZero(std::numeric_limits<double>::infinity());
+```
+
+The end that reaches 0 is exactly 0, with no margin beyond it: 5 to 100 with the default margin is shown from 0
+to 103. 0, the default, never takes the range to 0. A logarithmic axis has no 0 and ignores the setting.
+
 ### Knowing when the view changes
 
 <!-- example: axes-signals -->
@@ -153,6 +170,20 @@ x axis ([Several plots](multiple-plots.md)) show the same data without that trap
 the two quantities belong together and the reader knows the scales differ.
 
 Panning and zooming over the plot moves both y axes; over one axis, only that axis.
+
+Each axis fits its own data, so 0 is at one height on the left and another on the right. When the two series cross
+0, as an acceleration and the speed it changes do, line the zeros up:
+
+![Acceleration on the left axis and velocity on the right, with 0 at the same height on both](images/axes-two-zero.png)
+
+<!-- example: axes-two-zero -->
+```cpp
+plot->setYAxesZeroAligned(true);  // 0 at the same height on both y axes
+```
+
+While both y axes autoscale, are linear and are shown, and both ranges hold 0 (with `autoscaleIncludesZero` too),
+autoscaling widens them so that 0 is as far up the one as up the other: each at one end only, and as little as
+it can. A pan or a zoom over one axis moves its 0 away again; a double-click lines them up again.
 
 ## Number formats
 

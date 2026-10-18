@@ -12,10 +12,10 @@ The key idea is the split between what a plot *shows* and how it is *set up to s
 
 | Part of the state | Not part of it (your code provides it) |
 | --- | --- |
-| The theme mode; whether the crosshair is on, and what it follows | The data |
-| Each axis: range; autoscale, its mode, margin and follow window; scale type, number format and time zone; grid, minor grid, visibility, tick labels | The series' names |
+| The theme mode; whether the crosshair is on, and what it follows; where event flags go and which way; whether the y axes' zeros line up | The data |
+| Each axis: range; autoscale, its mode, margin, zero rule and follow window; scale type, number format and time zone; grid, minor grid, visibility, tick labels | The series' names |
 | The legend: visibility, anchor, position, values at the crosshair | The title and the axis labels |
-| Each series: visibility, color, marker and its size, line width and style, error style, cap size and band opacity, y axis | The annotations |
+| Each series: visibility, color, marker, its size, fill and ring width; line width, style, dash pattern and caps, markers always shown; error style, cap size and band opacity, y axis | The annotations |
 | | The input bindings; a custom theme's colors |
 
 So the order of things is: your code builds the plot (adds the series, sets titles and labels, adds annotations),
@@ -125,6 +125,7 @@ A plot of two series, after the user zoomed in, hid one series and recolored the
     "version": 1,
     "xAxis": {
         "autoscale": false,
+        "autoscaleIncludesZero": 0,
         "autoscaleMargin": 0.03,
         "autoscaleMode": "FIT_ALL",
         "followWindow": 10,
@@ -138,8 +139,10 @@ A plot of two series, after the user zoomed in, hid one series and recolored the
         "timeZone": "UTC",
         "visible": null
     },
+    "yAxesZeroAligned": false,
     "yAxis": {
         "autoscale": false,
+        "autoscaleIncludesZero": 0,
         "autoscaleMargin": 0.03,
         "autoscaleMode": "FIT_ALL",
         "followWindow": 10,
@@ -155,6 +158,7 @@ A plot of two series, after the user zoomed in, hid one series and recolored the
     },
     "yAxis2": {
         "autoscale": true,
+        "autoscaleIncludesZero": 0,
         "autoscaleMargin": 0.03,
         "autoscaleMode": "FIT_ALL",
         "followWindow": 10,
@@ -188,9 +192,9 @@ view.remove("series");     // and so does how each series is drawn
 plot->restoreState(view);  // the axes, the legend and the crosshair
 ```
 
-The top-level keys are `themeMode`, `crosshair`, `crosshairMode`, `xAxis`, `yAxis`, `yAxis2`, `legend` and
-`series`. This is also how to copy only the view from one plot to another: save the first, keep the axis keys,
-restore on the second.
+The top-level keys are `themeMode`, `crosshair`, `crosshairMode`, `eventFlagPlacement`, `eventFlagOrientation`,
+`yAxesZeroAligned`, `xAxis`, `yAxis`, `yAxis2`, `legend` and `series`. This is also how to copy only the view from
+one plot to another: save the first, keep the axis keys, restore on the second.
 
 ## A grid's state
 

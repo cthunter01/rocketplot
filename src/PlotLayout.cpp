@@ -194,12 +194,6 @@ double closestTicks(const AxisLayout& layout, const core::AxisMapping& mapping)
     return closest;
 }
 
-bool hasSeriesOnSecondary(const PlotWidget& plot)
-{
-    return std::ranges::any_of(plot.series(),
-                               [](const Series* series) { return series->isOnSecondaryYAxis(); });
-}
-
 void setFonts(PlotLayout& layout, const QFont& font, const Theme& theme)
 {
     layout.tickFont = scaledFont(font, theme.tickFontScale);
@@ -463,6 +457,12 @@ void placeAxes(const PlotWidget& plot, PlotLayout& layout, const Vertical& verti
 }
 
 }  // namespace
+
+bool hasSeriesOnSecondary(const PlotWidget& plot)
+{
+    return std::ranges::any_of(plot.series(),
+                               [](const Series* series) { return series->isOnSecondaryYAxis(); });
+}
 
 QFont scaledFont(const QFont& base, double scale)
 {

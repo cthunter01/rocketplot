@@ -11,6 +11,7 @@
 #include <QTimeZone>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <numbers>
 #include <vector>
 
@@ -58,6 +59,13 @@ void ranges(const QString& /*scratch*/)
     plot->xAxis()->setAutoscaleMode(rocketplot::AutoscaleMode::FOLLOW_LATEST);
     plot->xAxis()->setFollowWindow(30.0);
     // [/axes-autoscale]
+
+    // [axes-zero]
+    // Data within 30% of its span of 0 is shown from 0: 5 to 100 is, 50 to 100 is not.
+    plot->yAxis()->setAutoscaleIncludesZero(0.3);
+    // From 0 (or to it, below it) whatever the data.
+    plot->yAxis()->setAutoscaleIncludesZero(std::numeric_limits<double>::infinity());
+    // [/axes-zero]
 
     QLabel  label;
     QLabel* rangeLabel = &label;
@@ -204,6 +212,21 @@ void grid(const QString& /*scratch*/)
     // [/axes-grid]
 }
 
+void alignedZeros(PlotWidget* plot)
+{
+    const Ascent ascent = sampleAscent();
+    plot->addLine(ascent.time, ascent.acceleration, "Acceleration");
+    plot->yAxis()->setLabel("Acceleration (m/s²)");
+    plot->addLine(ascent.time, ascent.velocity, "Velocity")->setYAxis(plot->yAxis2());
+    plot->yAxis2()->setLabel("Velocity (m/s)");
+    plot->addHorizontalLine(0.0);
+    // [axes-two-zero]
+    plot->setYAxesZeroAligned(true);  // 0 at the same height on both y axes
+    // [/axes-two-zero]
+    plot->xAxis()->setLabel("Time (s)");
+    plot->legend()->setAnchor(LegendAnchor::TOP_LEFT);
+}
+
 }  // namespace
 
 void addAxesExamples(Examples& examples)
@@ -215,6 +238,7 @@ void addAxesExamples(Examples& examples)
     examples.addPlot(QStringLiteral("axes-log"), logScale);
     examples.addPlot(QStringLiteral("axes-time"), dateTime);
     examples.addPlot(QStringLiteral("axes-two"), twoAxes);
+    examples.addPlot(QStringLiteral("axes-two-zero"), alignedZeros, {720, 340});
     examples.addPlot(QStringLiteral("axes-si"), siPrefixes, {720, 340});
     examples.addPlot(QStringLiteral("axes-offset"), offsetLabels, {720, 340});
 }

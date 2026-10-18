@@ -520,6 +520,91 @@ TEST_F(PlotWidgetTest, ZoomOnALogAxisAndTheRightOne)
     EXPECT_EQ(m_plot.yAxis2()->range(), (Range{.min = 0.0, .max = 100.0}));
 }
 
+TEST(PlotWidgetZero, AutoscaleCanTakeTheRangeToZero)
+{
+    PlotWidget plot;
+    plot.resize(600, 400);
+    plot.addLine(std::vector<double>{0, 10}, std::vector<double>{5, 100});
+    const QSignalSpy changed(plot.yAxis(), &rocketplot::Axis::changed);
+    plot.yAxis()->setAutoscaleIncludesZero(0.3);  // 5 short of 0 is 5 / 95 of the span
+    EXPECT_EQ(changed.count(), 2);                // the setting, and the range it gives
+    EXPECT_EQ(plot.yAxis()->min(), 0.0);
+    EXPECT_DOUBLE_EQ(plot.yAxis()->max(), 100.0 + (100.0 * plot.yAxis()->autoscaleMargin()));
+    plot.yAxis()->setAutoscaleIncludesZero(0.01);
+    EXPECT_GT(plot.yAxis()->min(), 0.0);
+    // Invalid shares are none.
+    plot.yAxis()->setAutoscaleIncludesZero(std::numeric_limits<double>::quiet_NaN());
+    EXPECT_EQ(plot.yAxis()->autoscaleIncludesZero(), 0.0);
+    // The x axis too.
+    plot.xAxis()->setAutoscaleIncludesZero(std::numeric_limits<double>::infinity());
+    EXPECT_EQ(plot.xAxis()->min(), 0.0);
+}
+
+TEST(PlotWidgetZero, TheZerosOfBothYAxesLineUp)
+{
+    PlotWidget plot;
+    plot.resize(600, 400);
+    plot.addLine(std::vector<double>{0, 10}, std::vector<double>{0, 2}, "left");
+    plot.addLine(std::vector<double>{0, 10}, std::vector<double>{-10, 100}, "right")
+        ->setYAxis(plot.yAxis2());
+    plot.show();
+    ASSERT_TRUE(QTest::qWaitForWindowExposed(&plot));
+    const auto  zeroLeft  = [&] { return plot.mapFromData(QPointF(0.0, 0.0)).y(); };
+    const auto  zeroRight = [&] { return plot.mapFromData(QPointF(0.0, 0.0), plot.yAxis2()).y(); };
+    const Range unaligned = plot.yAxis()->range();
+    EXPECT_GT(std::abs(zeroLeft() - zeroRight()), 10.0);
+
+    const QSignalSpy changed(&plot, &PlotWidget::yAxesZeroAlignedChanged);
+    plot.setYAxesZeroAligned(true);
+    EXPECT_EQ(changed.count(), 1);
+    EXPECT_NEAR(zeroLeft(), zeroRight(), 0.5);
+    // 0 was lower on the left: the left axis gave way, at the bottom.
+    EXPECT_LT(plot.yAxis()->min(), unaligned.min - 0.1);
+    EXPECT_EQ(plot.yAxis()->max(), unaligned.max);
+
+    // A zoom of the left axis alone moves its zero; a double-click lines them up again.
+    const QPointF overLeftAxis(plot.plotArea().left() - 15.0, plot.plotArea().center().y());
+    QWheelEvent   event(overLeftAxis, QPointF(), QPoint(), QPoint(0, 240), Qt::NoButton,
+                        Qt::NoModifier, Qt::NoScrollPhase, false);
+    QApplication::sendEvent(&plot, &event);
+    EXPECT_GT(std::abs(zeroLeft() - zeroRight()), 0.5);
+    const QPoint center = plot.plotArea().center().toPoint();
+    QTest::mouseDClick(&plot, Qt::LeftButton, Qt::NoModifier, center);
+    QTest::mouseRelease(&plot, Qt::LeftButton, Qt::NoModifier, center);
+    EXPECT_NEAR(zeroLeft(), zeroRight(), 0.5);
+
+    // Only while both axes are linear.
+    plot.yAxis2()->setScaleType(rocketplot::ScaleType::LOGARITHMIC);
+    EXPECT_EQ(plot.yAxis()->range(), unaligned);
+}
+
+TEST(PlotWidgetZero, HeadroomForEventFlagsKeepsThemInLine)
+{
+    PlotWidget plot;
+    plot.resize(600, 400);
+    plot.addLine(std::vector<double>{0, 10}, std::vector<double>{0, 2}, "left");
+    plot.addLine(std::vector<double>{0, 10}, std::vector<double>{-10, 100}, "right")
+        ->setYAxis(plot.yAxis2());
+    plot.setYAxesZeroAligned(true);
+    plot.setEventFlagPlacement(rocketplot::FlagPlacement::HEADROOM);
+    plot.addEvent(5.0, "Event");
+    const Range before = plot.yAxis()->range();
+    static_cast<void>(plot.grab());
+    EXPECT_GT(plot.yAxis()->max(), before.max);  // room for the flag
+    EXPECT_NEAR(plot.mapFromData(QPointF(0.0, 0.0)).y(),
+                plot.mapFromData(QPointF(0.0, 0.0), plot.yAxis2()).y(), 0.5);
+}
+
+TEST(PlotWidgetZero, AlignedZerosLeaveAnAxisAloneThatIsNotShown)
+{
+    PlotWidget plot;
+    plot.resize(600, 400);
+    plot.addLine(std::vector<double>{0, 10}, std::vector<double>{0, 100});
+    const Range alone = plot.yAxis()->range();
+    plot.setYAxesZeroAligned(true);  // the right axis has no series
+    EXPECT_EQ(plot.yAxis()->range(), alone);
+}
+
 TEST_F(PlotWidgetTest, ResetViewTurnsAutoscaleOnEverywhere)
 {
     m_plot.xAxis()->setRange(1.0, 2.0);

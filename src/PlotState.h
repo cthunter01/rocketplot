@@ -50,6 +50,9 @@ template <class Enum>
 
 /// A finite number.
 [[nodiscard]] std::optional<double> toNumber(const QJsonValue& value);
+/// A number that may be infinite, which JSON has no number for: "inf" and "-inf" then.
+[[nodiscard]] QJsonValue            fromUnbounded(double value);
+[[nodiscard]] std::optional<double> toUnbounded(const QJsonValue& value);
 [[nodiscard]] std::optional<bool>   toBool(const QJsonValue& value);
 
 /// The value of a setting that may be following a default: null while it is.

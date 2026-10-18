@@ -41,6 +41,8 @@ class ROCKETPLOT_EXPORT Axis : public QObject
     Q_PROPERTY(rocketplot::AutoscaleMode autoscaleMode READ autoscaleMode WRITE setAutoscaleMode
                    NOTIFY changed)
     Q_PROPERTY(double autoscaleMargin READ autoscaleMargin WRITE setAutoscaleMargin NOTIFY changed)
+    Q_PROPERTY(double autoscaleIncludesZero READ autoscaleIncludesZero WRITE
+                   setAutoscaleIncludesZero NOTIFY changed)
     Q_PROPERTY(double followWindow READ followWindow WRITE setFollowWindow NOTIFY changed)
     Q_PROPERTY(bool gridVisible READ isGridVisible WRITE setGridVisible NOTIFY changed)
     Q_PROPERTY(
@@ -104,6 +106,13 @@ public:
     [[nodiscard]] double autoscaleMargin() const noexcept { return m_autoscaleMargin; }
     void                 setAutoscaleMargin(double margin);
 
+    /// When autoscaling takes the range to 0: data that stops short of 0 by at most this share of
+    /// its span is shown from 0 (to 0, below it), that end exactly 0 and with no margin beyond it.
+    /// With 0.3, data from 5 to 100 is shown from 0, from 50 to 100 is not. 0, the default, never
+    /// goes to 0; infinity always does. A log scale has no 0, and ignores it.
+    [[nodiscard]] double autoscaleIncludesZero() const noexcept { return m_autoscaleIncludesZero; }
+    void                 setAutoscaleIncludesZero(double share);
+
     /// How much data FOLLOW_LATEST shows, in data units (seconds on a DATE_TIME axis).
     [[nodiscard]] double followWindow() const noexcept { return m_followWindow; }
     void                 setFollowWindow(double window);
@@ -159,13 +168,14 @@ private:
     bool                m_secondary;
     QString             m_label;
     Range               m_range{.min = 0.0, .max = 1.0};
-    ScaleType           m_scaleType       = ScaleType::LINEAR;
-    NumberFormat        m_numberFormat    = NumberFormat::AUTO;
-    QTimeZone           m_timeZone        = QTimeZone::utc();
-    bool                m_autoscale       = true;
-    AutoscaleMode       m_autoscaleMode   = AutoscaleMode::FIT_ALL;
-    double              m_autoscaleMargin = 0.03;
-    double              m_followWindow    = 10.0;
+    ScaleType           m_scaleType             = ScaleType::LINEAR;
+    NumberFormat        m_numberFormat          = NumberFormat::AUTO;
+    QTimeZone           m_timeZone              = QTimeZone::utc();
+    bool                m_autoscale             = true;
+    AutoscaleMode       m_autoscaleMode         = AutoscaleMode::FIT_ALL;
+    double              m_autoscaleMargin       = 0.03;
+    double              m_autoscaleIncludesZero = 0.0;
+    double              m_followWindow          = 10.0;
     bool                m_gridVisible;
     bool                m_minorGridVisible  = false;
     bool                m_tickLabelsVisible = true;
