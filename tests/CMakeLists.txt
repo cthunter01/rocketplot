@@ -64,7 +64,8 @@ add_executable(rocketplot_tests
     widgets/interaction_tests.cpp
     widgets/math_tests.cpp
     widgets/plottime_tests.cpp
-    widgets/state_tests.cpp)
+    widgets/state_tests.cpp
+    widgets/text_tests.cpp)
 # Qt6::Svg: the export tests read an exported SVG drawing back.
 target_link_libraries(rocketplot_tests PRIVATE rocketplot::rocketplot Qt6::Svg Qt6::Test GTest::gtest)
 set_target_properties(rocketplot_tests PROPERTIES AUTOUIC ON)

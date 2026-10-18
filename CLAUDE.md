@@ -62,7 +62,8 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
   `Annotation`/`ReferenceLine`/`ShadedSpan`/`TextAnnotation`/`EventMarker`, `PlotLink`, `PlotGrid` (plots in rows
   and columns: it makes the plots, links each column's x axes with `PlotLink`s and lines the plot areas up through
   `LayoutConstraints`), `InputBindings`, `Theme`,
-  `ExportOptions`, `enums.h`, `plottime.h`; Qt-free value types `Range`, `UniformX`, `NumericRange`).
+  `ExportOptions`, `enums.h`, `plottime.h`, `text.h` (`literalText()`: user text shown as typed); Qt-free value types
+  `Range`, `UniformX`, `NumericRange`).
   `export.h` is generated into `build/<preset>/include/rocketplot/`
 - `src/core/`: `rocketplot_core`, an OBJECT library with no Qt: series storage (`SeriesData`), min/max pyramid,
   decimation, line band outlines, clipping, errors (`ErrorData` holds the ends of the bars, `ErrorGeometry` turns them

@@ -18,6 +18,7 @@
 #include "rocketplot/ReferenceLine.h"
 #include "rocketplot/Theme.h"
 #include "rocketplot/enums.h"
+#include "rocketplot/text.h"
 
 namespace rocketplot::guide
 {
@@ -118,6 +119,13 @@ void settings(const QString& /*scratch*/)
     font.setPointSizeF(11.0);  // or setFamily(), setWeight(), ...
     plot->setFont(font);       // tick labels, axis labels, the title and the legend all follow
     // [/appearance-font]
+
+    // A name as a user typed it.
+    const QString typedName = "<b>Stage 2</b> & $5 kit";
+    LineSeries*   series    = plot->addLine(std::vector<double>{0, 1}, std::vector<double>{0, 1});
+    // [appearance-literal-text]
+    series->setName(rocketplot::literalText(typedName));  // shown as typed: <b>Stage 2</b> & $5 kit
+    // [/appearance-literal-text]
 
     // [appearance-read]
     // The colors the plot draws with now, for things drawn beside it.

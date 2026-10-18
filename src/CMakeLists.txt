@@ -114,6 +114,7 @@ target_sources(rocketplot
         ViewHistory.cpp
         ViewHistory.h
         plottime.cpp
+        text.cpp
     PUBLIC
         FILE_SET HEADERS
         BASE_DIRS ${PROJECT_SOURCE_DIR}/include ${PROJECT_BINARY_DIR}/include
@@ -139,6 +140,7 @@ target_sources(rocketplot
             ${PROJECT_SOURCE_DIR}/include/rocketplot/UniformX.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/enums.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/plottime.h
+            ${PROJECT_SOURCE_DIR}/include/rocketplot/text.h
             ${PROJECT_BINARY_DIR}/include/rocketplot/export.h)
 
 target_link_libraries(rocketplot

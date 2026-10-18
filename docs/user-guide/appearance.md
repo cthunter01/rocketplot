@@ -127,6 +127,19 @@ plot->addHorizontalLine(40.0, "<b>Limit</b>: 40 m s<sup>−1</sup>")
 Useful tags: `<sub>`, `<sup>`, `<i>`, `<b>`, and `<br>` for a line break. A string is treated as rich text when
 it looks like it (Qt's `Qt::mightBeRichText()`); in rich text, write a literal `<` as `&lt;` and `&` as `&amp;`.
 
+Text that you don't write yourself is another matter: a name a user typed, or one read from a file, may hold
+characters that would be taken as markup or as [math](math.md). `rocketplot::literalText()` (in
+`rocketplot/text.h`) returns text that is shown exactly as it is written:
+
+<!-- example: appearance-literal-text -->
+```cpp
+series->setName(rocketplot::literalText(typedName));  // shown as typed: <b>Stage 2</b> & $5 kit
+```
+
+Text that would be shown as written anyway comes back as it is. Any other comes back as rich text that shows each
+of its characters, spaces and line breaks included; like all rich text, it isn't shortened with "…" where plain
+text would be. CSV headers and the titles of exported drawings get the characters as they were typed.
+
 Many symbols need no markup at all: the strings are Unicode, so `"Temperature (°C)"`, `"m/s²"` and `"Δv"` work
 as they are, provided the source file is UTF-8. For formulas (fractions, roots, sums, matrices), write math
 between `$` signs: see [Math notation](math.md).

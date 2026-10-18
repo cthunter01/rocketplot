@@ -45,6 +45,7 @@
 #include "rocketplot/Series.h"
 #include "rocketplot/UniformX.h"
 #include "rocketplot/enums.h"
+#include "rocketplot/text.h"
 
 namespace rocketplot::demo
 {
@@ -232,7 +233,7 @@ bool DataImportWidget::loadText(QByteArrayView text, const QString& source)
     m_plot->clearSeries();
     m_series.clear();
     m_table = std::move(table);
-    m_plot->setTitle(source);
+    m_plot->setTitle(literalText(source));  // a file name: shown as it is, whatever it holds
     const QLocale locale;
     m_status->setText(
         QStringLiteral("%1 rows × %2 columns, %3%4")
@@ -278,21 +279,23 @@ Series* DataImportWidget::plotColumn(const DataTable::Column& y, int x, bool asP
     // [snippet]
     // The table stays where it is: a view reads a column in place, without copying it.
     const std::span<const double> values(y.values);
+    // A name from the file, shown as it is written even if it holds a < or $ signs.
+    const QString name = literalText(y.name);
     if (x == kRowNumber)
     {
         // Against the row number: 0, 1, 2, ...
         if (asPoints)
         {
-            return m_plot->addScatterView(UniformX{}, values, y.name);
+            return m_plot->addScatterView(UniformX{}, values, name);
         }
-        return m_plot->addLineView(UniformX{}, values, y.name);
+        return m_plot->addLineView(UniformX{}, values, name);
     }
     const std::span<const double> time(m_table.columns[static_cast<std::size_t>(x)].values);
     if (asPoints)
     {
-        return m_plot->addScatterView(time, values, y.name);
+        return m_plot->addScatterView(time, values, name);
     }
-    return m_plot->addLineView(time, values, y.name);
+    return m_plot->addLineView(time, values, name);
     // [/snippet]
 }
 
@@ -330,8 +333,9 @@ void DataImportWidget::plotColumns()
     const bool isTime = x != kRowNumber && m_table.columns[static_cast<std::size_t>(x)].isTime;
     m_plot->xAxis()->setScaleType(isTime ? ScaleType::DATE_TIME : ScaleType::LINEAR);
     // [/snippet]
-    m_plot->xAxis()->setLabel(x == kRowNumber ? QStringLiteral("Row")
-                                              : m_table.columns[static_cast<std::size_t>(x)].name);
+    m_plot->xAxis()->setLabel(x == kRowNumber
+                                  ? QStringLiteral("Row")
+                                  : literalText(m_table.columns[static_cast<std::size_t>(x)].name));
     m_plot->resetView();
 }
 

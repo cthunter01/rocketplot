@@ -15,6 +15,7 @@
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/Series.h"
 #include "rocketplot/enums.h"
+#include "rocketplot/text.h"
 
 namespace
 {
@@ -58,6 +59,14 @@ TEST_F(DataImportWidgetTest, PlotsAColumnAgainstTheFirstWhenThatIsATimeBase)
     EXPECT_EQ(m_importer.plot()->xAxis()->label(), QString("t"));
     EXPECT_EQ(m_importer.plot()->title(), QString("test"));
     EXPECT_TRUE(m_importer.status().contains("3 rows"));
+}
+
+TEST_F(DataImportWidgetTest, NamesFromTheFileAreShownAsWritten)
+{
+    ASSERT_TRUE(m_importer.loadText("t ($),<b>v</b>,$a$\n0,1,2\n1,3,4\n", "<costs>.csv"));
+    // In the plot's own CSV text, as in the file: not taken as markup or math.
+    EXPECT_EQ(m_importer.plot()->toCsv().section('\n', 0, 0), "t ($),<b>v</b>,$a$");
+    EXPECT_EQ(m_importer.plot()->title(), rocketplot::literalText("<costs>.csv"));
 }
 
 TEST_F(DataImportWidgetTest, PlotsAgainstTheRowNumberWithoutATimeBase)

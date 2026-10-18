@@ -25,6 +25,8 @@ math. The rule is matplotlib's:
 - A string with an odd number of `$` signs is all text, so a price such as `"Cost ($)"` stays as it is.
 - `\$` is a dollar sign, in text and in math: `"From \$5 to \$10"` shows `From $5 to $10`.
 - A string without `$` is plain text or rich text, exactly as before.
+- Text that users type, which may hold `$` signs of its own, goes through `rocketplot::literalText()`: it is then
+  shown as typed (see [Appearance](appearance.md#rich-text)).
 
 A formula is TeX, and TeX is full of backslashes, which a C++ string literal wants doubled (`"$\\alpha$"`).
 A raw string literal takes them as they are: `R"($\alpha$)"`. The examples here use raw strings for every
