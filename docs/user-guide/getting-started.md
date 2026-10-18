@@ -27,7 +27,7 @@ the library is compiled with your compiler and your Qt.
 include(FetchContent)
 FetchContent_Declare(rocketplot
     GIT_REPOSITORY https://github.com/cthunter01/rocketplot.git
-    GIT_TAG        v0.5.0   # a release tag (or a commit): the same build every time
+    GIT_TAG        v0.6.0   # a release tag (or a commit): the same build every time
     SYSTEM)                 # its headers are system headers to your code
 FetchContent_MakeAvailable(rocketplot)
 
@@ -92,7 +92,7 @@ Install the library from its build (`cmake --install build/<preset> --prefix <di
 of a release into `<dir>`. Then, with `<dir>` in `CMAKE_PREFIX_PATH`:
 
 ```cmake
-find_package(rocketplot 0.5 REQUIRED)
+find_package(rocketplot 0.6 REQUIRED)
 target_link_libraries(my_app PRIVATE rocketplot::rocketplot)
 ```
 
@@ -152,7 +152,7 @@ find_package(Qt6 6.8 REQUIRED COMPONENTS Widgets)
 include(FetchContent)
 FetchContent_Declare(rocketplot
     GIT_REPOSITORY https://github.com/cthunter01/rocketplot.git
-    GIT_TAG        v0.5.0
+    GIT_TAG        v0.6.0
     SYSTEM)
 FetchContent_MakeAvailable(rocketplot)
 

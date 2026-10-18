@@ -70,15 +70,19 @@ grid->exportPdf("flight.pdf");
   as a band and scatter series as bars with caps (either can do both); bars too dense to tell apart become a
   band, read from min/max pyramids like the data. Autoscale makes room for them.
 - **Lines and markers**: seven marker shapes, filled or hollow, and a size and color per point for a third and
-  fourth value. Lines take a width, a style or a dash pattern of your own, and caps, and can show their markers
-  on every point at any zoom.
+  fourth value, or a value colored on a color scale with a key (viridis and its family, cividis, cool-warm, or a
+  gradient of your own). Lines take a width, a style or a dash pattern of your own, and caps, and can show their
+  markers on every point at any zoom.
+- **Bars, histograms and boxes**: bars between edges of any width, histograms counted from values (counts,
+  probabilities or densities), and box-and-whisker plots with outliers, on a category axis if you like. Edges fall
+  on whole pixels, so touching bars show no seams.
 - **Annotations**: reference lines with labels, shaded spans, rectangles, icons, text with an arrow to the point
   it is about (framed or not), and event markers whose flags are staggered so neighbors don't cover each other,
   drawn over the data, in room left above it, or in a band above the plot area. They move with the data or stay
   pinned to the plot area, can have a tool tip and a legend entry, and autoscale makes room for the ones you say.
-- **Axes**: linear, logarithmic and date/time scales (calendar-aware ticks and concise labels in any time zone),
-  a secondary y axis on the right, minor ticks and grid, short labels (a common offset like `+1.7×10⁹`, a `×10ⁿ`
-  multiplier, or SI prefixes), and Qt rich text in titles and labels (`v<sub>z</sub>`).
+- **Axes**: linear, logarithmic, date/time (calendar-aware ticks and concise labels in any time zone) and
+  category scales, a secondary y axis on the right, minor ticks and grid, short labels (a common offset like
+  `+1.7×10⁹`, a `×10ⁿ` multiplier, or SI prefixes), and Qt rich text in titles and labels (`v<sub>z</sub>`).
 - **Math**: formulas between `$` signs in titles, axis labels, legend names and annotations, written as in LaTeX
   (`"Drag $F_d = \tfrac{1}{2}\rho v^2 C_d A$"`) and typeset as TeX does: fractions, roots, scripts, sums and
   integrals, accents, delimiters that grow, matrices and cases. In Latin Modern Math, which the library has
@@ -163,14 +167,14 @@ Build it with your project (only the library is built then):
 include(FetchContent)
 FetchContent_Declare(rocketplot
     GIT_REPOSITORY https://github.com/cthunter01/rocketplot.git
-    GIT_TAG        v0.5.0
+    GIT_TAG        v0.6.0
     SYSTEM)   # warnings in its headers don't fail your -Werror or clang-tidy
 FetchContent_MakeAvailable(rocketplot)
 target_link_libraries(my_app PRIVATE rocketplot::rocketplot)
 ```
 Or install it (`cmake --install build/<preset> --prefix <dir>`) or download the `-sdk` release archive, then:
 ```cmake
-find_package(rocketplot 0.5 REQUIRED)   # with <dir> in CMAKE_PREFIX_PATH
+find_package(rocketplot 0.6 REQUIRED)   # with <dir> in CMAKE_PREFIX_PATH
 target_link_libraries(my_app PRIVATE rocketplot::rocketplot)
 ```
 A project built with sanitizers sets `ROCKETPLOT_SANITIZERS` to the same list before `FetchContent_MakeAvailable`
