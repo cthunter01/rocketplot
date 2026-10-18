@@ -34,6 +34,7 @@ add_library(rocketplot_demo_lib STATIC
     pages/PointStylesPage.cpp
     pages/ScatterPage.cpp
     pages/StatePage.cpp
+    pages/StatisticsPage.cpp
     pages/TelemetryPage.cpp
     pages/TwoAxesPage.cpp
     pages/UniformSamplingPage.cpp)

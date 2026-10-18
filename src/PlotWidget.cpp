@@ -87,8 +87,10 @@
 #include "core/Occupancy.h"
 #include "rocketplot/Annotation.h"
 #include "rocketplot/Axis.h"
+#include "rocketplot/BarSeries.h"
 #include "rocketplot/EventMarker.h"
 #include "rocketplot/ExportOptions.h"
+#include "rocketplot/HistogramSeries.h"
 #include "rocketplot/IconAnnotation.h"
 #include "rocketplot/InputBindings.h"
 #include "rocketplot/Legend.h"
@@ -485,6 +487,30 @@ ScatterSeries* PlotWidget::addScatter(std::vector<double>&& x, std::vector<doubl
 {
     auto series = std::unique_ptr<ScatterSeries>(new ScatterSeries(this));
     series->setData(std::move(x), std::move(y));
+    return adopt(series.release(), name);
+}
+
+BarSeries* PlotWidget::addBars(std::vector<double>&& edges, std::vector<double>&& heights,
+                               const QString& name)
+{
+    auto series = std::unique_ptr<BarSeries>(new BarSeries(this));
+    series->setBars(std::move(edges), std::move(heights));
+    return adopt(series.release(), name);
+}
+
+HistogramSeries* PlotWidget::addHistogram(std::vector<double>&& values, const QString& name,
+                                          int bins, Range binRange,
+                                          HistogramNormalization normalization)
+{
+    // The settings first, while there are no values to count.
+    auto series = std::unique_ptr<HistogramSeries>(new HistogramSeries(this));
+    series->setBinCount(bins);
+    if (binRange.isValid())
+    {
+        series->setBinRange(binRange);
+    }
+    series->setNormalization(normalization);
+    series->setValues(std::move(values));
     return adopt(series.release(), name);
 }
 
@@ -1494,11 +1520,14 @@ void PlotWidget::addStyleActions(QMenu* menu, const LegendEntry& entry)
     {
         case SeriesKind::LINE:
             addLineWidthMenu(menu, entry);
+            addMarkerMenu(menu, entry);
             break;
         case SeriesKind::SCATTER:
+            addMarkerMenu(menu, entry);
             break;
+        case SeriesKind::BARS:
+            break;  // neither a line nor markers
     }
-    addMarkerMenu(menu, entry);
 }
 
 void PlotWidget::addLineWidthMenu(QMenu* menu, const LegendEntry& entry)
@@ -1546,6 +1575,7 @@ void PlotWidget::addMarkerMenu(QMenu* menu, const LegendEntry& entry)
         case SeriesKind::LINE:
             break;
         case SeriesKind::SCATTER:
+        case SeriesKind::BARS:
             noneShows = false;
             break;
     }

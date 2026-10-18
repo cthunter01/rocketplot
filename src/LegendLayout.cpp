@@ -31,6 +31,7 @@
 #include "core/Occupancy.h"
 #include "rocketplot/Annotation.h"
 #include "rocketplot/Axis.h"
+#include "rocketplot/BarSeries.h"
 #include "rocketplot/EventMarker.h"
 #include "rocketplot/IconAnnotation.h"
 #include "rocketplot/Legend.h"
@@ -161,24 +162,50 @@ void drawErrorSwatch(QPainter& painter, const Series& series, const Theme& theme
     painter.drawLine(center + reach - cap, center + reach + cap);
 }
 
-// A line (for line series) with the series' marker across the middle, over its errors.
+// A square of the bars' fill (and outline).
+void drawBarSwatch(QPainter& painter, const BarSeries& bars, QPointF center)
+{
+    QColor fill = bars.color();
+    fill.setAlphaF(static_cast<float>(static_cast<double>(fill.alphaF()) * bars.fillOpacity()));
+    const QRectF patch(center - QPointF(kSwatchBar / 2.0, kSwatchBar / 2.0),
+                       QSizeF(kSwatchBar, kSwatchBar));
+    painter.fillRect(patch, fill);
+    if (bars.isOutlineVisible())
+    {
+        painter.setPen(QPen(bars.color(), 1.0));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawRect(patch.adjusted(0.5, 0.5, -0.5, -0.5));
+    }
+}
+
+// A line (for line series) with the series' marker across the middle, over its errors; a patch
+// of bars, under them.
 void drawSwatch(QPainter& painter, const Series& series, const Theme& theme, QPointF center)
 {
-    drawErrorSwatch(painter, series, theme, center);
     switch (series.kind())
     {
         case SeriesKind::LINE:
+            drawErrorSwatch(painter, series, theme, center);
             if (const auto* line = qobject_cast<const LineSeries*>(&series))
             {
                 painter.setPen(linePen(*line, std::min(line->lineWidth(), kMaxSwatchLine)));
                 painter.drawLine(center - QPointF(kSwatch / 2.0, 0.0),
                                  center + QPointF(kSwatch / 2.0, 0.0));
             }
+            MarkerPainter::draw(painter, center, markerStyle(series, theme));
             break;
         case SeriesKind::SCATTER:
+            drawErrorSwatch(painter, series, theme, center);
+            MarkerPainter::draw(painter, center, markerStyle(series, theme));
+            break;
+        case SeriesKind::BARS:
+            if (const auto* bars = qobject_cast<const BarSeries*>(&series))
+            {
+                drawBarSwatch(painter, *bars, center);
+            }
+            drawErrorSwatch(painter, series, theme, center);
             break;
     }
-    MarkerPainter::draw(painter, center, markerStyle(series, theme));
 }
 
 // The value an entry shows at the crosshair (at @p x): of the series of the point the crosshair is

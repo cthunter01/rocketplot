@@ -173,7 +173,8 @@ public:
     /// @endcode
     ///
     /// Nothing for a series not sorted by x, an @p x outside its x range, or where the line has a
-    /// gap. A scatter series interpolates the same way between its points.
+    /// gap. A scatter series interpolates the same way between its points; for bars it is the
+    /// height of the bar over @p x.
     [[nodiscard]] std::optional<double> valueAt(double x) const;
     /// Whether x is implicit (UniformX) rather than an array.
     [[nodiscard]] bool hasUniformX() const noexcept;
@@ -379,8 +380,9 @@ private:
     [[nodiscard]] virtual Qt::Orientations zeroBaselines() const;
     // The point a crosshair asked by @p query lands on, into @p found; whether there is one.
     [[nodiscard]] virtual bool pick(const core::PickQuery& query, core::NearestPoint& found) const;
-    // The point nearestIndex() gives.
+    // The point nearestIndex() gives, and the y valueAt() gives.
     [[nodiscard]] virtual std::optional<std::size_t> indexNear(double x) const;
+    [[nodiscard]] virtual std::optional<double>      yAt(double x) const;
     // Columns of its own in a CSV table, after its y and errors.
     virtual void addCsvColumns(core::CsvSeries& columns) const;
 

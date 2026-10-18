@@ -21,6 +21,7 @@
         <file alias="PointStylesPage.cpp">pages/PointStylesPage.cpp</file>
         <file alias="ScatterPage.cpp">pages/ScatterPage.cpp</file>
         <file alias="StatePage.cpp">pages/StatePage.cpp</file>
+        <file alias="StatisticsPage.cpp">pages/StatisticsPage.cpp</file>
         <file alias="TelemetryPage.cpp">pages/TelemetryPage.cpp</file>
         <file alias="TwoAxesPage.cpp">pages/TwoAxesPage.cpp</file>
         <file alias="UniformSamplingPage.cpp">pages/UniformSamplingPage.cpp</file>

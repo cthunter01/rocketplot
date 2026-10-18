@@ -58,7 +58,9 @@ Library type: `ROCKETPLOT_BUILD_SHARED` (default from `BUILD_SHARED_LIBS`). `ci-
 everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
 
 ## Layout
-- `include/rocketplot/`: public headers (`PlotWidget`, `Series`/`LineSeries`/`ScatterSeries`, `Axis`, `Legend`,
+- `include/rocketplot/`: public headers (`PlotWidget`, `Series`/`LineSeries`/`ScatterSeries`/`BarSeries`/
+  `HistogramSeries` (a series' `kind()` says which; kinds with points of their own lock the data functions),
+  `Axis`, `Legend`,
   `Annotation`/`ReferenceLine`/`ShadedSpan`/`RectAnnotation`/`TextAnnotation`/`IconAnnotation`/`EventMarker`, `PlotLink`, `PlotGrid` (plots in rows
   and columns: it makes the plots, links each column's x axes with `PlotLink`s and lines the plot areas up through
   `LayoutConstraints`), `InputBindings`, `Theme`,
@@ -71,6 +73,7 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
   plot area), `CsvWriter` (the data in view as CSV text),
   `NearestPoint` (the data point a snapping or tracing crosshair goes to: sorted series through the pyramid),
   `Interpolate` (the y a drawn line passes through at an x, `Series::valueAt()`),
+  `Histogram` (values counted into bins), `Bars` (bar rectangles snapped to device pixels, and picking them),
   axis mapping (linear/log), `Aspect` (ranges widened to an aspect ratio), ticks (`TickGenerator` linear/log, `TimeTicks` calendar), labels and readouts
   (`NumberFormatter`), `AxisTicks` (picks per axis kind), autoscale. Math in labels: `MathSegments` (the `$` rule),
   `MathParser` (a TeX subset into a list of `MathAtom`s, with `MathSymbols`' tables), `MathPlainText` (a formula as

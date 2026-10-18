@@ -50,6 +50,8 @@ class InteractionController;
 class Legend;
 class PlotGrid;
 class PlotLink;
+class BarSeries;
+class HistogramSeries;
 class LineSeries;
 class RectAnnotation;
 class ReferenceLine;
@@ -183,6 +185,35 @@ public:
     ScatterSeries* addScatterView(std::span<const double> x, std::span<const double> y,
                                   const QString& name = {});
     ScatterSeries* addScatterView(UniformX x, std::span<const double> y, const QString& name = {});
+
+    // Bars and histograms
+    // -----------------------------------------------------------------------------------------
+
+    /// Bars between @p edges (n + 1, increasing) with @p heights (n), copied; see BarSeries.
+    /// Throws std::invalid_argument when the counts don't match or the edges aren't finite and
+    /// increasing.
+    template <NumericRange E, NumericRange H>
+    BarSeries* addBars(const E& edges, const H& heights, const QString& name = {})
+    {
+        return addBars(detail::toDoubleVector(edges), detail::toDoubleVector(heights), name);
+    }
+    BarSeries* addBars(std::vector<double>&& edges, std::vector<double>&& heights,
+                       const QString& name = {});
+    /// A histogram of @p values, copied: @p bins equal bins (0: as many as the square root of the
+    /// count of values, within 5 to 50) over @p binRange (Range::empty(): from the smallest value
+    /// to the largest), their heights counts or shares of the values (@p normalization). See
+    /// HistogramSeries.
+    template <NumericRange V>
+    HistogramSeries* addHistogram(
+        const V& values, const QString& name = {}, int bins = 0, Range binRange = Range::empty(),
+        HistogramNormalization normalization = HistogramNormalization::COUNT)
+    {
+        return addHistogram(detail::toDoubleVector(values), name, bins, binRange, normalization);
+    }
+    HistogramSeries* addHistogram(
+        std::vector<double>&& values, const QString& name = {}, int bins = 0,
+        Range                  binRange      = Range::empty(),
+        HistogramNormalization normalization = HistogramNormalization::COUNT);
 
     // Series
     // ---------------------------------------------------------------------------------------------------

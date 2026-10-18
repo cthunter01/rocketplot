@@ -16,8 +16,18 @@ enum class SeriesKind : std::uint8_t
 {
     LINE,     ///< LineSeries
     SCATTER,  ///< ScatterSeries
+    BARS,     ///< BarSeries and HistogramSeries
 };
 Q_ENUM_NS(SeriesKind)
+
+/// What the height of a histogram's bar is (HistogramSeries::setNormalization()).
+enum class HistogramNormalization : std::uint8_t
+{
+    COUNT,        ///< How many values fell in the bin
+    PROBABILITY,  ///< The share of the values: the heights add up to 1
+    DENSITY,      ///< The share per unit of x: the bars' areas add up to 1, as a density's does
+};
+Q_ENUM_NS(HistogramNormalization)
 
 /// Shape drawn at each data point.
 enum class Marker : std::uint8_t

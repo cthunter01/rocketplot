@@ -12,6 +12,8 @@
 #include "Examples.h"
 #include "SampleData.h"
 #include "rocketplot/Axis.h"
+#include "rocketplot/BarSeries.h"
+#include "rocketplot/HistogramSeries.h"
 #include "rocketplot/Legend.h"
 #include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotWidget.h"
@@ -205,6 +207,51 @@ void styling(const QString& /*scratch*/)
     // [/series-visible]
 }
 
+void bars(PlotWidget* plot)
+{
+    // [series-bars]
+    // Debris pieces found, by size: bins of unequal width, between 6 edges.
+    const std::vector<double> size{0.0, 1.0, 2.0, 5.0, 10.0, 20.0};  // cm
+    const std::vector<double> found{42, 31, 18, 7, 2};
+    rocketplot::BarSeries*    pieces = plot->addBars(size, found, "Pieces found");
+    pieces->setFillOpacity(0.6);
+    pieces->setOutlineVisible(true);  // touching bars of a light fill stay apart
+    // [/series-bars]
+    plot->xAxis()->setLabel("Size (cm)");
+    plot->yAxis()->setLabel("Pieces");
+    plot->legend()->setVisible(true);
+}
+
+void histogram(PlotWidget* plot)
+{
+    std::vector<double> miss = noise(2000, 40.0, 7);
+    for (double& distance : miss)
+    {
+        distance = std::abs(distance) + 5.0;
+    }
+    // [series-histogram]
+    // 2000 landings, counted into 30 bins of their miss distance.
+    rocketplot::HistogramSeries* landings = plot->addHistogram(miss, "Landings", 30);
+    landings->setBinRange({.min = 0.0, .max = 150.0});  // 5 m bins
+    // [/series-histogram]
+    plot->xAxis()->setLabel("Miss distance (m)");
+    plot->yAxis()->setLabel("Landings");
+}
+
+void histogramSettings(const QString& /*scratch*/)
+{
+    PlotWidget                   window;
+    PlotWidget*                  plot     = &window;
+    const std::vector<double>    miss     = noise(100, 40.0, 7);
+    rocketplot::HistogramSeries* landings = plot->addHistogram(miss);
+    // [series-histogram-settings]
+    landings->setBinCount(0);   // automatic: the square root of the count, within 5 to 50
+    landings->resetBinRange();  // from the smallest value to the largest
+    landings->setNormalization(rocketplot::HistogramNormalization::PROBABILITY);  // shares of 1
+    landings->setValues(miss);  // count other values in the same bins
+    // [/series-histogram-settings]
+}
+
 }  // namespace
 
 void addSeriesExamples(Examples& examples)
@@ -214,6 +261,10 @@ void addSeriesExamples(Examples& examples)
     examples.addPlot(QStringLiteral("series-styles"), styles);
     examples.addPlot(QStringLiteral("series-bubbles"), bubbles);
     examples.addPlot(QStringLiteral("series-errors"), errors);
+    examples.addPlot(QStringLiteral("series-bars"), bars, {720, 320});
+    examples.addPlot(QStringLiteral("series-histogram"), histogram, {720, 320});
+    examples.demonstrations.push_back(
+        {.name = QStringLiteral("histogram settings"), .run = histogramSettings});
     examples.demonstrations.push_back({.name = QStringLiteral("styling a series"), .run = styling});
 }
 

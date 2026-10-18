@@ -16,7 +16,9 @@
 #include "PlotRenderer.h"
 #include "core/AxisMapping.h"
 #include "rocketplot/Axis.h"
+#include "rocketplot/BarSeries.h"
 #include "rocketplot/PlotWidget.h"
+#include "rocketplot/Range.h"
 #include "rocketplot/ScatterSeries.h"
 #include "rocketplot/Series.h"
 #include "rocketplot/Theme.h"
@@ -66,6 +68,7 @@ void drawPointMarker(QPainter& painter, const Theme& theme, const CrosshairPoint
     switch (series.kind())
     {
         case SeriesKind::LINE:
+        case SeriesKind::BARS:
             break;
         case SeriesKind::SCATTER:
             // Its own size and color, if it has them.
@@ -84,6 +87,28 @@ void drawPointMarker(QPainter& painter, const Theme& theme, const CrosshairPoint
                             .ring      = theme.background,
                             .ringWidth = theme.markerRingWidth,
                         });
+}
+
+// The x a crosshair on a data point shows: the point's own, or a bar's bin from one edge to the
+// other.
+QString pointXLabel(const Axis& axis, const PlotLayout& layout, const CrosshairPoint& point)
+{
+    const Series& series = *point.series;
+    switch (series.kind())
+    {
+        case SeriesKind::LINE:
+        case SeriesKind::SCATTER:
+            break;
+        case SeriesKind::BARS:
+            if (const auto* bars = qobject_cast<const BarSeries*>(&series))
+            {
+                const Range bin = bars->bin(point.index);
+                return valueLabel(axis, layout.x.mapping, bin.min) + QStringLiteral(" – ") +
+                       valueLabel(axis, layout.x.mapping, bin.max);
+            }
+            break;
+    }
+    return valueLabel(axis, layout.x.mapping, series.x(point.index));
 }
 
 }  // namespace
@@ -127,8 +152,7 @@ void drawCrosshair(QPainter& painter, const PlotWidget& plot, const PlotLayout& 
     const double        labelGap = theme.tickLength + kTickLabelGap - kTagPaddingY;
     if (layout.x.shown)
     {
-        const QString text = point != nullptr ? valueLabel(*plot.xAxis(), layout.x.mapping,
-                                                           point->series->x(point->index))
+        const QString text = point != nullptr ? pointXLabel(*plot.xAxis(), layout, *point)
                                               : readoutLabel(*plot.xAxis(), layout.x.mapping, px);
         QRectF        box  = tagBox(metrics, text);
         const double  left = std::clamp(px - (box.width() / 2.0), layout.bounds.left(),

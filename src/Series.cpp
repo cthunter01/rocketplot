@@ -256,6 +256,11 @@ std::optional<std::size_t> Series::indexNear(double x) const
 
 std::optional<double> Series::valueAt(double x) const
 {
+    return yAt(x);
+}
+
+std::optional<double> Series::yAt(double x) const
+{
     return core::interpolateY(*m_data, x, scaleOf(*plot()->xAxis()), scaleOf(*yAxis()));
 }
 

@@ -28,13 +28,16 @@
 #include "PlotLayout.h"
 #include "TextPainter.h"
 #include "core/AxisMapping.h"
+#include "core/Bars.h"
 #include "core/Decimator.h"
 #include "core/ErrorData.h"
 #include "core/ErrorGeometry.h"
 #include "core/LineBand.h"
 #include "core/Occupancy.h"
 #include "core/PolylineClipper.h"
+#include "core/SeriesData.h"
 #include "rocketplot/Axis.h"
+#include "rocketplot/BarSeries.h"
 #include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/Range.h"
@@ -81,6 +84,8 @@ QString modeName(const SeriesStats& stats)
             break;
         case SeriesKind::SCATTER:
             return QStringLiteral("markers");
+        case SeriesKind::BARS:
+            return QStringLiteral("bars");
     }
     QString mode;
     switch (stats.mode)
@@ -257,6 +262,31 @@ void PlotRenderer::drawGrid(QPainter& painter) const
     }
 }
 
+void PlotRenderer::drawOne(QPainter& painter, const Series& series, SeriesStats& stats)
+{
+    switch (series.kind())
+    {
+        case SeriesKind::LINE:
+            if (const auto* line = qobject_cast<const LineSeries*>(&series))
+            {
+                drawLine(painter, *line, stats);
+            }
+            break;
+        case SeriesKind::SCATTER:
+            if (const auto* scatter = qobject_cast<const ScatterSeries*>(&series))
+            {
+                drawScatter(painter, *scatter, stats);
+            }
+            break;
+        case SeriesKind::BARS:
+            if (const auto* bars = qobject_cast<const BarSeries*>(&series))
+            {
+                drawBars(painter, *bars, stats);
+            }
+            break;
+    }
+}
+
 void PlotRenderer::drawSeries(QPainter& painter, RenderStats& stats)
 {
     painter.save();
@@ -276,21 +306,7 @@ void PlotRenderer::drawSeries(QPainter& painter, RenderStats& stats)
         {
             painter.setOpacity(
                 !highlighted.isEmpty() && !highlighted.contains(&series) ? kFadedOpacity : 1.0);
-            switch (series.kind())
-            {
-                case SeriesKind::LINE:
-                    if (const auto* line = qobject_cast<const LineSeries*>(&series))
-                    {
-                        drawLine(painter, *line, seriesStats);
-                    }
-                    break;
-                case SeriesKind::SCATTER:
-                    if (const auto* scatter = qobject_cast<const ScatterSeries*>(&series))
-                    {
-                        drawScatter(painter, *scatter, seriesStats);
-                    }
-                    break;
-            }
+            drawOne(painter, series, seriesStats);
         }
         stats.series.push_back(seriesStats);
     };
@@ -549,6 +565,51 @@ void PlotRenderer::drawStyledScatter(QPainter& painter, const ScatterSeries& ser
             .right  = m_points[i].x + half,
             .bottom = m_points[i].y + half,
         });
+    }
+}
+
+void PlotRenderer::drawBars(QPainter& painter, const BarSeries& series, SeriesStats& stats)
+{
+    const QRectF& area = m_layout->plot;
+    const double  dpr  = m_layout->devicePixelRatio;
+    core::barRects(
+        series.edges(), series.data().ys(), m_layout->x.mapping, m_layout->yFor(series).mapping,
+        {.left = area.left(), .top = area.top(), .right = area.right(), .bottom = area.bottom()},
+        {.gap = series.barGap(), .devicePixelRatio = dpr}, m_bars);
+    stats.visiblePoints = m_bars.size();
+    stats.drawnPoints   = m_bars.size();
+    painter.save();
+    // Edges on whole device pixels: crisp without antialiasing, and touching bars leave no seam.
+    painter.setRenderHint(QPainter::Antialiasing, false);
+    QColor fill = series.color();
+    fill.setAlphaF(static_cast<float>(static_cast<double>(fill.alphaF()) * series.fillOpacity()));
+    for (const core::BarRect& bar : m_bars)
+    {
+        const QRectF rect(QPointF(bar.box.left, bar.box.top),
+                          QPointF(bar.box.right, bar.box.bottom));
+        painter.fillRect(rect, fill);
+        if (m_options.occupancy != nullptr)
+        {
+            m_options.occupancy->addBox(bar.box);
+        }
+    }
+    if (series.isOutlineVisible())
+    {
+        // One device pixel inside each edge.
+        const double inset = 0.5 / dpr;
+        painter.setPen(hairlinePen(series.color()));
+        painter.setBrush(Qt::NoBrush);
+        for (const core::BarRect& bar : m_bars)
+        {
+            painter.drawRect(QRectF(QPointF(bar.box.left + inset, bar.box.top + inset),
+                                    QPointF(bar.box.right - inset, bar.box.bottom - inset)));
+        }
+    }
+    painter.restore();
+    const ErrorPlan errors = errorPlan(series);
+    if (errors.bars)
+    {
+        drawErrorBars(painter, series, errors.barsWithY, stats);
     }
 }
 

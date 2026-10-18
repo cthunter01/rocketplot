@@ -35,6 +35,7 @@ DemoPage gridPage();
 DemoPage interactionPage();
 DemoPage legendPage();
 DemoPage annotationsPage();
+DemoPage statisticsPage();
 DemoPage exportPage();
 DemoPage statePage();
 DemoPage largeDataPage();

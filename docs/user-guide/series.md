@@ -2,9 +2,9 @@
 
 [User Guide](index.md) · previous: [Data](data.md) · next: [Axes](axes.md)
 
-There are two kinds of series. A `LineSeries` connects its points; a `ScatterSeries` draws a marker at each.
-Both are a `Series`, which is where the data, the name, the color and the errors live. This chapter is about how
-they look.
+A `LineSeries` connects its points, a `ScatterSeries` draws a marker at each, and a `BarSeries` stands a bar on
+each bin (a `HistogramSeries` counts its bars from values). Each is a `Series`, which is where the data, the
+name, the color and the errors live, and `kind()` says which it is. This chapter is about how they look.
 
 ## Lines
 
@@ -137,6 +137,60 @@ the plot.
 
 Like errors, sizes and colors belong to the points they were set for. `clearSizes()` and `clearColors()` go back
 to the series' own.
+
+## Bars and histograms
+
+Bars stand between edges: n bars have n + 1 edges, in increasing order, and a height each. The bins can be as
+wide as you like.
+
+![Bars of unequal width with outlines](images/series-bars.png)
+
+<!-- example: series-bars -->
+```cpp
+// Debris pieces found, by size: bins of unequal width, between 6 edges.
+const std::vector<double> size{0.0, 1.0, 2.0, 5.0, 10.0, 20.0};  // cm
+const std::vector<double> found{42, 31, 18, 7, 2};
+rocketplot::BarSeries*    pieces = plot->addBars(size, found, "Pieces found");
+pieces->setFillOpacity(0.6);
+pieces->setOutlineVisible(true);  // touching bars of a light fill stay apart
+```
+
+- Bars stand on 0 (a bar below 0 hangs from it), and autoscale shows them from 0 exactly, with no margin below.
+  On a logarithmic y axis they stand on the bottom of the plot.
+- `fillOpacity` (1 by default), `outlineVisible` (off) and `barGap`, the share of each bin left empty between
+  neighbours (0: they touch, as a histogram's should; up to 0.9).
+- Edges fall on whole device pixels and touching bars share them, so no seam or overlap shows; bars narrower
+  than a pixel merge with their neighbours, as tall as the tallest.
+- The points of a `BarSeries` are its bars: `x()` is the middle of a bin, `y()` its height. That is where the
+  crosshair goes (its x tag shows the bin, "3 – 5"), what the legend reads, and what the CSV export writes,
+  with each bin's edges in two more columns. They change through `setBars()` only: `setData()` and `append()`
+  throw `std::logic_error`. Errors work as on any point (`setYErrors()`).
+- `bin(i)` is a bar's bin and `binAt(x)` the bar over an x: an edge belongs to the bin above it, the last edge to
+  the last bin.
+
+A histogram counts values into equal bins:
+
+![A histogram of 2000 miss distances in 5 m bins](images/series-histogram.png)
+
+<!-- example: series-histogram -->
+```cpp
+// 2000 landings, counted into 30 bins of their miss distance.
+rocketplot::HistogramSeries* landings = plot->addHistogram(miss, "Landings", 30);
+landings->setBinRange({.min = 0.0, .max = 150.0});  // 5 m bins
+```
+
+<!-- example: series-histogram-settings -->
+```cpp
+landings->setBinCount(0);   // automatic: the square root of the count, within 5 to 50
+landings->resetBinRange();  // from the smallest value to the largest
+landings->setNormalization(rocketplot::HistogramNormalization::PROBABILITY);  // shares of 1
+landings->setValues(miss);  // count other values in the same bins
+```
+
+A value at an edge goes into the bin above it, the largest value into the last bin; NaN and values outside the
+range aren't counted. `PROBABILITY` makes the heights shares that add up to 1, `DENSITY` shares per unit of x,
+whose areas add up to 1 (to compare with a probability density). Each change counts the bars again, so a
+histogram has no `setBars()`.
 
 ## Color
 

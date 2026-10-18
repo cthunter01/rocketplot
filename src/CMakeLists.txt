@@ -8,11 +8,13 @@ add_library(rocketplot_core OBJECT
     core/Autoscale.cpp
     core/AxisMapping.cpp
     core/AxisTicks.cpp
+    core/Bars.cpp
     core/CsvWriter.cpp
     core/Decimator.cpp
     core/ErrorData.cpp
     core/ErrorGeometry.cpp
     core/GlyphSubstitutions.cpp
+    core/Histogram.cpp
     core/Interpolate.cpp
     core/LabelStagger.cpp
     core/LegendFlow.cpp
@@ -78,11 +80,13 @@ target_sources(rocketplot
         AnnotationPainter.cpp
         AnnotationPainter.h
         Axis.cpp
+        BarSeries.cpp
         BundledMathFont.h
         ${rocketplot_math_font_source}
         EventMarker.cpp
         FlagLayout.cpp
         FlagLayout.h
+        HistogramSeries.cpp
         IconAnnotation.cpp
         InputBindings.cpp
         InteractionController.cpp
@@ -133,8 +137,10 @@ target_sources(rocketplot
         FILES
             ${PROJECT_SOURCE_DIR}/include/rocketplot/Annotation.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/Axis.h
+            ${PROJECT_SOURCE_DIR}/include/rocketplot/BarSeries.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/EventMarker.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/ExportOptions.h
+            ${PROJECT_SOURCE_DIR}/include/rocketplot/HistogramSeries.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/IconAnnotation.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/InputBindings.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/Legend.h

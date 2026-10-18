@@ -6,6 +6,7 @@ add_executable(rocketplot_core_tests
     core/AutoscaleTests.cpp
     core/AxisMappingTests.cpp
     core/AxisTicksTests.cpp
+    core/BarsTests.cpp
     core/CsvWriterTests.cpp
     core/DecimatorTests.cpp
     core/ErrorDataTests.cpp
@@ -13,6 +14,7 @@ add_executable(rocketplot_core_tests
     core/FakeMathFont.h
     core/FontFile.h
     core/GlyphSubstitutionsTests.cpp
+    core/HistogramTests.cpp
     core/InterpolateTests.cpp
     core/LabelStaggerTests.cpp
     core/LegendFlowTests.cpp
@@ -48,7 +50,9 @@ add_executable(rocketplot_tests
     widgets/main.cpp
     widgets/AnnotationTests.cpp
     widgets/AxisTests.cpp
+    widgets/BarSeriesTests.cpp
     widgets/EventMarkerTests.cpp
+    widgets/HistogramSeriesTests.cpp
     widgets/IconAnnotationTests.cpp
     widgets/InputBindingsTests.cpp
     widgets/LegendTests.cpp

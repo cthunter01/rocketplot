@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <vector>
 
+#include "core/Bars.h"
 #include "core/Decimator.h"
 #include "core/ErrorGeometry.h"
 #include "core/LineBand.h"
@@ -23,6 +24,7 @@ namespace rocketplot
 {
 
 struct AnnotationHit;
+class BarSeries;
 class LineSeries;
 class MarkerPainter;
 struct MarkerStyle;
@@ -79,6 +81,8 @@ public:
 private:
     void drawGrid(QPainter& painter) const;
     void drawSeries(QPainter& painter, RenderStats& stats);
+    // Draws @p series as its kind is drawn.
+    void drawOne(QPainter& painter, const Series& series, SeriesStats& stats);
     void drawLine(QPainter& painter, const LineSeries& series, SeriesStats& stats);
     void fillBand(QPainter& painter, const LineSeries& series, double columnWidth);
     // Fills each run of @p polygons in @p color.
@@ -87,6 +91,7 @@ private:
     void drawScatter(QPainter& painter, const ScatterSeries& series, SeriesStats& stats);
     void drawStyledScatter(QPainter& painter, const ScatterSeries& series, const MarkerStyle& style,
                            SeriesStats& stats);
+    void drawBars(QPainter& painter, const BarSeries& series, SeriesStats& stats);
     // How a series' errors are drawn in this frame.
     struct ErrorPlan
     {
@@ -118,6 +123,7 @@ private:
     core::Polyline                m_errorBand;
     std::vector<QPointF>          m_vertices;
     std::vector<core::ErrorBar>   m_errorBars;
+    std::vector<core::BarRect>    m_bars;
     std::vector<QLineF>           m_lines;
 };
 
