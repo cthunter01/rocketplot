@@ -1447,7 +1447,7 @@ bool PlotWidget::exportPdf(const QString& fileName, const ExportOptions& options
     const ThemeOverride theme(m_impl->theme, options.theme);
     const bool          written =
         writePdf(fileName, exportSize(options), logicalDpiY(), plainText(m_impl->title),
-                 [this](QPainter& painter, const QRectF& bounds, double ratio) {
+                 options.creator, [this](QPainter& painter, const QRectF& bounds, double ratio) {
                      paintExport(painter, bounds, ratio);
                  });
     if (!written)

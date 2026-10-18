@@ -29,7 +29,8 @@ using PlotPainter =
                             const QString& title, const PlotPainter& paint);
 
 /// Writes a PDF document of one page the size of the plot; false if the file can't be written.
+/// @p creator names the application that made it; empty: the application's name.
 [[nodiscard]] bool writePdf(const QString& fileName, QSize size, int logicalDpi,
-                            const QString& title, const PlotPainter& paint);
+                            const QString& title, const QString& creator, const PlotPainter& paint);
 
 }  // namespace rocketplot

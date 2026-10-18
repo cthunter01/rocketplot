@@ -596,7 +596,7 @@ bool PlotGrid::exportSvg(const QString& fileName, const ExportOptions& options) 
 bool PlotGrid::exportPdf(const QString& fileName, const ExportOptions& options) const
 {
     const bool written =
-        writePdf(fileName, exportSize(options), logicalDpiY(), plainText(m_title),
+        writePdf(fileName, exportSize(options), logicalDpiY(), plainText(m_title), options.creator,
                  [this, &options](QPainter& painter, const QRectF& bounds, double ratio) {
                      paintGrid(painter, bounds, ratio, options.theme);
                  });

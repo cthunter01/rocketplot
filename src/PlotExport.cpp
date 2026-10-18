@@ -1,5 +1,6 @@
 #include "PlotExport.h"
 
+#include <QCoreApplication>
 #include <QImage>
 #include <QMarginsF>
 #include <QPageSize>
@@ -31,6 +32,17 @@ constexpr int    kMaxImageExtent = 32767;  // QImage's limit
 QRectF boundsOf(QSize size)
 {
     return {QPointF(), QSizeF(size)};
+}
+
+// The creator of a document: the one asked for, else the application's name, else rocketplot.
+QString creatorOf(const QString& creator)
+{
+    if (!creator.isEmpty())
+    {
+        return creator;
+    }
+    const QString application = QCoreApplication::applicationName();
+    return application.isEmpty() ? QStringLiteral("rocketplot") : application;
 }
 
 }  // namespace
@@ -88,7 +100,7 @@ bool writeSvg(const QString& fileName, QSize size, int logicalDpi, const QString
 }
 
 bool writePdf(const QString& fileName, QSize size, int logicalDpi, const QString& title,
-              const PlotPainter& paint)
+              const QString& creator, const PlotPainter& paint)
 {
     if (size.isEmpty() || logicalDpi <= 0)
     {
@@ -101,7 +113,7 @@ bool writePdf(const QString& fileName, QSize size, int logicalDpi, const QString
                                  QString(), QPageSize::ExactMatch));
     writer.setPageMargins(QMarginsF());
     writer.setTitle(title);
-    writer.setCreator(QStringLiteral("rocketplot"));
+    writer.setCreator(creatorOf(creator));
     QPainter painter;
     if (!painter.begin(&writer))
     {

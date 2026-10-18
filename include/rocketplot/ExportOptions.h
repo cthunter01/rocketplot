@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QSize>
+#include <QString>
 #include <optional>
 
 #include "rocketplot/Theme.h"
@@ -32,6 +33,11 @@ struct ExportOptions
     /// The theme to draw with instead of the plot's own, which stays as it is.
     // NOLINTNEXTLINE(readability-redundant-member-init): lets designated initializers leave it out
     std::optional<Theme> theme = {};
+
+    /// For PDF documents: the application named as the document's creator. Empty, the default: the
+    /// application's name (QCoreApplication::applicationName()), or "rocketplot" if it has none.
+    // NOLINTNEXTLINE(readability-redundant-member-init): lets designated initializers leave it out
+    QString creator = {};
 };
 
 }  // namespace rocketplot

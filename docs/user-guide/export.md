@@ -65,6 +65,7 @@ const bool pageWritten = plot->exportPdf(
 | `size` | The size the plot is laid out in, in device-independent pixels (96 to the inch), as a widget's size is | The widget's own size |
 | `dpi` | For images: pixels per inch | As sharp as the screen the widget is on |
 | `theme` | The theme to draw with | The plot's own theme |
+| `creator` | For PDF documents: the application named as the document's creator | The application's name (`QCoreApplication::applicationName()`) |
 
 `size` and `dpi` do different things, and it helps to keep them apart:
 

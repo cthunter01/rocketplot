@@ -6,6 +6,7 @@
 #include <QClipboard>
 #include <QColor>
 #include <QContextMenuEvent>
+#include <QCoreApplication>
 #include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
@@ -36,6 +37,7 @@
 #include "rocketplot/Axis.h"
 #include "rocketplot/Legend.h"
 #include "rocketplot/LineSeries.h"
+#include "rocketplot/PlotGrid.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/ScatterSeries.h"
 #include "rocketplot/Theme.h"
@@ -287,6 +289,51 @@ TEST_F(ExportTest, APdfDocument)
     const double pointsPerPixel = 72.0 / m_plot.logicalDpiY();
     EXPECT_NEAR(match.captured(1).toDouble(), 480.0 * pointsPerPixel, 0.5);
     EXPECT_NEAR(match.captured(2).toDouble(), 360.0 * pointsPerPixel, 0.5);
+}
+
+// Whether a PDF document names @p name as the application that created it. Qt writes the text
+// strings of the document information as UTF-16, big-endian, after a byte order mark; Latin-1 is
+// the other encoding PDF allows.
+bool isCreatedBy(const QByteArray& pdf, const QString& name)
+{
+    QByteArray utf16("/Creator (\xfe\xff");
+    for (const QChar character : name)
+    {
+        for (const char byte : {static_cast<char>(character.unicode() >> 8),
+                                static_cast<char>(character.unicode() & 0xff)})
+        {
+            if (byte == '(' || byte == ')' || byte == '\\')
+            {
+                utf16.append('\\');
+            }
+            utf16.append(byte);
+        }
+    }
+    utf16.append(')');
+    return pdf.contains(utf16) || pdf.contains("/Creator (" + name.toLatin1() + ')');
+}
+
+TEST_F(ExportTest, APdfNamesTheApplicationAsItsCreator)
+{
+    const QString named = path("named.pdf");
+    ASSERT_TRUE(m_plot.exportPdf(named, {.creator = "Flight Lab (bench)"}));
+    EXPECT_TRUE(isCreatedBy(contentsOf(named), "Flight Lab (bench)"));
+
+    rocketplot::PlotGrid grid(1, 1);
+    grid.resize(300, 200);
+    const QString gridFile = path("grid.pdf");
+    ASSERT_TRUE(grid.exportPdf(gridFile, {.creator = "Flight Lab"}));
+    EXPECT_TRUE(isCreatedBy(contentsOf(gridFile), "Flight Lab"));
+
+    // Left out, it is the application's name, as the context menu's Export... writes it.
+    const QString application = QCoreApplication::applicationName();
+    QCoreApplication::setApplicationName("Range Control");
+    const QString unnamed = path("unnamed.pdf");
+    const bool    written = m_plot.exportPdf(unnamed);
+    QCoreApplication::setApplicationName(application);
+    ASSERT_TRUE(written);
+    EXPECT_TRUE(isCreatedBy(contentsOf(unnamed), "Range Control"));
+    EXPECT_FALSE(isCreatedBy(contentsOf(unnamed), "rocketplot"));
 }
 
 TEST_F(ExportTest, TheDataInViewAsCsv)
