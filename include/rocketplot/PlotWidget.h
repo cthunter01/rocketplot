@@ -277,6 +277,20 @@ public:
 
     /// Turns autoscale back on for every axis, fitting the data. Recorded in the view history.
     void resetView();
+    /// Zooms in @p factor times (> 1 zooms in, < 1 out) about @p center (data coordinates, y on
+    /// yAxis()), or about the middle of each axis's range, on the axes of @p orientations; y2
+    /// follows y when it is shown. As the user's zooms are, it is one step in the view history
+    /// (back() undoes it) and turns autoscale off for the axes it zooms, and linked plots follow
+    /// in x. On a log axis it zooms in decades. A factor that isn't positive and finite does
+    /// nothing.
+    ///
+    /// @code
+    /// plot->zoom(2.0);                                       // in, about the middle
+    /// plot->zoom(0.5, Qt::Horizontal);                       // out, in x only
+    /// plot->zoom(4.0, Qt::Horizontal, QPointF(150.0, 0.0));  // in on x = 150
+    /// @endcode
+    void zoom(double factor, Qt::Orientations orientations = Qt::Horizontal | Qt::Vertical,
+              std::optional<QPointF> center = std::nullopt);
 
     /// The view before the last pan, zoom or reset by the user (or resetView()), and back again. A
     /// view is every axis's range and autoscale setting; linked plots (PlotLink) share one history,

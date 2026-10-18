@@ -72,6 +72,15 @@ private:
 /// put. On a log scale the zoom is multiplicative.
 [[nodiscard]] Range zoomedRange(const AxisMapping& mapping, double pixel, double factor) noexcept;
 
+/// @p range zoomed in @p factor times (> 1 zooms in, < 1 out) about the value @p anchor, which
+/// stays where it is: in log10 space on a log scale. @p range itself for a factor that isn't
+/// positive and finite, or an anchor @p scale can't place.
+[[nodiscard]] Range zoomedAbout(Range range, double anchor, double factor,
+                                Scale scale = Scale::LINEAR) noexcept;
+
+/// The middle of @p range on @p scale: halfway, or in log10 space on a log scale.
+[[nodiscard]] double middleOf(Range range, Scale scale = Scale::LINEAR) noexcept;
+
 /// The range in which the value under @p fromPixel appears at @p toPixel, with the content
 /// magnified @p scale times about it (> 1 zooms in): a two-finger pinch, which moves and zooms at
 /// once. With scale 1 it is a pan, with equal pixels a zoom. Multiplicative on a log scale.

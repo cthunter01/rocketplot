@@ -473,6 +473,53 @@ TEST_F(PlotWidgetTest, ASubtitleWithoutATitleIsWhereTheTitleWouldBe)
     EXPECT_GT(m_plot.plotArea().top(), subtitled);  // the title's font is larger
 }
 
+TEST_F(PlotWidgetTest, ZoomFromCodeIsAStepOfTheHistory)
+{
+    m_plot.xAxis()->setRange(0.0, 10.0);
+    m_plot.yAxis()->setRange(0.0, 10.0);
+    ASSERT_FALSE(m_plot.canGoBack());  // ranges set in code aren't recorded
+    m_plot.zoom(2.0);
+    EXPECT_EQ(m_plot.xAxis()->range(), (Range{.min = 2.5, .max = 7.5}));
+    EXPECT_EQ(m_plot.yAxis()->range(), (Range{.min = 2.5, .max = 7.5}));
+    ASSERT_TRUE(m_plot.canGoBack());
+    m_plot.back();
+    EXPECT_EQ(m_plot.xAxis()->range(), (Range{.min = 0.0, .max = 10.0}));
+    EXPECT_EQ(m_plot.yAxis()->range(), (Range{.min = 0.0, .max = 10.0}));
+    // Out, and in x only about a point.
+    m_plot.zoom(0.5);
+    EXPECT_EQ(m_plot.xAxis()->range(), (Range{.min = -5.0, .max = 15.0}));
+    m_plot.back();
+    m_plot.zoom(2.0, Qt::Horizontal, QPointF(2.0, 9.0));
+    EXPECT_EQ(m_plot.xAxis()->range(), (Range{.min = 1.0, .max = 6.0}));
+    EXPECT_EQ(m_plot.yAxis()->range(), (Range{.min = 0.0, .max = 10.0}));
+}
+
+TEST_F(PlotWidgetTest, ZoomByNothingIsNoStep)
+{
+    for (const double factor : {0.0, -1.0, std::numeric_limits<double>::infinity(),
+                                std::numeric_limits<double>::quiet_NaN()})
+    {
+        m_plot.zoom(factor);
+    }
+    EXPECT_FALSE(m_plot.canGoBack());
+    EXPECT_TRUE(m_plot.xAxis()->autoscale());
+}
+
+TEST_F(PlotWidgetTest, ZoomOnALogAxisAndTheRightOne)
+{
+    m_plot.yAxis()->setScaleType(rocketplot::ScaleType::LOGARITHMIC);
+    m_plot.yAxis()->setRange(1.0, 100.0);
+    m_plot.addLine(std::vector<double>{0, 10}, std::vector<double>{0, 1})
+        ->setOnSecondaryYAxis(true);
+    m_plot.yAxis2()->setRange(0.0, 100.0);
+    m_plot.zoom(2.0, Qt::Vertical);
+    EXPECT_NEAR(m_plot.yAxis()->min(), std::sqrt(10.0), 1e-9);  // in decades
+    EXPECT_NEAR(m_plot.yAxis()->max(), std::sqrt(1000.0), 1e-9);
+    EXPECT_EQ(m_plot.yAxis2()->range(), (Range{.min = 25.0, .max = 75.0}));
+    m_plot.back();
+    EXPECT_EQ(m_plot.yAxis2()->range(), (Range{.min = 0.0, .max = 100.0}));
+}
+
 TEST_F(PlotWidgetTest, ResetViewTurnsAutoscaleOnEverywhere)
 {
     m_plot.xAxis()->setRange(1.0, 2.0);

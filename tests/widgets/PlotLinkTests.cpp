@@ -106,6 +106,15 @@ TEST_F(PlotLinkTest, RangeChangesFollow)
     EXPECT_GT(m_a.xAxis()->max(), 20.0);
 }
 
+TEST_F(PlotLinkTest, ZoomFromCodeIsFollowedAndUndoneEverywhere)
+{
+    m_a.xAxis()->setRange(0.0, 10.0);
+    m_b.zoom(2.0, Qt::Horizontal);
+    EXPECT_EQ(m_a.xAxis()->range(), (Range{.min = 2.5, .max = 7.5}));
+    m_a.back();  // one history for both
+    EXPECT_EQ(m_b.xAxis()->range(), (Range{.min = 0.0, .max = 10.0}));
+}
+
 TEST_F(PlotLinkTest, YAxesStayIndependent)
 {
     m_a.yAxis()->setRange(0.25, 0.5);

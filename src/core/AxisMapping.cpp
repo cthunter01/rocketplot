@@ -96,6 +96,32 @@ Range zoomedRange(const AxisMapping& mapping, double pixel, double factor) noexc
     };
 }
 
+Range zoomedAbout(Range range, double anchor, double factor, Scale scale) noexcept
+{
+    const bool log = scale == Scale::LOG;
+    if (!(factor > 0.0) || !std::isfinite(factor) || !std::isfinite(anchor) ||
+        (log && (!(anchor > 0.0) || !(range.min > 0.0))))
+    {
+        return range;
+    }
+    const auto   forward = [log](double value) { return log ? std::log10(value) : value; };
+    const auto   inverse = [log](double value) { return log ? std::pow(10.0, value) : value; };
+    const double center  = forward(anchor);
+    return {
+        .min = inverse(center - ((center - forward(range.min)) / factor)),
+        .max = inverse(center + ((forward(range.max) - center) / factor)),
+    };
+}
+
+double middleOf(Range range, Scale scale) noexcept
+{
+    if (scale == Scale::LOG && range.min > 0.0 && range.max > 0.0)
+    {
+        return std::sqrt(range.min * range.max);
+    }
+    return range.center();
+}
+
 Range transformedRange(const AxisMapping& mapping, double fromPixel, double toPixel,
                        double scale) noexcept
 {

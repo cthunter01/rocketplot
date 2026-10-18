@@ -107,6 +107,12 @@ void following(const QString& /*scratch*/)
     QObject::connect(backButton, &QPushButton::clicked, plot, &rocketplot::PlotWidget::back);
     // [/interaction-history]
 
+    // [interaction-zoom]
+    plot->zoom(2.0);                                       // in twice, about the middle
+    plot->zoom(0.5, Qt::Horizontal);                       // out twice, in x only
+    plot->zoom(4.0, Qt::Horizontal, QPointF(150.0, 0.0));  // in on x = 150 s
+    // [/interaction-zoom]
+
     // [interaction-view-signal]
     QObject::connect(plot, &rocketplot::PlotWidget::viewChanged, status, [plot, status] {
         // The range of an axis changed: by the user, by autoscale or by code.

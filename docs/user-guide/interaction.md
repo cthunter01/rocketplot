@@ -53,8 +53,24 @@ QObject::connect(backButton, &QPushButton::clicked, plot, &rocketplot::PlotWidge
 - A burst of wheel steps (less than half a second apart) counts as one step, so one `back()` undoes one zoom,
   however many notches it took.
 - The history holds the last 50 views.
-- Ranges your code sets (`setRange()`, `restoreState()`) are not recorded. `resetView()` is.
+- Ranges your code sets (`setRange()`, `restoreState()`) are not recorded. `resetView()` and `zoom()` are.
 - Linked plots share one history; see [Several plots](multiple-plots.md).
+
+### Zooming from code
+
+`zoom()` zooms as the wheel does, for toolbar buttons and keyboard shortcuts: one step in the history, which
+`back()` undoes.
+
+<!-- example: interaction-zoom -->
+```cpp
+plot->zoom(2.0);                                       // in twice, about the middle
+plot->zoom(0.5, Qt::Horizontal);                       // out twice, in x only
+plot->zoom(4.0, Qt::Horizontal, QPointF(150.0, 0.0));  // in on x = 150 s
+```
+
+A factor over 1 zooms in, under 1 out. Without a center it zooms about the middle of each axis; a center is in
+data coordinates, its y on the left axis. The right axis follows the left one, a logarithmic axis zooms in
+decades, linked plots follow in x, and autoscale goes off for the axes it zoomed, as it does when the user zooms.
 
 ## The crosshair
 

@@ -820,6 +820,46 @@ void PlotWidget::resetView()
     views.commitStep();
 }
 
+void PlotWidget::zoom(double factor, Qt::Orientations orientations, std::optional<QPointF> center)
+{
+    if (!(factor > 0.0) || !std::isfinite(factor))
+    {
+        qCWarning(lcInput) << "PlotWidget::zoom: ignoring the factor" << factor;
+        return;
+    }
+    const PlotLayout layout   = m_impl->layout(*this);
+    const auto       zoomAxis = [factor](Axis& axis, std::optional<double> anchor) {
+        const core::Scale scale = scaleOf(axis);
+        const Range       range = axis.range();
+        const Range       zoomed =
+            core::zoomedAbout(range, anchor.value_or(core::middleOf(range, scale)), factor, scale);
+        if (zoomed != range && core::isUsableRange(zoomed, scale))
+        {
+            axis.setRange(zoomed);
+        }
+    };
+    ViewHistory& views = history();
+    views.beginStep();
+    if (orientations.testFlag(Qt::Horizontal))
+    {
+        zoomAxis(*m_impl->xAxis, center ? std::optional(center->x()) : std::nullopt);
+    }
+    if (orientations.testFlag(Qt::Vertical))
+    {
+        zoomAxis(*m_impl->yAxis, center ? std::optional(center->y()) : std::nullopt);
+        if (layout.y2.shown)
+        {
+            // About the value at the same height on the right.
+            const std::optional<double> right = center && layout.valid
+                                                    ? std::optional(layout.y2.mapping.toValue(
+                                                          layout.y.mapping.toPixel(center->y())))
+                                                    : std::nullopt;
+            zoomAxis(*m_impl->yAxis2, right);
+        }
+    }
+    views.commitStep();
+}
+
 void PlotWidget::back()
 {
     history().back();

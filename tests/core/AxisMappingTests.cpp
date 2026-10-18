@@ -154,4 +154,34 @@ TEST(AxisMapping, RangeBetweenPixels)
     EXPECT_DOUBLE_EQ(box.max, 0.75);
 }
 
+TEST(AxisMapping, ZoomAboutAValue)
+{
+    using rocketplot::core::middleOf;
+    using rocketplot::core::zoomedAbout;
+    const Range range{.min = 0.0, .max = 10.0};
+    EXPECT_EQ(zoomedAbout(range, middleOf(range), 2.0), (Range{.min = 2.5, .max = 7.5}));
+    EXPECT_EQ(zoomedAbout(range, 2.0, 2.0), (Range{.min = 1.0, .max = 6.0}));
+    EXPECT_EQ(zoomedAbout(range, 5.0, 0.5), (Range{.min = -5.0, .max = 15.0}));
+    // Nothing for a factor that can't be.
+    for (const double factor : {0.0, -2.0, std::numeric_limits<double>::infinity(),
+                                std::numeric_limits<double>::quiet_NaN()})
+    {
+        EXPECT_EQ(zoomedAbout(range, 5.0, factor), range);
+    }
+}
+
+TEST(AxisMapping, ZoomAboutAValueInDecades)
+{
+    using rocketplot::core::middleOf;
+    using rocketplot::core::Scale;
+    using rocketplot::core::zoomedAbout;
+    // 1 to 100 about 10.
+    const Range decades{.min = 1.0, .max = 100.0};
+    EXPECT_DOUBLE_EQ(middleOf(decades, Scale::LOG), 10.0);
+    const Range zoomed = zoomedAbout(decades, 10.0, 2.0, Scale::LOG);
+    EXPECT_NEAR(zoomed.min, std::sqrt(10.0), 1e-12);
+    EXPECT_NEAR(zoomed.max, std::sqrt(1000.0), 1e-12);
+    EXPECT_EQ(zoomedAbout(decades, -1.0, 2.0, Scale::LOG), decades);  // no place on the axis
+}
+
 }  // namespace

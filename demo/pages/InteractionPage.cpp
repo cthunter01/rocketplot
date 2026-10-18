@@ -37,6 +37,8 @@ QWidget* create(QWidget* parent)
     auto* back      = new QPushButton(QStringLiteral("Back"), page);
     auto* forward   = new QPushButton(QStringLiteral("Forward"), page);
     auto* reset     = new QPushButton(QStringLiteral("Reset view"), page);
+    auto* zoomIn    = new QPushButton(QStringLiteral("Zoom in"), page);
+    auto* zoomOut   = new QPushButton(QStringLiteral("Zoom out"), page);
     auto* crosshair = new QCheckBox(QStringLiteral("Crosshair"), page);
     auto* follows   = new QComboBox(page);
     follows->addItem(QStringLiteral("Free"), QVariant::fromValue(rocketplot::CrosshairMode::FREE));
@@ -53,6 +55,8 @@ QWidget* create(QWidget* parent)
     controls->addWidget(back);
     controls->addWidget(forward);
     controls->addWidget(reset);
+    controls->addWidget(zoomIn);
+    controls->addWidget(zoomOut);
     controls->addWidget(crosshair);
     controls->addWidget(follows);
     controls->addWidget(rightDrag);
@@ -74,6 +78,9 @@ QWidget* create(QWidget* parent)
     QObject::connect(back, &QPushButton::clicked, plot, &rocketplot::PlotWidget::back);
     QObject::connect(forward, &QPushButton::clicked, plot, &rocketplot::PlotWidget::forward);
     QObject::connect(reset, &QPushButton::clicked, plot, &rocketplot::PlotWidget::resetView);
+    // Zooming from code is a step of the history too.
+    QObject::connect(zoomIn, &QPushButton::clicked, plot, [plot] { plot->zoom(2.0); });
+    QObject::connect(zoomOut, &QPushButton::clicked, plot, [plot] { plot->zoom(0.5); });
     const auto updateButtons = [=] {
         back->setEnabled(plot->canGoBack());
         forward->setEnabled(plot->canGoForward());
