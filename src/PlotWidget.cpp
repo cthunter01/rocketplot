@@ -1007,31 +1007,34 @@ void PlotWidget::zoom(double factor, Qt::Orientations orientations, std::optiona
     // The axes' new ranges, all from their ranges as they are now: a new x range refits the y
     // axes that autoscale.
     std::vector<std::pair<Axis*, Range>> zoomed;
-    const auto zoomAxis = [factor, &zoomed](Axis& axis, std::optional<double> anchor) {
+    // Without a center, each axis zooms about its middle.
+    const auto middle = [](const Axis& axis) {
+        return core::middleOf(axis.range(), scaleOf(axis));
+    };
+    const auto zoomAxis = [factor, &zoomed](Axis& axis, double anchor) {
         const core::Scale scale = scaleOf(axis);
         const Range       range = axis.range();
-        const Range       to =
-            core::zoomedAbout(range, anchor.value_or(core::middleOf(range, scale)), factor, scale);
+        const Range       to    = core::zoomedAbout(range, anchor, factor, scale);
         if (to != range && core::isUsableRange(to, scale))
         {
             zoomed.emplace_back(&axis, to);
         }
     };
+    Axis& x = *m_impl->xAxis;
+    Axis& y = *m_impl->yAxis;
     if (orientations.testFlag(Qt::Horizontal))
     {
-        zoomAxis(*m_impl->xAxis, center ? std::optional(center->x()) : std::nullopt);
+        zoomAxis(x, center ? center->x() : middle(x));
     }
     if (orientations.testFlag(Qt::Vertical))
     {
-        zoomAxis(*m_impl->yAxis, center ? std::optional(center->y()) : std::nullopt);
-        if (layout.y2.shown)
+        zoomAxis(y, center ? center->y() : middle(y));
+        if (Axis& y2 = *m_impl->yAxis2; layout.y2.shown)
         {
             // About the value at the same height on the right.
-            const std::optional<double> right = center && layout.valid
-                                                    ? std::optional(layout.y2.mapping.toValue(
-                                                          layout.y.mapping.toPixel(center->y())))
-                                                    : std::nullopt;
-            zoomAxis(*m_impl->yAxis2, right);
+            zoomAxis(y2, center && layout.valid
+                             ? layout.y2.mapping.toValue(layout.y.mapping.toPixel(center->y()))
+                             : middle(y2));
         }
     }
     ViewHistory& views = history();
