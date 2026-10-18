@@ -69,10 +69,13 @@ grid->exportPdf("flight.pdf");
 - **Errors**: any series takes errors along x and y, the same or different below and above. Lines draw y errors
   as a band and scatter series as bars with caps (either can do both); bars too dense to tell apart become a
   band, read from min/max pyramids like the data. Autoscale makes room for them.
-- **Scatter**: seven marker shapes, and a size and color per point for a third and fourth value.
-- **Annotations**: reference lines with labels, shaded spans, text with an arrow to the point it is about, and
-  event markers whose flags are staggered so neighbors don't cover each other. They move with the data; autoscale
-  makes room for the ones you say.
+- **Lines and markers**: seven marker shapes, filled or hollow, and a size and color per point for a third and
+  fourth value. Lines take a width, a style or a dash pattern of your own, and caps, and can show their markers
+  on every point at any zoom.
+- **Annotations**: reference lines with labels, shaded spans, rectangles, icons, text with an arrow to the point
+  it is about (framed or not), and event markers whose flags are staggered so neighbors don't cover each other,
+  drawn over the data, in room left above it, or in a band above the plot area. They move with the data or stay
+  pinned to the plot area, can have a tool tip and a legend entry, and autoscale makes room for the ones you say.
 - **Axes**: linear, logarithmic and date/time scales (calendar-aware ticks and concise labels in any time zone),
   a secondary y axis on the right, minor ticks and grid, short labels (a common offset like `+1.7×10⁹`, a `×10ⁿ`
   multiplier, or SI prefixes), and Qt rich text in titles and labels (`v<sub>z</sub>`).
@@ -81,7 +84,8 @@ grid->exportPdf("flight.pdf");
   integrals, accents, delimiters that grow, matrices and cases. In Latin Modern Math, which the library has
   inside it, or any installed OpenType math font; no LaTeX installation needed.
 - **Autoscale**: fit all the data, fit y to what's visible in the current x range, or follow the newest data
-  as a scrolling strip chart.
+  as a scrolling strip chart. A range can reach down to zero when the data comes close, the zeros of the two
+  y axes can line up, and a fixed aspect ratio draws data to scale (a circle stays round).
 - **Linked plots**: `PlotLink` ties the x axes of stacked plots together, lines up their plot areas, and shares
   their crosshair and view history.
 - **Subplot grid**: `PlotGrid` arranges plots in rows and columns, lines their plot areas up in both directions,
@@ -94,8 +98,10 @@ grid->exportPdf("flight.pdf");
   scroll to pan and pinch to zoom; touchscreens drag and pinch. Back and forward through the view history (the
   mouse's side buttons, the context menu, or `back()`/`forward()`), a crosshair with its coordinates on the axes
   that follows the pointer, snaps to a data point close to it or traces the nearest series, and a context menu
-  you can add to. `InputBindings` remaps which gesture does what.
-- **Legend**: goes where it hides the least data, or where you drag it. Click an entry to hide its series,
+  you can add to. `InputBindings` remaps which gesture does what; `clicked()` reports the clicks that do nothing
+  else, `zoom()` zooms from code, and the cursor over the plot area can be your own.
+- **Legend**: goes where it hides the least data, where you drag it, or outside the plot area, under or right
+  of it; series can share an entry, and annotations can have one. Click an entry to hide its series,
   double-click to show it alone, point at it to bring its series forward, right-click it to change its color,
   width or marker. With the crosshair on, each entry reads its series at the pointer.
 - **Export**: an image at any size and sharpness (a 600 × 400 plot at 300 dpi), SVG and PDF drawings with text
@@ -106,7 +112,7 @@ grid->exportPdf("flight.pdf");
   series' visibility and style, found again by name) as JSON, and `restoreState()` applies it to a plot with the
   same or newer data. Settings that follow the theme keep following it.
 - **Look**: light and dark themes that follow the application's palette, plus high-contrast and print themes; a
-  colorblind-safe series palette, hairline grid, tabular tick labels. A debug overlay shows layout boxes, frame
+  colorblind-safe series palette, hairline grid, tabular tick labels, a title and a subtitle under it. A debug overlay shows layout boxes, frame
   time and what each series drew.
 - MIT licensed; needs only Qt.
 
@@ -157,14 +163,14 @@ Build it with your project (only the library is built then):
 include(FetchContent)
 FetchContent_Declare(rocketplot
     GIT_REPOSITORY https://github.com/cthunter01/rocketplot.git
-    GIT_TAG        v0.4.0
+    GIT_TAG        v0.5.0
     SYSTEM)   # warnings in its headers don't fail your -Werror or clang-tidy
 FetchContent_MakeAvailable(rocketplot)
 target_link_libraries(my_app PRIVATE rocketplot::rocketplot)
 ```
 Or install it (`cmake --install build/<preset> --prefix <dir>`) or download the `-sdk` release archive, then:
 ```cmake
-find_package(rocketplot 0.4 REQUIRED)   # with <dir> in CMAKE_PREFIX_PATH
+find_package(rocketplot 0.5 REQUIRED)   # with <dir> in CMAKE_PREFIX_PATH
 target_link_libraries(my_app PRIVATE rocketplot::rocketplot)
 ```
 A project built with sanitizers sets `ROCKETPLOT_SANITIZERS` to the same list before `FetchContent_MakeAvailable`
