@@ -20,8 +20,9 @@ namespace rocketplot
 class Series;
 struct Theme;
 
-/// How markers look: a shape filled (or, for CROSS and PLUS, stroked) in the series color, inside a
-/// ring of the background color that keeps overlapping markers and crossing lines apart.
+/// How markers look: a shape filled (or, for CROSS and PLUS, stroked) in the series color, or
+/// hollow (outlined), inside a ring of the background color that keeps overlapping markers and
+/// crossing lines apart.
 struct MarkerStyle
 {
     Marker shape = Marker::CIRCLE;
@@ -29,6 +30,7 @@ struct MarkerStyle
     QColor color;
     QColor ring;
     double ringWidth = 2.0;
+    bool   filled    = true;
 };
 
 /// How @p series draws its markers with @p theme.
@@ -63,12 +65,13 @@ private:
         QRgb   ring             = 0;
         double ringWidth        = 0.0;
         double devicePixelRatio = 1.0;
+        bool   filled           = true;
 
         friend bool   operator==(const SpriteKey&, const SpriteKey&) = default;
         friend size_t qHash(const SpriteKey& key, size_t seed = 0) noexcept
         {
             return qHashMulti(seed, static_cast<int>(key.shape), key.size, key.color, key.ring,
-                              key.ringWidth, key.devicePixelRatio);
+                              key.ringWidth, key.devicePixelRatio, key.filled);
         }
     };
 

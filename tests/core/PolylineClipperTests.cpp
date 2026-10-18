@@ -89,4 +89,32 @@ TEST(PolylineClipper, SinglePointsInsideAreKept)
     EXPECT_EQ(out.run(0).size(), 1U);
 }
 
+TEST(PolylineClipper, RunOffsetsSayWhereEachRunStartsAlongTheLine)
+{
+    // From left of the box in: the run starts 50 pixels along the line.
+    Polyline            out;
+    std::vector<double> offsets;
+    clipPolyline(makeRun({{.x = -50, .y = 50}, {.x = 50, .y = 50}}), kBox, out, &offsets);
+    ASSERT_EQ(offsets.size(), 1U);
+    EXPECT_DOUBLE_EQ(offsets[0], 50.0);
+
+    // Out through the top and back in: the second run starts where the line comes back, 40 + 60 +
+    // 60 + 40 pixels along it.
+    clipPolyline(
+        makeRun({{.x = 10, .y = 40}, {.x = 10, .y = -20}, {.x = 70, .y = -20}, {.x = 70, .y = 40}}),
+        kBox, out, &offsets);
+    ASSERT_EQ(out.runCount(), 2U);
+    ASSERT_EQ(offsets.size(), 2U);
+    EXPECT_DOUBLE_EQ(offsets[0], 0.0);
+    EXPECT_DOUBLE_EQ(offsets[1], 140.0);
+
+    // Each run of the input starts again; a lone point too.
+    Polyline twoRuns = makeRun({{.x = 10, .y = 10}, {.x = 20, .y = 10}});
+    twoRuns.add({.x = 30, .y = 30});
+    twoRuns.endRun();
+    clipPolyline(twoRuns, kBox, out, &offsets);
+    ASSERT_EQ(offsets.size(), 2U);
+    EXPECT_DOUBLE_EQ(offsets[1], 0.0);
+}
+
 }  // namespace

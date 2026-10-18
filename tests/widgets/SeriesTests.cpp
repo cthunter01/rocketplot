@@ -169,21 +169,6 @@ TEST(Series, AnEmptiedPlotStartsItsColorsOver)
     EXPECT_EQ(plot.addLine(std::vector<double>{1})->color(), plot.theme().seriesColor(0));
 }
 
-TEST(Series, PenRoundTrip)
-{
-    PlotWidget       plot;
-    LineSeries*      line = plot.addLine(std::vector<double>{1});
-    const QSignalSpy spy(line, &rocketplot::Series::changed);
-    line->setPen(QPen(QColor(Qt::red), 3.5, Qt::DashLine));
-    EXPECT_EQ(spy.count(), 1);
-    EXPECT_EQ(line->color(), QColor(Qt::red));
-    EXPECT_DOUBLE_EQ(line->lineWidth(), 3.5);
-    EXPECT_EQ(line->lineStyle(), Qt::DashLine);
-    EXPECT_EQ(line->pen().capStyle(), Qt::RoundCap);
-    line->resetColor();
-    EXPECT_EQ(line->color(), plot.theme().seriesColor(0));
-}
-
 TEST(Series, PropertiesWorkThroughTheMetaObject)
 {
     PlotWidget  plot;

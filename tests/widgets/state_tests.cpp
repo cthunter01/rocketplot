@@ -7,6 +7,7 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QLatin1String>
+#include <QList>
 #include <QPointF>
 #include <QString>
 #include <QTimeZone>
@@ -219,6 +220,11 @@ TEST_F(PlotStateTest, SeriesSettingsComeBack)
     saved->setErrorStyle(rocketplot::ErrorStyle::BARS);
     saved->setErrorCapSize(9.0);
     saved->setBandOpacity(0.5);
+    saved->setMarkerFilled(false);
+    saved->setMarkerRingWidth(0.0);
+    saved->setDashPattern({6.0, 2.0, 1.0, 2.0});
+    saved->setCapStyle(Qt::FlatCap);
+    saved->setMarkersAlwaysVisible(true);
     const LineSeries* restored = m_restored.addLine(kX, kY, "A");
 
     carryOver();
@@ -233,6 +239,11 @@ TEST_F(PlotStateTest, SeriesSettingsComeBack)
     EXPECT_EQ(restored->errorStyle(), rocketplot::ErrorStyle::BARS);
     EXPECT_DOUBLE_EQ(restored->errorCapSize(), 9.0);
     EXPECT_DOUBLE_EQ(restored->bandOpacity(), 0.5);
+    EXPECT_FALSE(restored->isMarkerFilled());
+    EXPECT_DOUBLE_EQ(restored->markerRingWidth(), 0.0);
+    EXPECT_EQ(restored->dashPattern(), (QList<qreal>{6.0, 2.0, 1.0, 2.0}));
+    EXPECT_EQ(restored->capStyle(), Qt::FlatCap);
+    EXPECT_TRUE(restored->areMarkersAlwaysVisible());
 }
 
 TEST_F(PlotStateTest, ASeriesFollowingTheThemeGoesOnFollowingIt)

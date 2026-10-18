@@ -30,7 +30,45 @@ ceiling->setPen(QPen(QColor("#c0392b"), 1.5, Qt::DashLine));  // color, width an
 - **Style** is a `Qt::PenStyle`: `Qt::SolidLine`, `Qt::DashLine`, `Qt::DotLine`, `Qt::DashDotLine`.
 - **Markers on a line** show only while the points are far enough apart to tell them from each other. Zoomed out
   over thousands of points they would merge into a thick smear, so the line is drawn alone; zoom in and they
-  appear.
+  appear. `setMarkersAlwaysVisible(true)` draws them however close together the points are.
+
+### Dashes, ends and markers in detail
+
+![A dash-dot line, a line with hollow markers at every point, and diamonds without a ring](images/series-styles.png)
+
+<!-- example: series-styles -->
+```cpp
+// A dash-dot pattern of its own, in pixels, with flat ends: the dashes are exactly that long.
+rocketplot::LineSeries* reference = plot->addLine(time, nominal, "Nominal");
+reference->setDashPattern({8.0, 3.0, 2.0, 3.0});
+reference->setCapStyle(Qt::FlatCap);
+
+// Hollow markers at every point, however close together the points are.
+rocketplot::LineSeries* sampled = plot->addLine(time, measured, "Measured");
+sampled->setMarker(rocketplot::Marker::CIRCLE);
+sampled->setMarkerFilled(false);
+sampled->setMarkersAlwaysVisible(true);
+
+// Markers without the ring of background color around them.
+rocketplot::ScatterSeries* events = plot->addScatter(eventTime, eventValue, "Events");
+events->setMarker(rocketplot::Marker::DIAMOND);
+events->setMarkerSize(14.0);
+events->setMarkerRingWidth(0.0);
+```
+
+- **A dash pattern** of your own is a list of dash and gap lengths in device-independent pixels, the same at any
+  line width; it replaces the style. The pattern goes on along the whole line, also where the line leaves the plot
+  area and comes back, and starts again after a gap in the data. A list of an odd number of lengths, or with one
+  that isn't positive, is ignored with a warning.
+- **The cap** is how a line and its dashes end: `Qt::RoundCap` (the default), `Qt::FlatCap` (dashes exactly as
+  long as given), `Qt::SquareCap` (half the line width longer at each end).
+- **Hollow markers** (`setMarkerFilled(false)`) are an outline: what is under them shows through. `CROSS` and
+  `PLUS` are lines either way.
+- **The ring** of the background color around each marker is the theme's width (2 pixels) until set with
+  `setMarkerRingWidth()`; 0 is none.
+
+`setPen()` and `pen()` take and give all of a line's look at once: color, width, style or dash pattern, and cap.
+A pen's own dash pattern is in line widths, as QPen has it; the series keeps it in pixels.
 
 ## Scatter points
 
@@ -55,7 +93,8 @@ for (std::size_t i = 0; i < shapes.size(); ++i)
 ```
 
 Each marker has a thin ring in the background color around it, so that markers that overlap can still be told
-apart.
+apart (`setMarkerRingWidth()` changes it, see [above](#dashes-ends-and-markers-in-detail)). Markers can be hollow
+too.
 
 ### A size and a color per point
 

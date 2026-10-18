@@ -37,6 +37,7 @@ QWidget* create(QWidget* parent)
         double             y;
         double             sigma;
         rocketplot::Marker marker;
+        bool               filled;
     };
     const std::array<Run, 3> runs{
         {
@@ -46,6 +47,7 @@ QWidget* create(QWidget* parent)
                 .y      = 0.0,
                 .sigma  = 18.0,
                 .marker = rocketplot::Marker::CIRCLE,
+                .filled = true,
             },
             {
                 .name   = "Gusty",
@@ -53,6 +55,7 @@ QWidget* create(QWidget* parent)
                 .y      = 40.0,
                 .sigma  = 30.0,
                 .marker = rocketplot::Marker::SQUARE,
+                .filled = true,
             },
             {
                 .name   = "Engine-out",
@@ -60,6 +63,7 @@ QWidget* create(QWidget* parent)
                 .y      = -35.0,
                 .sigma  = 22.0,
                 .marker = rocketplot::Marker::TRIANGLE,
+                .filled = false,  // hollow: the points under them show
             },
         },
     };
@@ -69,6 +73,7 @@ QWidget* create(QWidget* parent)
         auto* points = plot->addScatter(gaussian(400, run.x, run.sigma, seed),
                                         gaussian(400, run.y, run.sigma, seed + 100), run.name);
         points->setMarker(run.marker);
+        points->setMarkerFilled(run.filled);
         ++seed;
     }
 
@@ -82,7 +87,8 @@ QWidget* create(QWidget* parent)
         y.push_back(100.0 * std::sin(angle));
     }
     auto* limit = plot->addLine(x, y, "100 m keep-out");
-    limit->setLineStyle(Qt::DashLine);
+    limit->setDashPattern({10.0, 4.0});  // pixels: 10 on, 4 off
+    limit->setCapStyle(Qt::FlatCap);
     // [/snippet]
     return plot;
 }

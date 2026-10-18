@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 
 #include "RenderedPlotTest.h"
+#include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/Series.h"
 #include "rocketplot/enums.h"
@@ -157,6 +158,46 @@ TEST_F(ScatterSeriesTest, EachPointIsDrawnAtItsSize)
     EXPECT_TRUE(isNearly(same.pixelColor(pixelAt(5.0, 5.0, QPoint(2, 0))), color));
     EXPECT_FALSE(isNearly(sized.pixelColor(pixelAt(8.0, 5.0)), color));
     EXPECT_EQ(same.pixelColor(pixelAt(8.0, 5.0)), color);
+}
+
+TEST_F(ScatterSeriesTest, AHollowMarkerLetsWhatIsUnderItShow)
+{
+    m_points->setMarkerSize(24.0);
+    const QPoint middle = pixelAt(5.0, 5.0);
+    EXPECT_EQ(render().pixelColor(middle), m_points->color());
+    m_points->setMarkerFilled(false);
+    const QImage hollow = render();
+    EXPECT_EQ(hollow.pixelColor(middle), m_plot.theme().background);
+    EXPECT_TRUE(isNearly(hollow.pixelColor(middle + QPoint(12, 0)), m_points->color()));  // its rim
+}
+
+TEST_F(ScatterSeriesTest, FilledAndHollowMarkersInOneFrame)
+{
+    // Two series alike but for that: each draws its own (they don't share a marker image).
+    m_points->setMarkerSize(24.0);
+    ScatterSeries* hollow = m_plot.addScatter(std::vector<double>{3.3}, std::vector<double>{2.7});
+    hollow->setMarkerSize(24.0);
+    hollow->setColor(m_points->color());
+    hollow->setMarkerFilled(false);
+    const QImage image = render();
+    EXPECT_EQ(image.pixelColor(pixelAt(5.0, 5.0)), m_points->color());
+    EXPECT_EQ(image.pixelColor(pixelAt(3.3, 2.7)), m_plot.theme().background);
+}
+
+TEST_F(ScatterSeriesTest, TheRingKeepsWhatIsUnderAMarkerAwayFromIt)
+{
+    // A broad line under the middle marker: its ring cuts a margin of background into the line.
+    auto* line = m_plot.addLine(std::vector<double>{0, 10}, std::vector<double>{5, 5});
+    line->setLineWidth(30.0);
+    line->setColor(Qt::red);
+    m_plot.removeSeries(m_points);
+    m_points = m_plot.addScatter(std::vector<double>{5}, std::vector<double>{5});
+    m_points->setMarkerSize(10.0);
+    const QPoint beside = pixelAt(5.0, 5.0, QPoint(7, 0));  // 2 pixels outside the marker
+    m_points->setMarkerRingWidth(0.0);
+    EXPECT_EQ(render().pixelColor(beside), QColor(Qt::red));
+    m_points->setMarkerRingWidth(4.0);
+    EXPECT_EQ(render().pixelColor(beside), m_plot.theme().background);
 }
 
 TEST_F(ScatterSeriesTest, AMarkerTooBigForASpriteIsStillDrawn)

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "core/Decimator.h"
 
 namespace rocketplot::core
@@ -13,6 +15,10 @@ bool clipSegment(PixelPoint& a, PixelPoint& b, PixelBox box) noexcept;
 /// box. A single-point run is kept if the point is inside. Used to keep coordinates small enough
 /// for QPainter to draw exactly: a point a million pixels off screen becomes the point where its
 /// segment crosses the box.
-void clipPolyline(const Polyline& in, PixelBox box, Polyline& out);
+///
+/// With @p runOffsets, also records for each run of @p out how far along its run of @p in it
+/// starts (in pixels): a dashed line goes on with its pattern where it comes back into the box.
+void clipPolyline(const Polyline& in, PixelBox box, Polyline& out,
+                  std::vector<double>* runOffsets = nullptr);
 
 }  // namespace rocketplot::core

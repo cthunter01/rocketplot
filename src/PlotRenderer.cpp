@@ -117,6 +117,23 @@ double crispPixel(double value, double devicePixelRatio)
     return (std::floor(value * devicePixelRatio) + 0.5) / devicePixelRatio;
 }
 
+QPen linePen(const LineSeries& series, double width)
+{
+    QPen pen = series.pen();
+    pen.setWidthF(width);
+    const QList<qreal> lengths = series.dashPattern();
+    if (!lengths.isEmpty())
+    {
+        QList<qreal> dashes;
+        for (const qreal length : lengths)
+        {
+            dashes.append(length / width);
+        }
+        pen.setDashPattern(dashes);
+    }
+    return pen;
+}
+
 QPen hairlinePen(const QColor& color)
 {
     QPen pen(color, 1.0);
@@ -303,9 +320,12 @@ void PlotRenderer::drawLine(QPainter& painter, const LineSeries& series, SeriesS
     // axes rather than many.
     const QPaintEngine* engine = painter.paintEngine();
     const bool          raster = engine == nullptr || engine->type() == QPaintEngine::Raster;
+    // A dashed line goes on with its pattern where it comes back into view: where each clipped
+    // run starts along the line.
+    const bool dashed = series.pen().style() != Qt::SolidLine;
     core::clipPolyline(
         m_line, expanded(m_layout->plot, (raster ? kLineClipMargin : 0.0) + series.lineWidth()),
-        m_clipped);
+        m_clipped, dashed ? &m_runOffsets : nullptr);
     if (m_options.occupancy != nullptr)
     {
         m_options.occupancy->addPolyline(m_clipped, series.lineWidth());
@@ -314,8 +334,8 @@ void PlotRenderer::drawLine(QPainter& painter, const LineSeries& series, SeriesS
     // More than a point per pixel column of sorted data: fill the line's outline (fast) instead of
     // stroking it.
     const double columns = m_layout->plot.width() / columnWidth;
-    stats.band           = series.isSortedByX() && series.lineStyle() == Qt::SolidLine &&
-                           static_cast<double>(result.visiblePoints) > columns;
+    stats.band =
+        series.isSortedByX() && !dashed && static_cast<double>(result.visiblePoints) > columns;
     if (stats.band)
     {
         fillBand(painter, series, columnWidth);
@@ -332,14 +352,26 @@ void PlotRenderer::drawLine(QPainter& painter, const LineSeries& series, SeriesS
     }
 
     // Markers only once the points are apart: closer than half a marker, they would merge into a
-    // smear.
-    if (series.marker() != Marker::NONE &&
-        static_cast<double>(result.visiblePoints) * series.markerSize() / 2.0 <=
-            m_layout->plot.width())
+    // smear (unless asked for always: one per device pixel at most).
+    const bool apart = static_cast<double>(result.visiblePoints) * series.markerSize() / 2.0 <=
+                       m_layout->plot.width();
+    if (series.marker() != Marker::NONE && (apart || series.areMarkersAlwaysVisible()))
     {
-        const MarkerStyle style = markerStyle(series, *m_theme);
+        MarkerStyle style = markerStyle(series, *m_theme);
         core::decimateScatter(series.data(), m_layout->x.mapping, y,
                               expanded(m_layout->plot, style.size), columnWidth, m_points);
+        if (!apart && style.ringWidth > 0.0)
+        {
+            // Markers on top of each other: every ring first, or each would cover the shape of
+            // the marker before it.
+            MarkerStyle rings = style;
+            rings.color       = style.ring;
+            rings.size        = style.size + (2.0 * style.ringWidth);
+            rings.ringWidth   = 0.0;
+            rings.filled      = true;
+            m_markers->draw(painter, m_points, rings);
+            style.ringWidth = 0.0;
+        }
         m_markers->draw(painter, m_points, style);
         if (m_options.occupancy != nullptr)
         {
@@ -383,7 +415,12 @@ void PlotRenderer::fillPolygons(QPainter& painter, const core::Polyline& polygon
 
 void PlotRenderer::strokeLine(QPainter& painter, const LineSeries& series) const
 {
-    painter.setPen(series.pen());
+    QPen       pen    = series.pen();
+    const bool dashed = pen.style() != Qt::SolidLine;
+    // Pieces of a run overlap by a point: round caps hide the joins. Other caps would show a notch,
+    // so they overlap by a segment.
+    const std::size_t overlap = pen.capStyle() == Qt::RoundCap ? 1 : 2;
+    painter.setPen(pen);
     std::vector<QPointF> vertices;
     for (std::size_t r = 0; r < m_clipped.runCount(); ++r)
     {
@@ -396,21 +433,37 @@ void PlotRenderer::strokeLine(QPainter& painter, const LineSeries& series) const
             painter.setBrush(series.color());
             painter.drawEllipse(QPointF(run.front().x, run.front().y), radius, radius);
             painter.setBrush(Qt::NoBrush);
-            painter.setPen(series.pen());
+            painter.setPen(pen);
             continue;
         }
-        // In short pieces, overlapping by a point: QPainter strokes a long self-overlapping
-        // polyline far more slowly (its outline is filled as one polygon). The round caps hide the
-        // joins.
-        for (std::size_t begin = 0; begin + 1 < run.size(); begin += kPolylineChunk - 1)
+        // In short pieces: QPainter strokes a long self-overlapping polyline far more slowly (its
+        // outline is filled as one polygon). A dashed line's pattern goes on from piece to piece:
+        // each starts the pattern as far along as the line has come.
+        double      along = dashed && r < m_runOffsets.size() ? m_runOffsets[r] : 0.0;
+        std::size_t done  = 0;  // the point `along` is measured to
+        for (std::size_t begin = 0; begin + 1 < run.size(); begin += kPolylineChunk - overlap)
         {
             const std::size_t end = std::min(run.size(), begin + kPolylineChunk);
+            if (dashed)
+            {
+                for (; done < begin; ++done)
+                {
+                    along +=
+                        std::hypot(run[done + 1].x - run[done].x, run[done + 1].y - run[done].y);
+                }
+                pen.setDashOffset(along / pen.widthF());
+                painter.setPen(pen);
+            }
             vertices.clear();
             for (std::size_t i = begin; i < end; ++i)
             {
                 vertices.emplace_back(run[i].x, run[i].y);
             }
             painter.drawPolyline(vertices.data(), static_cast<int>(vertices.size()));
+            if (end == run.size())
+            {
+                break;
+            }
         }
     }
 }

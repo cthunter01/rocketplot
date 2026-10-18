@@ -107,6 +107,7 @@ private:
     RenderOptions                 m_options;
     core::Polyline                m_line;  // reused buffers
     core::Polyline                m_clipped;
+    std::vector<double>           m_runOffsets;  // where each run of m_clipped starts, dashed
     core::Polyline                m_band;
     core::LineBand                m_lineBand;
     std::vector<core::PixelPoint> m_points;
@@ -122,6 +123,8 @@ private:
 /// The center of the device pixel that contains @p value (in logical coordinates): a 1-device-pixel
 /// antialiased line there covers exactly one pixel row or column, so it is crisp.
 [[nodiscard]] double crispPixel(double value, double devicePixelRatio);
+/// The pen of @p series' line at @p width: its dashes as long as at its own width.
+[[nodiscard]] QPen linePen(const LineSeries& series, double width);
 /// A pen one device pixel wide at any scale, for axes, grid lines and outlines.
 [[nodiscard]] QPen hairlinePen(const QColor& color);
 /// @p value rounded to whole device pixels, and @p rect with its edges so rounded.

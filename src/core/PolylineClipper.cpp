@@ -1,7 +1,10 @@
 #include "core/PolylineClipper.h"
 
 #include <array>
+#include <cmath>
 #include <cstddef>
+#include <span>
+#include <vector>
 
 #include "core/Decimator.h"
 
@@ -38,6 +41,11 @@ PixelPoint pointOnEdge(PixelPoint start, double dx, double dy, double t, std::si
             break;
     }
     return point;
+}
+
+double distance(PixelPoint a, PixelPoint b)
+{
+    return std::hypot(b.x - a.x, b.y - a.y);
 }
 
 }  // namespace
@@ -91,52 +99,82 @@ bool clipSegment(PixelPoint& a, PixelPoint& b, PixelBox box) noexcept
     return true;
 }
 
-void clipPolyline(const Polyline& in, PixelBox box, Polyline& out)
+namespace
+{
+
+// Clips one run of two or more points (see clipPolyline()); with @p runOffsets, measures how far
+// along it each run of @p out starts.
+void clipRun(std::span<const PixelPoint> run, PixelBox box, Polyline& out,
+             std::vector<double>* runOffsets)
+{
+    const bool measure   = runOffsets != nullptr;
+    bool       open      = false;  // whether out's current run ends at run[i - 1]
+    double     travelled = 0.0;    // along the run, to run[i - 1]
+    for (std::size_t i = 1; i < run.size(); ++i)
+    {
+        PixelPoint   a      = run[i - 1];
+        PixelPoint   b      = run[i];
+        const double length = measure ? distance(a, b) : 0.0;
+        if (open && box.contains(b))
+        {
+            out.add(b);  // the common case: the run stays inside
+            travelled += length;
+            continue;
+        }
+        const PixelPoint originalA = a;
+        const PixelPoint originalB = b;
+        if (!clipSegment(a, b, box))
+        {
+            out.endRun();
+            open = false;
+            travelled += length;
+            continue;
+        }
+        if (!open || a != originalA)
+        {
+            out.endRun();
+            out.add(a);
+            if (measure)
+            {
+                runOffsets->push_back(travelled + distance(originalA, a));
+            }
+        }
+        out.add(b);
+        travelled += length;
+        open = b == originalB;
+        if (!open)
+        {
+            out.endRun();  // the segment left the box
+        }
+    }
+    out.endRun();
+}
+
+}  // namespace
+
+void clipPolyline(const Polyline& in, PixelBox box, Polyline& out, std::vector<double>* runOffsets)
 {
     out.clear();
+    if (runOffsets != nullptr)
+    {
+        runOffsets->clear();
+    }
     for (std::size_t r = 0; r < in.runCount(); ++r)
     {
         const auto run = in.run(r);
-        if (run.size() == 1)
+        if (run.size() > 1)
         {
-            if (box.contains(run.front()))
-            {
-                out.add(run.front());
-                out.endRun();
-            }
-            continue;
+            clipRun(run, box, out, runOffsets);
         }
-        bool open = false;  // whether out's current run ends at run[i - 1]
-        for (std::size_t i = 1; i < run.size(); ++i)
+        else if (box.contains(run.front()))
         {
-            PixelPoint a = run[i - 1];
-            PixelPoint b = run[i];
-            if (open && box.contains(b))
+            out.add(run.front());
+            out.endRun();
+            if (runOffsets != nullptr)
             {
-                out.add(b);  // the common case: the run stays inside
-                continue;
-            }
-            const PixelPoint originalA = a;
-            const PixelPoint originalB = b;
-            if (!clipSegment(a, b, box))
-            {
-                out.endRun();
-                open = false;
-                continue;
-            }
-            if (!open || a != originalA)
-            {
-                out.endRun();
-                out.add(a);
-            }
-            out.add(b);
-            open = b == originalB;
-            if (!open)
-            {
-                out.endRun();  // the segment left the box
+                runOffsets->push_back(0.0);
             }
         }
-        out.endRun();
     }
 }
 

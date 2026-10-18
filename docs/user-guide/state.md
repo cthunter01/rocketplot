@@ -84,26 +84,38 @@ A plot of two series, after the user zoomed in, hid one series and recolored the
     "series": [
         {
             "bandOpacity": null,
+            "capStyle": null,
             "color": "#c2410c",
+            "dashPattern": [
+            ],
             "errorCapSize": null,
             "errorStyle": "BAND",
             "lineStyle": "SolidLine",
             "lineWidth": null,
             "marker": "NONE",
+            "markerFilled": true,
+            "markerRingWidth": null,
             "markerSize": null,
+            "markersAlwaysVisible": false,
             "name": "LOX feed line",
             "onSecondaryYAxis": false,
             "visible": true
         },
         {
             "bandOpacity": null,
+            "capStyle": null,
             "color": null,
+            "dashPattern": [
+            ],
             "errorCapSize": null,
             "errorStyle": "BAND",
             "lineStyle": "SolidLine",
             "lineWidth": null,
             "marker": "NONE",
+            "markerFilled": true,
+            "markerRingWidth": null,
             "markerSize": null,
+            "markersAlwaysVisible": false,
             "name": "Tank wall",
             "onSecondaryYAxis": false,
             "visible": false

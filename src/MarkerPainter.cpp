@@ -5,6 +5,7 @@
 #include <QPaintEngine>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPainterPathStroker>
 #include <QPen>
 #include <QPixmap>
 #include <QPointF>
@@ -45,8 +46,9 @@ constexpr double kMinimumSize   = 1.0;
 constexpr int    kColorLevels   = 31;
 // A square looks bigger than a circle of the same diameter; shrink it to match visually.
 constexpr double kSquareScale = 0.85;
-// Stroke width of CROSS and PLUS, relative to their size.
-constexpr double kStrokeFraction = 0.22;
+// Stroke width of CROSS and PLUS, relative to their size, and of the outline of a hollow marker.
+constexpr double kStrokeFraction  = 0.22;
+constexpr double kOutlineFraction = 0.15;
 
 bool isStroked(Marker marker)
 {
@@ -56,6 +58,28 @@ bool isStroked(Marker marker)
 double strokeWidth(const MarkerStyle& style)
 {
     return std::max(1.5, style.size * kStrokeFraction);
+}
+
+// The width of the outline of a hollow marker.
+double outlineWidth(const MarkerStyle& style)
+{
+    return std::max(1.5, style.size * kOutlineFraction);
+}
+
+bool isHollow(const MarkerStyle& style)
+{
+    return !style.filled && !isStroked(style.shape);
+}
+
+// The width of the lines a marker is drawn with: of a CROSS or PLUS, or of a hollow marker's
+// outline; 0 for a filled shape.
+double lineWidthOf(const MarkerStyle& style)
+{
+    if (isStroked(style.shape))
+    {
+        return strokeWidth(style);
+    }
+    return isHollow(style) ? outlineWidth(style) : 0.0;
 }
 
 // Draws one marker centered on (0, 0) of the painter's current coordinates.
@@ -73,6 +97,21 @@ void paintMarker(QPainter& painter, const MarkerStyle& style)
         {
             painter.strokePath(path, QPen(style.ring, width + (2.0 * style.ringWidth),
                                           Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        }
+        painter.strokePath(path,
+                           QPen(style.color, width, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        return;
+    }
+    if (isHollow(style))
+    {
+        // An outline, with the ring outside it only: what is under the marker shows through.
+        const double width = outlineWidth(style);
+        if (style.ringWidth > 0.0)
+        {
+            QPainterPathStroker ring;
+            ring.setWidth(width + (2.0 * style.ringWidth));
+            ring.setJoinStyle(Qt::RoundJoin);
+            painter.fillPath(ring.createStroke(path).subtracted(path), style.ring);
         }
         painter.strokePath(path,
                            QPen(style.color, width, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
@@ -112,7 +151,8 @@ MarkerStyle markerStyle(const Series& series, const Theme& theme)
         .size      = series.markerSize(),
         .color     = series.color(),
         .ring      = theme.background,
-        .ringWidth = theme.markerRingWidth,
+        .ringWidth = series.markerRingWidth(),
+        .filled    = series.isMarkerFilled(),
     };
 }
 
@@ -265,6 +305,7 @@ const QPixmap& MarkerPainter::sprite(const MarkerStyle& style, double devicePixe
         .ring             = style.ring.rgba(),
         .ringWidth        = style.ringWidth,
         .devicePixelRatio = devicePixelRatio,
+        .filled           = style.filled,
     };
     if (const auto found = m_sprites.constFind(key); found != m_sprites.constEnd())
     {
@@ -273,8 +314,7 @@ const QPixmap& MarkerPainter::sprite(const MarkerStyle& style, double devicePixe
 
     // Room for the shape, its ring and antialiasing, in whole device pixels, odd so the center is a
     // pixel center.
-    const double extent     = style.size + (2.0 * style.ringWidth) +
-                              (isStroked(style.shape) ? strokeWidth(style) : 0.0) + 2.0;
+    const double extent     = style.size + (2.0 * style.ringWidth) + lineWidthOf(style) + 2.0;
     int          deviceSize = static_cast<int>(std::ceil(extent * devicePixelRatio));
     deviceSize += deviceSize % 2 == 0 ? 1 : 0;
 

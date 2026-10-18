@@ -135,6 +135,46 @@ void Series::setMarkerSize(double size)
     Q_EMIT changed();
 }
 
+void Series::setMarkerFilled(bool filled)
+{
+    if (filled == m_markerFilled)
+    {
+        return;
+    }
+    m_markerFilled = filled;
+    Q_EMIT changed();
+}
+
+double Series::markerRingWidth() const
+{
+    return m_markerRingWidth.value_or(m_plot->theme().markerRingWidth);
+}
+
+void Series::setMarkerRingWidth(double width)
+{
+    if (!std::isfinite(width) || width < 0.0)
+    {
+        qCWarning(lcData) << "Series::setMarkerRingWidth: ignoring" << width;
+        return;
+    }
+    if (m_markerRingWidth == width)
+    {
+        return;
+    }
+    m_markerRingWidth = width;
+    Q_EMIT changed();
+}
+
+void Series::resetMarkerRingWidth()
+{
+    if (!m_markerRingWidth)
+    {
+        return;
+    }
+    m_markerRingWidth.reset();
+    Q_EMIT changed();
+}
+
 void Series::resetMarkerSize()
 {
     if (!m_markerSize)
@@ -441,6 +481,8 @@ void Series::saveState(QJsonObject& state) const
                  m_color ? state::fromColor(*m_color) : QJsonValue(QJsonValue::Null));
     state.insert(QLatin1String("marker"), state::fromEnum(m_marker));
     state.insert(QLatin1String("markerSize"), state::fromOptional(m_markerSize));
+    state.insert(QLatin1String("markerFilled"), m_markerFilled);
+    state.insert(QLatin1String("markerRingWidth"), state::fromOptional(m_markerRingWidth));
     state.insert(QLatin1String("onSecondaryYAxis"), m_secondaryYAxis);
     state.insert(QLatin1String("errorStyle"), state::fromEnum(m_errorStyle));
     state.insert(QLatin1String("errorCapSize"), state::fromOptional(m_errorCapSize));
@@ -463,6 +505,13 @@ void Series::restoreState(const QJsonObject& state)
     state::restoreOptional(
         state.value(QLatin1String("markerSize")), state::toNumber,
         [this](double size) { setMarkerSize(size); }, [this] { resetMarkerSize(); });
+    if (const auto filled = state::toBool(state.value(QLatin1String("markerFilled"))))
+    {
+        setMarkerFilled(*filled);
+    }
+    state::restoreOptional(
+        state.value(QLatin1String("markerRingWidth")), state::toNumber,
+        [this](double width) { setMarkerRingWidth(width); }, [this] { resetMarkerRingWidth(); });
     if (const auto secondary = state::toBool(state.value(QLatin1String("onSecondaryYAxis"))))
     {
         setOnSecondaryYAxis(*secondary);

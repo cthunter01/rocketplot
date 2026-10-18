@@ -167,9 +167,7 @@ void drawSwatch(QPainter& painter, const Series& series, const Theme& theme, QPo
     drawErrorSwatch(painter, series, theme, center);
     if (const auto* line = qobject_cast<const LineSeries*>(&series))
     {
-        QPen pen = line->pen();
-        pen.setWidthF(std::min(pen.widthF(), kMaxSwatchLine));
-        painter.setPen(pen);
+        painter.setPen(linePen(*line, std::min(line->lineWidth(), kMaxSwatchLine)));
         painter.drawLine(center - QPointF(kSwatch / 2.0, 0.0),
                          center + QPointF(kSwatch / 2.0, 0.0));
     }

@@ -52,6 +52,41 @@ void lines(PlotWidget* plot)
     plot->legend()->setAnchor(LegendAnchor::BOTTOM_RIGHT);
 }
 
+void styles(PlotWidget* plot)
+{
+    const std::vector<double> time = linspace(0.0, 10.0, 81);
+    std::vector<double>       nominal(time.size());
+    std::vector<double>       measured = noise(time.size(), 0.12, 3);
+    for (std::size_t i = 0; i < time.size(); ++i)
+    {
+        nominal[i] = 4.0 * (1.0 - std::exp(-time[i] / 3.0));
+        measured[i] += nominal[i] - 0.6;
+    }
+    const std::vector<double> eventTime{1.5, 4.0, 7.5};
+    const std::vector<double> eventValue{2.4, 3.9, 4.6};
+    // [series-styles]
+    // A dash-dot pattern of its own, in pixels, with flat ends: the dashes are exactly that long.
+    rocketplot::LineSeries* reference = plot->addLine(time, nominal, "Nominal");
+    reference->setDashPattern({8.0, 3.0, 2.0, 3.0});
+    reference->setCapStyle(Qt::FlatCap);
+
+    // Hollow markers at every point, however close together the points are.
+    rocketplot::LineSeries* sampled = plot->addLine(time, measured, "Measured");
+    sampled->setMarker(rocketplot::Marker::CIRCLE);
+    sampled->setMarkerFilled(false);
+    sampled->setMarkersAlwaysVisible(true);
+
+    // Markers without the ring of background color around them.
+    rocketplot::ScatterSeries* events = plot->addScatter(eventTime, eventValue, "Events");
+    events->setMarker(rocketplot::Marker::DIAMOND);
+    events->setMarkerSize(14.0);
+    events->setMarkerRingWidth(0.0);
+    // [/series-styles]
+    plot->xAxis()->setLabel("Time (s)");
+    plot->yAxis()->setLabel("Load (g)");
+    plot->legend()->setAnchor(LegendAnchor::BOTTOM_RIGHT);
+}
+
 void markers(PlotWidget* plot)
 {
     const std::vector<double> x = linspace(1.0, 9.0, 9);
@@ -176,6 +211,7 @@ void addSeriesExamples(Examples& examples)
 {
     examples.addPlot(QStringLiteral("series-lines"), lines);
     examples.addPlot(QStringLiteral("series-markers"), markers, {720, 320});
+    examples.addPlot(QStringLiteral("series-styles"), styles);
     examples.addPlot(QStringLiteral("series-bubbles"), bubbles);
     examples.addPlot(QStringLiteral("series-errors"), errors);
     examples.demonstrations.push_back({.name = QStringLiteral("styling a series"), .run = styling});

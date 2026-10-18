@@ -59,6 +59,9 @@ class ROCKETPLOT_EXPORT Series : public QObject
     Q_PROPERTY(rocketplot::Marker marker READ marker WRITE setMarker NOTIFY changed)
     Q_PROPERTY(
         double markerSize READ markerSize WRITE setMarkerSize RESET resetMarkerSize NOTIFY changed)
+    Q_PROPERTY(bool markerFilled READ isMarkerFilled WRITE setMarkerFilled NOTIFY changed)
+    Q_PROPERTY(double markerRingWidth READ markerRingWidth WRITE setMarkerRingWidth RESET
+                   resetMarkerRingWidth NOTIFY changed)
     Q_PROPERTY(
         bool onSecondaryYAxis READ isOnSecondaryYAxis WRITE setOnSecondaryYAxis NOTIFY changed)
     Q_PROPERTY(rocketplot::ErrorStyle errorStyle READ errorStyle WRITE setErrorStyle NOTIFY changed)
@@ -112,6 +115,17 @@ public:
     [[nodiscard]] double markerSize() const;
     void                 setMarkerSize(double size);
     void                 resetMarkerSize();
+    /// Whether markers are filled in the series color (the default), or hollow: an outline in the
+    /// series color around a center that lets what is under it show. CROSS and PLUS are lines
+    /// either way.
+    [[nodiscard]] bool isMarkerFilled() const noexcept { return m_markerFilled; }
+    void               setMarkerFilled(bool filled);
+    /// The width of the ring of the plot's background color around each marker, which keeps
+    /// markers that overlap, and lines that cross them, apart (device-independent pixels; 0 for
+    /// none). By default the theme's (Theme::markerRingWidth).
+    [[nodiscard]] double markerRingWidth() const;
+    void                 setMarkerRingWidth(double width);
+    void                 resetMarkerRingWidth();
 
     /// The y axis the series is drawn against: the plot's yAxis() (the default) or yAxis2().
     [[nodiscard]] Axis* yAxis() const;
@@ -344,6 +358,8 @@ private:
     std::unique_ptr<core::SeriesData> m_data;
     std::unique_ptr<core::ErrorData>  m_errors;
     QString                           m_name;
+    std::optional<double>             m_markerRingWidth;
+    bool                              m_markerFilled = true;
     QString                           m_legendGroup;
     bool                              m_visible = true;
     std::optional<QColor>             m_color;
