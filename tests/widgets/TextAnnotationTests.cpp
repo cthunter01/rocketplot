@@ -182,7 +182,8 @@ TEST_F(TextAnnotationTest, PinnedToThePlotAreaItStaysPutAsTheViewChanges)
     note->setBackgroundVisible(false);
     const QRect ink = inkOf(note);
     ASSERT_FALSE(ink.isEmpty());
-    EXPECT_NEAR(ink.center().x(), m_plot.plotArea().center().x(), 2.0);
+    // Near: glyphs don't fill their advance (without fonts each is a box with a gap after it).
+    EXPECT_NEAR(ink.center().x(), m_plot.plotArea().center().x(), 4.0);
     EXPECT_NEAR(ink.center().y(), m_plot.plotArea().center().y(), 3.0);
     // Pinned to the top-left corner, it stays there as the view changes (the corner itself may
     // move as the tick labels get wider or narrower).

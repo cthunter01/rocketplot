@@ -419,10 +419,11 @@ bool hasColor(const QImage& image, const QRect& area, const QColor& color)
 }
 
 // Where @p plot draws the text that @p set sets: what changes with it, the layout staying the
-// same. @p image gets the plot as drawn.
+// same (a text of another length: without fonts every glyph is the same box). @p image gets the
+// plot as drawn.
 QRect inkOfText(PlotWidget& plot, void (PlotWidget::*set)(const QString&), QImage& image)
 {
-    (plot.*set)("Flight 8");
+    (plot.*set)("Flight 78");
     const QImage other = plot.grab().toImage();
     (plot.*set)("Flight 7");
     image = plot.grab().toImage();

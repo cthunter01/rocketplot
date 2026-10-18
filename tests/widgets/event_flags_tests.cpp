@@ -92,7 +92,9 @@ protected:
                 {
                     lowestBlue = y;
                 }
-                if (color == QColor(Qt::red) && highestRed < 0)
+                // Nearly red: some columns of the antialiased line have no pixel of pure red.
+                const bool red = color.red() > 240 && color.green() < 32 && color.blue() < 32;
+                if (red && highestRed < 0)
                 {
                     highestRed = y;
                 }

@@ -167,7 +167,9 @@ TEST_F(ScatterSeriesTest, AHollowMarkerLetsWhatIsUnderItShow)
     EXPECT_EQ(render().pixelColor(middle), m_points->color());
     m_points->setMarkerFilled(false);
     const QImage hollow = render();
-    EXPECT_EQ(hollow.pixelColor(middle), m_plot.theme().background);
+    // What is there without the marker: the background, or a grid line through it.
+    m_points->setVisible(false);
+    EXPECT_EQ(hollow.pixelColor(middle), render().pixelColor(middle));
     EXPECT_TRUE(isNearly(hollow.pixelColor(middle + QPoint(12, 0)), m_points->color()));  // its rim
 }
 
