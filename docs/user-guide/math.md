@@ -90,7 +90,9 @@ grid->setMathFontFamily("STIX Two Math");  // the title and every plot of a Plot
 plot->resetMathFontFamily();               // back to Latin Modern Math
 ```
 
-A family that isn't installed, or isn't a math font, is replaced by Latin Modern Math, with a warning.
+A family that isn't installed, or isn't a math font, is replaced by Latin Modern Math, with a warning. (A library
+built without Latin Modern Math, `ROCKETPLOT_BUNDLE_MATH_FONT=OFF`, shows formulas as text unless a plot names an
+installed math font: see [Getting started](getting-started.md#without-the-math-font).)
 
 ## Exports and plain text
 

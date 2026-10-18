@@ -77,7 +77,14 @@ int firstGap(const QImage& a, const QImage& b, QRect ink)
     return -1;
 }
 
-class MathLabelTest : public MathTest
+// Whether the library was built with its math font (ROCKETPLOT_BUNDLE_MATH_FONT).
+#ifdef ROCKETPLOT_NO_MATH_FONT
+constexpr bool kBundledMathFont = false;
+#else
+constexpr bool kBundledMathFont = true;
+#endif
+
+class MathLabelBase : public MathTest
 {
 protected:
     void SetUp() override
@@ -104,6 +111,42 @@ protected:
 
     QImage                      m_plain;
     rocketplot::TextAnnotation* m_note = nullptr;
+};
+
+// Math set in the bundled font.
+class MathLabelTest : public MathLabelBase
+{
+protected:
+    void SetUp() override
+    {
+        if (!kBundledMathFont)
+        {
+            GTEST_SKIP() << "built without the math font (ROCKETPLOT_BUNDLE_MATH_FONT=OFF)";
+        }
+        MathLabelBase::SetUp();
+    }
+};
+
+// Math in a library built without its math font.
+class NoBundledMathFontTest : public MathLabelBase
+{
+protected:
+    void SetUp() override
+    {
+        if (kBundledMathFont)
+        {
+            GTEST_SKIP() << "built with the math font";
+        }
+        MathLabelBase::SetUp();
+    }
+
+    // The ink of @p text in the middle of the plot.
+    QRect inkOf(const QString& text)
+    {
+        const QImage image = withText(text);
+        m_plot.removeAnnotation(m_note);
+        return inkRect(m_plain, image, middle());
+    }
 };
 
 TEST_F(MathLabelTest, AFormulaSitsOnTheBaselineOfTheText)
@@ -293,6 +336,28 @@ TEST_F(MathLabelTest, AFontThatIsntInstalledIsntUsed)
     const QImage bundled = withText("$x^2$");
     m_plot.setMathFontFamily("No Such Math");
     EXPECT_EQ(render(), bundled);
+}
+
+TEST_F(NoBundledMathFontTest, FormulasAreShownAsText)
+{
+    // As their plain text: "v_z", not "$v_z$".
+    const QRect formula = inkOf("$v_z$");
+    const QRect text    = inkOf("v_z");
+    ASSERT_FALSE(formula.isEmpty());
+    EXPECT_NEAR(formula.width(), text.width(), 2);
+    EXPECT_NEAR(formula.height(), text.height(), 2);
+}
+
+TEST_F(NoBundledMathFontTest, AnInstalledMathFontIsUsed)
+{
+    const int id = QFontDatabase::addApplicationFont(ROCKETPLOT_MATH_FONT_FILE);
+    ASSERT_GE(id, 0);
+    const QImage text = withText("$x^2$");
+    m_plot.setMathFontFamily(QFontDatabase::applicationFontFamilies(id).value(0));
+    EXPECT_NE(render(), text);  // typeset
+    m_plot.resetMathFontFamily();
+    EXPECT_EQ(render(), text);
+    QFontDatabase::removeApplicationFont(id);
 }
 
 TEST_F(MathLabelTest, MathGoesEverywhereTextDoes)

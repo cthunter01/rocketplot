@@ -116,7 +116,10 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
 - `cmake/ProjectOptions.cmake`: `rocketplot_configure_target()` (warnings, sanitizers, coverage, tidy) and
   `rocketplot_configure_qt_target()` (that plus moc, `QT_NO_KEYWORDS` and a Qt 6.8 deprecation cap)
 - `cmake/Dependencies.cmake`: Qt (find_package) and third-party libraries via FetchContent
-- `cmake/Install.cmake`, `cmake/rocketplotConfig.cmake.in`: the installed `find_package(rocketplot)` package
+- `cmake/Install.cmake`, `cmake/rocketplotConfig.cmake.in`: the installed `find_package(rocketplot)` package.
+  `cmake/Licenses.cmake`: the licence files, installed also as a subproject (`ROCKETPLOT_INSTALL_LICENSES`) and
+  listed in the target property `ROCKETPLOT_LICENSE_FILES`. `ROCKETPLOT_BUNDLE_MATH_FONT=OFF` leaves the math font
+  out (`src/NoBundledMathFont.cpp`; formulas then show as text; `rocketplot_tests` skips the math tests)
 
 ## Conventions
 - Headers are `.h` (never `.hpp`) and use `#pragma once`

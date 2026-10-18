@@ -21,10 +21,11 @@ namespace rocketplot
 class RawMathFont final : public core::MathFont
 {
 public:
-    /// Latin Modern Math, which the library has inside it.
+    /// Latin Modern Math, which the library has inside it; null if it was built without it.
     [[nodiscard]] static std::shared_ptr<const RawMathFont> bundled();
     /// The installed font @p family ("STIX Two Math"), if it is an OpenType math font (one with
-    /// a MATH table); otherwise, with a warning, the bundled one. Empty: the bundled one.
+    /// a MATH table); otherwise, with a warning, the bundled one. Empty: the bundled one. Null
+    /// when neither is there.
     [[nodiscard]] static std::shared_ptr<const RawMathFont> load(const QString& family);
 
     RawMathFont(const QRawFont& font, core::MathTable table,

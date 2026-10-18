@@ -223,7 +223,8 @@ public:
     /// ("Speed $v_z$"): the family of an installed OpenType math font (one with a MATH table:
     /// "STIX Two Math", "Cambria Math", "Libertinus Math"), or empty (the default) for Latin Modern
     /// Math, which comes with the library. A family that isn't one is set in that too, with a
-    /// warning.
+    /// warning. (A library built with ROCKETPLOT_BUNDLE_MATH_FONT=OFF has no font of its own: its
+    /// formulas are shown as text unless this names one.)
     [[nodiscard]] QString mathFontFamily() const;
     void                  setMathFontFamily(const QString& family);
     void                  resetMathFontFamily() { setMathFontFamily({}); }

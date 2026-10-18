@@ -98,6 +98,13 @@ QPointF alignedTopLeft(const QSizeF& size, const QRectF& box, Qt::Alignment alig
     return {x, y};
 }
 
+// @p formula as plain text ("v_z", "F/m"), or as typed if it can't be parsed.
+QString plainFormula(const QString& formula)
+{
+    const auto list = core::parseMath(formula.toStdString());
+    return list ? QString::fromStdString(core::mathToPlainText(*list)) : u'$' + formula + u'$';
+}
+
 }  // namespace
 
 QString plainText(const QString& text)
@@ -113,10 +120,7 @@ QString plainText(const QString& text)
                                  : label.text;
     for (qsizetype i = 0; i < label.formulas.size(); ++i)
     {
-        const QString& formula = label.formulas.at(i);
-        const auto     list    = core::parseMath(formula.toStdString());
-        plain.replace(placeholder(i), list ? QString::fromStdString(core::mathToPlainText(*list))
-                                           : u'$' + formula + u'$');
+        plain.replace(placeholder(i), plainFormula(label.formulas.at(i)));
     }
     return plain;
 }
@@ -175,6 +179,10 @@ QTextDocument* TextPainter::document(const QString& text, const QFont& font)
         if (const auto object = m_mathObjects->format(formula, around, font))
         {
             cursor.insertText(QString(QChar::ObjectReplacementCharacter), *object);
+        }
+        else if (!m_math.hasFont())
+        {
+            cursor.insertText(plainFormula(formula), around);  // nothing to set it in
         }
         else
         {

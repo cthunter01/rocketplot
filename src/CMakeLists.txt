@@ -49,16 +49,21 @@ add_library(rocketplot ${rocketplot_library_type})
 add_library(rocketplot::rocketplot ALIAS rocketplot)
 
 # The math font, compiled in as an array of bytes: a static library's Qt resources would need initializing and
-# exporting. Generated when the font changes; a C array of 700 KB isn't for clang-tidy.
-set(rocketplot_math_font ${CMAKE_CURRENT_SOURCE_DIR}/fonts/latinmodern-math.otf)
-set(rocketplot_math_font_source ${CMAKE_CURRENT_BINARY_DIR}/generated/BundledMathFont.cpp)
-add_custom_command(OUTPUT ${rocketplot_math_font_source}
-    COMMAND ${CMAKE_COMMAND} -DINPUT=${rocketplot_math_font} -DOUTPUT=${rocketplot_math_font_source}
-        -DHEADER=BundledMathFont.h -DFUNCTION=bundledMathFont -P ${PROJECT_SOURCE_DIR}/cmake/EmbedFile.cmake
-    DEPENDS ${rocketplot_math_font} ${PROJECT_SOURCE_DIR}/cmake/EmbedFile.cmake
-    COMMENT "Embedding the math font"
-    VERBATIM)
-set_source_files_properties(${rocketplot_math_font_source} PROPERTIES SKIP_LINTING ON)
+# exporting. Generated when the font changes; a C array of 700 KB isn't for clang-tidy. Without it
+# (ROCKETPLOT_BUNDLE_MATH_FONT=OFF), math is set in an installed math font a plot names, or else shown as text.
+if(ROCKETPLOT_BUNDLE_MATH_FONT)
+    set(rocketplot_math_font ${CMAKE_CURRENT_SOURCE_DIR}/fonts/latinmodern-math.otf)
+    set(rocketplot_math_font_source ${CMAKE_CURRENT_BINARY_DIR}/generated/BundledMathFont.cpp)
+    add_custom_command(OUTPUT ${rocketplot_math_font_source}
+        COMMAND ${CMAKE_COMMAND} -DINPUT=${rocketplot_math_font} -DOUTPUT=${rocketplot_math_font_source}
+            -DHEADER=BundledMathFont.h -DFUNCTION=bundledMathFont -P ${PROJECT_SOURCE_DIR}/cmake/EmbedFile.cmake
+        DEPENDS ${rocketplot_math_font} ${PROJECT_SOURCE_DIR}/cmake/EmbedFile.cmake
+        COMMENT "Embedding the math font"
+        VERBATIM)
+    set_source_files_properties(${rocketplot_math_font_source} PROPERTIES SKIP_LINTING ON)
+else()
+    set(rocketplot_math_font_source NoBundledMathFont.cpp)
+endif()
 
 generate_export_header(rocketplot
     BASE_NAME ROCKETPLOT

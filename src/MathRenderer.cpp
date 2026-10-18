@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <expected>
 #include <memory>
+#include <mutex>
 #include <utility>
 
 #include "Logging.h"
@@ -102,6 +103,15 @@ MathRenderer::Result MathRenderer::render(const QString& tex)
     if (const auto found = m_renderings.constFind(tex); found != m_renderings.constEnd())
     {
         return *found;
+    }
+    if (!m_font)
+    {
+        static std::once_flag s_warned;
+        std::call_once(s_warned, [] {
+            qCWarning(lcRender) << "rocketplot was built without its math font "
+                                   "(ROCKETPLOT_BUNDLE_MATH_FONT=OFF): math is shown as text";
+        });
+        return std::unexpected(QStringLiteral("no math font"));
     }
     if (m_renderings.size() >= kMaxRenderings)
     {

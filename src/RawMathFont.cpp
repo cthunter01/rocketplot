@@ -126,6 +126,10 @@ std::shared_ptr<const RawMathFont> RawMathFont::bundled()
     if (!fonts.bundled)
     {
         const std::span<const std::byte> bytes = bundledMathFont();
+        if (bytes.empty())
+        {
+            return nullptr;  // built without it
+        }
         // The array is static: the font can use it in place.
         const QByteArray data = QByteArray::fromRawData(
             QByteArrayView(bytes.data(), static_cast<qsizetype>(bytes.size())).data(),
@@ -162,10 +166,10 @@ std::shared_ptr<const RawMathFont> RawMathFont::load(const QString& family)
     std::shared_ptr<const RawMathFont> font = loadInstalled(family);
     if (!font)
     {
-        qCWarning(lcRender).noquote()
-            << "No OpenType math font" << family
-            << "(one with a MATH table): math is set in Latin Modern Math";
         font = bundled();
+        qCWarning(lcRender).noquote()
+            << "No OpenType math font" << family << "(one with a MATH table):"
+            << (font ? "math is set in Latin Modern Math" : "math is shown as text");
     }
     Registry&              fonts = registry();
     const std::scoped_lock lock(fonts.mutex);

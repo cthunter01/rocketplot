@@ -4,4 +4,10 @@ include(CMakeFindDependencyMacro)
 find_dependency(Qt6 6.8 COMPONENTS Widgets Svg)
 
 include("${CMAKE_CURRENT_LIST_DIR}/rocketplotTargets.cmake")
+
+# The licence files that were installed with the library (cmake/Licenses.cmake).
+set(_rocketplot_license_files "@rocketplot_installed_license_files@")
+list(TRANSFORM _rocketplot_license_files PREPEND "${PACKAGE_PREFIX_DIR}/")
+set_property(TARGET rocketplot::rocketplot PROPERTY ROCKETPLOT_LICENSE_FILES ${_rocketplot_license_files})
+unset(_rocketplot_license_files)
 check_required_components(rocketplot)

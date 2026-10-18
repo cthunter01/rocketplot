@@ -37,6 +37,33 @@ If you keep the source in your own tree (a git submodule, a copy), `add_subdirec
 the same. Either way only the library is built: its tests, demo, documentation and Designer plugin are built only
 when rocketplot is the top-level project.
 
+#### Licence files
+
+A program that links rocketplot holds a copy of it, and of the math font it has inside it, and their licences ask
+that the notices go with every copy. `cmake --install` of your project installs them, also when rocketplot is a
+subproject:
+
+| File | Installed to | For |
+| --- | --- | --- |
+| `LICENSE` | `share/doc/rocketplot/` | rocketplot (MIT) |
+| `GUST-FONT-LICENSE.txt`, `README-latinmodern-math.txt` | `share/doc/rocketplot/latinmodern-math/` | Latin Modern Math, the math font (GUST Font License) |
+
+They are in their own install component, `rocketplot_licenses`. A project that gathers the notices of what it uses
+itself (for an About box, or one file of third-party licences) gets their paths from the target, at configure time:
+
+```cmake
+get_target_property(rocketplot_licenses rocketplot::rocketplot ROCKETPLOT_LICENSE_FILES)
+```
+
+and can set `ROCKETPLOT_INSTALL_LICENSES` to `OFF`. An installed rocketplot's target has the same property, with
+the installed files.
+
+#### Without the math font
+
+Math between `$` signs (see [Math notation](math.md)) is set in a font that is compiled into the library, which makes
+it 700 KB larger. `ROCKETPLOT_BUNDLE_MATH_FONT=OFF` leaves the font out, and its licence with it. Math is then set in
+an installed OpenType math font that a plot names (`setMathFontFamily()`), or else shown as text: `$v_z$` as `v_z`.
+
 ### Use an installed copy
 
 Install the library from its build (`cmake --install build/<preset> --prefix <dir>`), or unpack the `-sdk` archive

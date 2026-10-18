@@ -48,7 +48,11 @@ public:
 
     /// @p tex typeset, or why it can't be (logged the first time). Cached.
     [[nodiscard]] Result render(const QString& tex);
-    /// The font math is set in.
+    /// Whether there is a font to set math in: none in a library built without its own
+    /// (ROCKETPLOT_BUNDLE_MATH_FONT=OFF), unless fontFamily() is an installed math font. Without
+    /// one, render() fails, and labels show their formulas as text.
+    [[nodiscard]] bool hasFont() const { return m_font != nullptr; }
+    /// The font math is set in (if hasFont()).
     [[nodiscard]] const RawMathFont& font() const { return *m_font; }
 
     /// Draws @p rendering, @p scale pixels to a font unit, with the left end of its baseline at

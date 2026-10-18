@@ -71,6 +71,9 @@ target_link_libraries(rocketplot_tests PRIVATE rocketplot::rocketplot Qt6::Svg Q
 set_target_properties(rocketplot_tests PROPERTIES AUTOUIC ON)
 target_compile_definitions(rocketplot_tests PRIVATE
     ROCKETPLOT_MATH_FONT_FILE="${PROJECT_SOURCE_DIR}/src/fonts/latinmodern-math.otf")   # form_tests.cpp: PlotForm.ui, a form from Designer
+if(NOT ROCKETPLOT_BUNDLE_MATH_FONT)
+    target_compile_definitions(rocketplot_tests PRIVATE ROCKETPLOT_NO_MATH_FONT)   # math_tests.cpp: no typesetting
+endif()
 rocketplot_configure_qt_target(rocketplot_tests)
 if(WIN32)
     # Windows finds DLLs on PATH only: put Qt's bin directory there for test discovery and runs (CMake 3.29+).

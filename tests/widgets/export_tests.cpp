@@ -217,6 +217,9 @@ TEST_F(ExportTest, PaintsIntoAPartOfAnotherDrawing)
 
 TEST_F(ExportTest, MathIsDrawnAsOutlinesInAnSvgDrawing)
 {
+#ifdef ROCKETPLOT_NO_MATH_FONT
+    GTEST_SKIP() << "built without the math font (ROCKETPLOT_BUNDLE_MATH_FONT=OFF)";
+#endif
     const QString plainFile = path("plain.svg");
     m_plot.setTitle("Speed v");
     ASSERT_TRUE(m_plot.exportSvg(plainFile));
