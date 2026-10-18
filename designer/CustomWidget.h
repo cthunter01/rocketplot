@@ -29,6 +29,7 @@ struct WidgetDescription
 };
 
 /// One of rocketplot's widgets as Qt Designer sees it.
+// NOLINTNEXTLINE(misc-multiple-inheritance): Designer's plugins are a QObject and the interface
 class CustomWidget : public QObject, public QDesignerCustomWidgetInterface
 {
     Q_OBJECT

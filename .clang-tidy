@@ -25,7 +25,9 @@ Checks: >
   -readability-magic-numbers
 
 WarningsAsErrors: ''
-HeaderFilterRegex: '(include|src|tests|demo|benchmarks|docs)/'
+# Every top-level directory with headers of ours: the regex matches anywhere in a path, so one left out is still
+# checked in a checkout under a folder whose name is in the list (~/src/rocketplot), and only there.
+HeaderFilterRegex: '(include|src|tests|demo|benchmarks|docs|designer)/'
 ExcludeHeaderFilterRegex: '(_deps|_autogen)/'
 FormatStyle: file
 
