@@ -11,10 +11,12 @@
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QIODevice>
+#include <QIcon>
 #include <QImage>
 #include <QMenu>
 #include <QPainter>
 #include <QPen>
+#include <QPixmap>
 #include <QPoint>
 #include <QPointF>
 #include <QRectF>
@@ -35,12 +37,15 @@
 
 #include "RenderedPlotTest.h"
 #include "rocketplot/Axis.h"
+#include "rocketplot/EventMarker.h"
+#include "rocketplot/IconAnnotation.h"
 #include "rocketplot/Legend.h"
 #include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotGrid.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/ScatterSeries.h"
 #include "rocketplot/Theme.h"
+#include "rocketplot/enums.h"
 
 namespace
 {
@@ -337,6 +342,29 @@ TEST_F(ExportTest, APdfNamesTheApplicationAsItsCreator)
     ASSERT_TRUE(written);
     EXPECT_TRUE(isCreatedBy(contentsOf(unnamed), "Range Control"));
     EXPECT_FALSE(isCreatedBy(contentsOf(unnamed), "rocketplot"));
+}
+
+TEST_F(ExportTest, EverythingAroundThePlotAreaLooksLikeTheWidget)
+{
+    // A subtitle, flags with icons in a band above the plot area, an icon, an outside legend.
+    QPixmap red(16, 16);
+    red.fill(Qt::red);
+    m_plot.setTitle("Flight 7");
+    m_plot.setSubtitle("Nominal");
+    m_plot.setEventFlagPlacement(rocketplot::FlagPlacement::ABOVE_PLOT_AREA);
+    m_plot.addEvent(2.0, "Burnout")->setIcon(QIcon(red));
+    m_plot.addEvent(2.3, "Apogee");
+    m_plot.addIcon(5.0, 5.0, QIcon(red))->setToolTip("Here");
+    m_plot.legend()->setAnchor(rocketplot::LegendAnchor::OUTSIDE_BOTTOM);
+    const QImage shown = render().convertToFormat(QImage::Format_RGB32);
+    EXPECT_EQ(m_plot.renderToImage().convertToFormat(QImage::Format_RGB32), shown);
+    // Drawn into another painter, too.
+    QImage painted(m_plot.size(), QImage::Format_RGB32);
+    {
+        QPainter painter(&painted);
+        m_plot.paint(painter, QRectF(QPointF(), QSizeF(m_plot.size())));
+    }
+    EXPECT_EQ(painted, shown);
 }
 
 TEST_F(ExportTest, TheDataInViewAsCsv)

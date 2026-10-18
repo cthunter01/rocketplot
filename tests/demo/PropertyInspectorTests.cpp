@@ -4,8 +4,11 @@
 #include <QColor>
 #include <QComboBox>
 #include <QCoreApplication>
+#include <QIcon>
 #include <QLineEdit>
 #include <QPointF>
+#include <QRectF>
+#include <QSizeF>
 #include <QString>
 #include <QTest>
 #include <QTimeZone>
@@ -18,9 +21,11 @@
 
 #include "rocketplot/Axis.h"
 #include "rocketplot/EventMarker.h"
+#include "rocketplot/IconAnnotation.h"
 #include "rocketplot/Legend.h"
 #include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotWidget.h"
+#include "rocketplot/RectAnnotation.h"
 #include "rocketplot/ReferenceLine.h"
 #include "rocketplot/Theme.h"
 #include "rocketplot/enums.h"
@@ -179,6 +184,23 @@ TEST_F(PropertyInspectorTest, TextSetsTheOtherKindsToo)
     EXPECT_EQ(shown(m_plot.legend(), "anchor"), QString("CUSTOM"));  // what setting it did
     EXPECT_EQ(m_limit->labelAlignment(), Qt::AlignLeft | Qt::AlignBottom);
     EXPECT_EQ(m_plot.xAxis()->timeZone(), QTimeZone(QByteArrayLiteral("UTC+02:00")));
+}
+
+TEST_F(PropertyInspectorTest, SizesAndRectanglesAreTextAndIconsAreShown)
+{
+    rocketplot::IconAnnotation* icon = m_plot.addIcon(0.5, 0.5, QIcon());
+    rocketplot::RectAnnotation* rect = m_plot.addRect(QRectF(0.0, 0.0, 1.0, 2.0));
+    settle();
+    EXPECT_EQ(shown(icon, "size"), QString("16, 16"));
+    EXPECT_EQ(shown(rect, "rect"), QString("0, 0, 1, 2"));
+    EXPECT_EQ(shown(icon, "icon"), QString("none"));
+    EXPECT_FALSE(row(icon, "icon")->flags().testFlag(Qt::ItemIsEditable));
+
+    EXPECT_TRUE(m_inspector.setValue(row(icon, "size"), QString("24, 12")));
+    EXPECT_TRUE(m_inspector.setValue(row(rect, "rect"), QString("0.5, 1, 2, 3")));
+    EXPECT_FALSE(m_inspector.setValue(row(rect, "rect"), QString("1, 2, 3")));
+    EXPECT_EQ(icon->size(), QSizeF(24.0, 12.0));
+    EXPECT_EQ(rect->rect(), QRectF(0.5, 1.0, 2.0, 3.0));
 }
 
 TEST_F(PropertyInspectorTest, ACheckboxSetsAFlag)

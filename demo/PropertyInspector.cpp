@@ -8,6 +8,7 @@
 #include <QComboBox>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QIcon>
 #include <QLatin1String>
 #include <QLineEdit>
 #include <QList>
@@ -22,9 +23,11 @@
 #include <QPixmap>
 #include <QPointF>
 #include <QPointer>
+#include <QRectF>
 #include <QScrollBar>
 #include <QShowEvent>
 #include <QSignalBlocker>
+#include <QSizeF>
 #include <QString>
 #include <QStringList>
 #include <QStyleOptionViewItem>
@@ -42,6 +45,7 @@
 #include <cstdint>
 #include <optional>
 #include <utility>
+#include <vector>
 
 #include "rocketplot/Annotation.h"
 #include "rocketplot/Axis.h"
@@ -82,6 +86,9 @@ enum class Kind : std::uint8_t
     CHOICE,     // an enumeration: a list of its enumerators
     ALIGNMENT,  // Qt::Alignment: a list of the nine places
     POINT,      // QPointF, as "x, y"
+    SIZE,       // QSizeF, as "width, height"
+    RECT,       // QRectF, as "x, y, width, height"
+    ICON,       // QIcon, shown and not edited
     TIME_ZONE,  // QTimeZone, as its IANA name
     OTHER,      // shown as text if it has any, not edited
 };
@@ -101,6 +108,10 @@ Kind kindOf(const QMetaProperty& property)
     {
         return Kind::TIME_ZONE;
     }
+    if (type == QMetaType::fromType<QIcon>())
+    {
+        return Kind::ICON;
+    }
     switch (type.id())
     {
         case QMetaType::Bool:
@@ -115,6 +126,10 @@ Kind kindOf(const QMetaProperty& property)
             return Kind::COLOR;
         case QMetaType::QPointF:
             return Kind::POINT;
+        case QMetaType::QSizeF:
+            return Kind::SIZE;
+        case QMetaType::QRectF:
+            return Kind::RECT;
         default:
             return Kind::OTHER;
     }
@@ -227,6 +242,23 @@ QString textOf(Kind kind, const QVariant& value)
             return QStringLiteral("%1, %2").arg(QString::number(point.x(), 'g', kPointDigits),
                                                 QString::number(point.y(), 'g', kPointDigits));
         }
+        case Kind::SIZE:
+        {
+            const QSizeF size = value.toSizeF();
+            return QStringLiteral("%1, %2").arg(QString::number(size.width(), 'g', kPointDigits),
+                                                QString::number(size.height(), 'g', kPointDigits));
+        }
+        case Kind::RECT:
+        {
+            const QRectF rect = value.toRectF();
+            return QStringLiteral("%1, %2, %3, %4")
+                .arg(QString::number(rect.x(), 'g', kPointDigits),
+                     QString::number(rect.y(), 'g', kPointDigits),
+                     QString::number(rect.width(), 'g', kPointDigits),
+                     QString::number(rect.height(), 'g', kPointDigits));
+        }
+        case Kind::ICON:
+            return value.value<QIcon>().isNull() ? QStringLiteral("none") : QString();
         case Kind::TIME_ZONE:
             return QString::fromLatin1(value.value<QTimeZone>().id());
         case Kind::INTEGER:
@@ -247,6 +279,35 @@ std::optional<double> numberFrom(const QString& text)
         number = QLocale().toDouble(text.trimmed(), &isNumber);  // "1,5" where that's a number
     }
     return isNumber ? std::optional(number) : std::nullopt;
+}
+
+// A point, size or rectangle written as numbers separated by commas; invalid if @p text isn't one.
+QVariant numbersFrom(Kind kind, const QString& text)
+{
+    const QStringList   parts = text.split(QLatin1Char(','));
+    std::vector<double> numbers;
+    for (const QString& part : parts)
+    {
+        const std::optional<double> number = numberFrom(part);
+        if (!number)
+        {
+            return {};
+        }
+        numbers.push_back(*number);
+    }
+    if (kind == Kind::POINT && numbers.size() == 2)
+    {
+        return QPointF(numbers[0], numbers[1]);
+    }
+    if (kind == Kind::SIZE && numbers.size() == 2)
+    {
+        return QSizeF(numbers[0], numbers[1]);
+    }
+    if (kind == Kind::RECT && numbers.size() == 4)
+    {
+        return QRectF(numbers[0], numbers[1], numbers[2], numbers[3]);
+    }
+    return {};
 }
 
 // The value @p text stands for, for a property of @p kind; invalid if it doesn't stand for one.
@@ -279,12 +340,9 @@ QVariant valueFrom(Kind kind, const QString& text)
             }
             break;
         case Kind::POINT:
-        {
-            const QStringList           parts = text.split(QLatin1Char(','));
-            const std::optional<double> x     = numberFrom(parts.value(0));
-            const std::optional<double> y     = numberFrom(parts.value(1));
-            return parts.size() == 2 && x && y ? QVariant(QPointF(*x, *y)) : QVariant();
-        }
+        case Kind::SIZE:
+        case Kind::RECT:
+            return numbersFrom(kind, text);
         case Kind::TIME_ZONE:
             if (const QTimeZone zone(text.trimmed().toLatin1()); zone.isValid())
             {
@@ -295,6 +353,7 @@ QVariant valueFrom(Kind kind, const QString& text)
         case Kind::CHOICE:  // QMetaProperty::write() takes an enumerator's name
             return text;
         case Kind::FLAG:
+        case Kind::ICON:
         case Kind::OTHER:
             break;
     }
@@ -649,7 +708,7 @@ QTreeWidgetItem* PropertyInspector::addObject(QTreeWidgetItem* parent, QObject* 
         {
             flags |= Qt::ItemIsUserCheckable;
         }
-        else if (property.isWritable() && kind != Kind::OTHER)
+        else if (property.isWritable() && kind != Kind::OTHER && kind != Kind::ICON)
         {
             flags |= Qt::ItemIsEditable;
         }
@@ -717,6 +776,10 @@ void PropertyInspector::display(Binding& binding, const QVariant& value)
     if (kind == Kind::COLOR)
     {
         binding.item->setIcon(kValueColumn, swatch(value.value<QColor>()));
+    }
+    else if (kind == Kind::ICON)
+    {
+        binding.item->setIcon(kValueColumn, value.value<QIcon>());
     }
 }
 
