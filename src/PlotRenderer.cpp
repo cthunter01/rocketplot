@@ -723,15 +723,24 @@ void PlotRenderer::drawBox(QPainter& painter, const BoxSeries& series, SeriesSta
     // The outliers, the far-outs and the mean.
     MarkerStyle style = markerStyle(series, *m_theme);
     const auto  marks = [&](const std::vector<double>& points, Marker shape) {
+        // One marker per device pixel along the box's line: thousands of outliers draw as fast as
+        // a scatter series.
         style.shape = shape;
+        m_points.clear();
         for (const double value : points)
         {
-            const QPointF center = at(values.toPixel(value), middle);
-            MarkerPainter::draw(painter, center, style);
-            if (m_options.occupancy != nullptr)
-            {
-                m_options.occupancy->addPoints({{.x = center.x(), .y = center.y()}}, style.size);
-            }
+            const QPointF center = at(snapToDevice(values.toPixel(value), dpr), middle);
+            m_points.push_back({.x = center.x(), .y = center.y()});
+        }
+        std::ranges::sort(m_points, {}, [](const core::PixelPoint& point) {
+            return std::pair(point.x, point.y);
+        });
+        const auto repeated = std::ranges::unique(m_points);
+        m_points.erase(repeated.begin(), repeated.end());
+        m_markers->draw(painter, m_points, style);
+        if (m_options.occupancy != nullptr)
+        {
+            m_options.occupancy->addPoints(m_points, style.size);
         }
     };
     marks(box.outliers, series.marker());

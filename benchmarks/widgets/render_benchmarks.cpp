@@ -14,7 +14,9 @@
 
 #include "BenchmarkData.h"
 #include "rocketplot/Axis.h"
+#include "rocketplot/BoxStatistics.h"
 #include "rocketplot/ExportOptions.h"
+#include "rocketplot/HistogramSeries.h"
 #include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotGrid.h"
 #include "rocketplot/PlotWidget.h"
@@ -147,6 +149,58 @@ void styledScatter(benchmark::State& state)
 BENCHMARK(styledScatter)
     ->Name("Render/StyledScatter")
     ->ArgName("points")
+    ->Arg(100'000)
+    ->Unit(benchmark::kMillisecond);
+
+// Points colored by a value, through the plot's color scale, with its key.
+void colorScatter(benchmark::State& state)
+{
+    const auto                 count = static_cast<std::size_t>(state.range(0));
+    PlotWidget                 plot;
+    rocketplot::ScatterSeries* points =
+        plot.addScatter(rocketplot::bench::uniform(count, 0.0, 1.0, 1),
+                        rocketplot::bench::uniform(count, 0.0, 1.0, 2));
+    points->setColorValues(rocketplot::bench::uniform(count, -5.0, 5.0, 3));
+    renderFrames(state, plot);
+}
+BENCHMARK(colorScatter)
+    ->Name("Render/ColorScatter")
+    ->ArgName("points")
+    ->Arg(100'000)
+    ->Unit(benchmark::kMillisecond);
+
+// A histogram of many values in many bins, most of them narrower than a pixel.
+void histogram(benchmark::State& state)
+{
+    const auto count = static_cast<std::size_t>(state.range(0));
+    PlotWidget plot;
+    plot.addHistogram(rocketplot::bench::walk(count, 5), {}, 5'000);
+    renderFrames(state, plot);
+}
+BENCHMARK(histogram)
+    ->Name("Render/Histogram")
+    ->ArgName("values")
+    ->Arg(1'000'000)
+    ->Unit(benchmark::kMillisecond);
+
+// Box plots of many values over categories.
+void boxes(benchmark::State& state)
+{
+    const auto count = static_cast<std::size_t>(state.range(0));
+    PlotWidget plot;
+    plot.xAxis()->setScaleType(rocketplot::ScaleType::CATEGORY);
+    plot.xAxis()->setCategories({"A", "B", "C", "D", "E", "F", "G", "H"});
+    for (int category = 0; category < 8; ++category)
+    {
+        plot.addBox(rocketplot::BoxStatistics::fromValues(
+                        rocketplot::bench::walk(count, static_cast<std::uint64_t>(category) + 10)),
+                    category);
+    }
+    renderFrames(state, plot);
+}
+BENCHMARK(boxes)
+    ->Name("Render/Boxes")
+    ->ArgName("values")
     ->Arg(100'000)
     ->Unit(benchmark::kMillisecond);
 
