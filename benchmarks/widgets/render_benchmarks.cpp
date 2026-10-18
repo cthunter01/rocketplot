@@ -192,6 +192,31 @@ BENCHMARK(grid)
     ->Args({3, 2, 100'000})
     ->Unit(benchmark::kMillisecond);
 
+// A line with ten named events, their flags where @p placement puts them: what finding room for
+// the flags (more layouts for HEADROOM and ABOVE_PLOT_AREA) adds to a frame.
+void eventFlags(benchmark::State& state, rocketplot::FlagPlacement placement)
+{
+    constexpr std::size_t kPoints = 100'000;
+    constexpr int         kEvents = 10;
+    PlotWidget            plot;
+    plot.addLine(rocketplot::bench::ramp(kPoints), rocketplot::bench::walk(kPoints, 1));
+    for (int event = 0; event < kEvents; ++event)
+    {
+        plot.addEvent((event * 9'000.0) + 500.0, QStringLiteral("Event %1").arg(event + 1));
+    }
+    plot.setEventFlagPlacement(placement);
+    renderFrames(state, plot);
+}
+BENCHMARK_CAPTURE(eventFlags, overData, rocketplot::FlagPlacement::OVER_DATA)
+    ->Name("Render/EventFlags/OverData")
+    ->Unit(benchmark::kMillisecond);
+BENCHMARK_CAPTURE(eventFlags, headroom, rocketplot::FlagPlacement::HEADROOM)
+    ->Name("Render/EventFlags/Headroom")
+    ->Unit(benchmark::kMillisecond);
+BENCHMARK_CAPTURE(eventFlags, abovePlotArea, rocketplot::FlagPlacement::ABOVE_PLOT_AREA)
+    ->Name("Render/EventFlags/AbovePlotArea")
+    ->Unit(benchmark::kMillisecond);
+
 // A strip chart: each frame, a batch of points arrives on every channel, the view moves on to
 // the newest stretch, and the plot is drawn.
 void liveFrame(benchmark::State& state)

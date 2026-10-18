@@ -188,8 +188,8 @@ TEST_F(PropertyInspectorTest, TextSetsTheOtherKindsToo)
 
 TEST_F(PropertyInspectorTest, SizesAndRectanglesAreTextAndIconsAreShown)
 {
-    rocketplot::IconAnnotation* icon = m_plot.addIcon(0.5, 0.5, QIcon());
-    rocketplot::RectAnnotation* rect = m_plot.addRect(QRectF(0.0, 0.0, 1.0, 2.0));
+    const rocketplot::IconAnnotation* icon = m_plot.addIcon(0.5, 0.5, QIcon());
+    const rocketplot::RectAnnotation* rect = m_plot.addRect(QRectF(0.0, 0.0, 1.0, 2.0));
     settle();
     EXPECT_EQ(shown(icon, "size"), QString("16, 16"));
     EXPECT_EQ(shown(rect, "rect"), QString("0, 0, 1, 2"));
