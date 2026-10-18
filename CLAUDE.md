@@ -8,7 +8,10 @@ Needs Qt 6.8+ (Widgets, and Svg for the SVG export; UiPlugin from Qt's tools, `q
 plugin, which is skipped without it). Linux and FreeBSD use the system Qt (packages `qt6-base qt6-svg qt6-tools`
 on both); on macOS and Windows put Qt's prefix in `CMAKE_PREFIX_PATH` (for example in a `CMakeUserPresets.json`,
 which is gitignored). CI builds Windows against Qt 6.8 (the minimum, so newer API is caught) and macOS against 6.10
-(Qt 6.8.3 links the AGL framework, which the macOS 26 SDK removed). FreeBSD is built in CI only, in a VM, with the
+(Qt 6.8.3 links the AGL framework, which the macOS 26 SDK removed). Its `ubuntu` job runs the release's `dist-linux`
+workflow on Ubuntu 24.04 (GCC 14, the Qt installer's Qt 6.8, Ubuntu's fontconfig, which turns on subpixel text), as
+the Release workflow does: GCC 14 has false positives of its own (`-Wmaybe-uninitialized` on a copied
+`std::optional<double>`), and text a widget draws must not be subpixel antialiased, or exports differ from it. FreeBSD is built in CI only, in a VM, with the
 `ci-clang` preset: Clang with libc++ and the Qt of FreeBSD's packages; the sanitizer, tidy and coverage presets
 are not checked there. CI's Arch image has the newest GCC, but its Clang, clang-tidy and clang-format are this
 machine's LLVM major version (22, Fedora 44's), from Arch's versioned `clang22`/`llvm22` packages: when this machine's

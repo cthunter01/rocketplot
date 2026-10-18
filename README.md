@@ -258,7 +258,8 @@ configures, builds and tests in one command, and the `dist-*` ones also package.
 
 CI (GitHub Actions) builds and tests on all four: Linux (`ci-gcc`, `ci-clang`, `asan`, `tidy`), macOS
 (`ci-clang`), Windows (`ci-msvc`) and FreeBSD (`ci-clang`, in a VM). The sanitizer, tidy and coverage presets are
-not checked on FreeBSD.
+not checked on FreeBSD. It also builds, tests and packages the Linux release archives (`dist-linux`) on Ubuntu 24.04
+as a release does, so that a release doesn't fail there first.
 
 API docs: `cmake --build --preset clang-debug --target docs`, then open `build/clang-debug/docs/html/index.html`.
 

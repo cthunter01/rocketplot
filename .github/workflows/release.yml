@@ -60,6 +60,7 @@ jobs:
           - { preset: dist-linux, runner: ubuntu-24.04 }
           - { preset: dist-macos, runner: macos-latest }
           - { preset: dist-windows, runner: windows-latest }
+    # CI's ubuntu job builds dist-linux with the Linux steps here, on every push: keep the two alike.
     steps:
       - name: Make g++ GCC 14 (Ubuntu 24.04's default, GCC 13, has no <print>)
         if: runner.os == 'Linux'

@@ -1,4 +1,5 @@
-# Builds and tests the CI presets on Linux, macOS, Windows and FreeBSD, and checks formatting.
+# Builds and tests the CI presets on Linux, macOS, Windows and FreeBSD, builds the Linux release archives on Ubuntu as
+# the Release workflow does, and checks formatting.
 # Linux runs in an Arch Linux container so CI has the same current GCC and Qt as the dev machine. Its LLVM (Clang,
 # clang-tidy, clang-format) is not Arch's newest but the dev machine's major version, from Arch's versioned packages.
 # macOS and Windows install the oldest supported Qt (6.8) instead, so use of newer Qt API is caught there.
@@ -48,6 +49,31 @@ jobs:
         env:
           CXX: clang++
         run: tests/consumer/check.sh
+
+  # The Linux release archives, built as the Release workflow's build job builds them (keep the two alike), so that
+  # what only that build sees fails here and not at release time: Ubuntu 24.04's GCC 14 and fontconfig (subpixel
+  # text), the Qt installer's Qt 6.8, deployment and packaging. When the Release workflow runs CI, this duplicates its
+  # dist-linux job, in parallel.
+  ubuntu:
+    name: ubuntu / dist-linux
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Make g++ GCC 14 (Ubuntu 24.04's default, GCC 13, has no <print>)
+        run: sudo ln -sf /usr/bin/g++-14 /usr/local/bin/g++
+      - name: Install Qt's build and runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl-dev libegl-dev libxkbcommon-x11-0 libxcb-cursor0 libfontconfig1 \
+            fonts-dejavu-core
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.*'
+          cache: true
+      - uses: actions/checkout@v7
+      - name: Configure, build, test and package
+        env:
+          CMAKE_PREFIX_PATH: ${{ env.QT_ROOT_DIR }}
+        run: cmake --workflow --preset dist-linux
 
   # Apple Clang from the runner's default Xcode.
   # No asan here: the Linux asan job sanitizes the same code, and Linux also has leak detection, which Apple's
