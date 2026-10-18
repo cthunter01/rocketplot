@@ -49,6 +49,7 @@ class Legend;
 class PlotGrid;
 class PlotLink;
 class LineSeries;
+class RectAnnotation;
 class ReferenceLine;
 class ScatterSeries;
 class Series;
@@ -198,6 +199,8 @@ public:
     TextAnnotation* addText(double x, double y, const QString& text);
     /// A named event at @p x: a vertical line with a flag at the top.
     EventMarker* addEvent(double x, const QString& label);
+    /// A rectangle at data coordinates (y on yAxis()), outlined in the theme's annotation color.
+    RectAnnotation* addRect(const QRectF& rect, const QString& label = {});
 
     /// Every annotation, in the order added (later ones are drawn on top within their layer).
     [[nodiscard]] QList<Annotation*> annotations() const;

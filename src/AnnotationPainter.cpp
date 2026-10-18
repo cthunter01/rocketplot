@@ -28,6 +28,8 @@
 #include "rocketplot/Annotation.h"
 #include "rocketplot/EventMarker.h"
 #include "rocketplot/PlotWidget.h"
+#include "rocketplot/Range.h"
+#include "rocketplot/RectAnnotation.h"
 #include "rocketplot/ReferenceLine.h"
 #include "rocketplot/ShadedSpan.h"
 #include "rocketplot/TextAnnotation.h"
@@ -211,26 +213,32 @@ struct Context
 // Spans
 // -----------------------------------------------------------------------------------------------------------
 
-// The part of @p span inside the plot area; empty if there is none.
-QRectF spanRect(const ShadedSpan& span, const PlotLayout& layout)
+// The region between the values @p x and @p y (either may run to infinity) in pixels, cut off at
+// the edges of @p bounds; empty if it is outside them, null if it has a NaN end.
+QRectF pixelRegion(Range x, Range y, const AnnotationMappings& mappings, const QRectF& bounds)
 {
-    const QRectF&            plot     = layout.plot;
-    const bool               vertical = span.orientation() == Qt::Vertical;
-    const AnnotationMappings mappings = layout.mappingsFor(span);
-    const core::AxisMapping& mapping  = vertical ? mappings.x : mappings.y;
-    const double             a        = edgePixel(mapping, span.min());
-    const double             b        = edgePixel(mapping, span.max());
-    if (std::isnan(a) || std::isnan(b))
+    const double left   = edgePixel(mappings.x, x.min);
+    const double right  = edgePixel(mappings.x, x.max);
+    const double top    = edgePixel(mappings.y, y.min);
+    const double bottom = edgePixel(mappings.y, y.max);
+    if (std::isnan(left) || std::isnan(right) || std::isnan(top) || std::isnan(bottom))
     {
         return {};
     }
-    if (vertical)
-    {
-        return {QPointF(std::clamp(std::min(a, b), plot.left(), plot.right()), plot.top()),
-                QPointF(std::clamp(std::max(a, b), plot.left(), plot.right()), plot.bottom())};
-    }
-    return {QPointF(plot.left(), std::clamp(std::min(a, b), plot.top(), plot.bottom())),
-            QPointF(plot.right(), std::clamp(std::max(a, b), plot.top(), plot.bottom()))};
+    return {QPointF(std::clamp(std::min(left, right), bounds.left(), bounds.right()),
+                    std::clamp(std::min(top, bottom), bounds.top(), bounds.bottom())),
+            QPointF(std::clamp(std::max(left, right), bounds.left(), bounds.right()),
+                    std::clamp(std::max(top, bottom), bounds.top(), bounds.bottom()))};
+}
+
+// The part of @p span inside the plot area; empty if there is none.
+QRectF spanRect(const ShadedSpan& span, const PlotLayout& layout)
+{
+    constexpr Range kAcross{.min = -std::numeric_limits<double>::infinity(),
+                            .max = std::numeric_limits<double>::infinity()};
+    const bool      vertical = span.orientation() == Qt::Vertical;
+    return pixelRegion(vertical ? span.range() : kAcross, vertical ? kAcross : span.range(),
+                       layout.mappingsFor(span), layout.plot);
 }
 
 void drawSpan(const Context& context, const ShadedSpan& span)
@@ -245,19 +253,85 @@ void drawSpan(const Context& context, const ShadedSpan& span)
     context.painter->fillRect(rect, fill);
 }
 
-void drawSpanLabel(const Context& context, const ShadedSpan& span)
+// @p label inside @p region (the part of a span or rectangle in view) where @p alignment says.
+void drawRegionLabel(const Context& context, const QRectF& region, const QString& label,
+                     Qt::Alignment alignment)
 {
-    const QRectF rect = spanRect(span, *context.layout);
-    if (span.label().isEmpty() || rect.isEmpty())
+    if (label.isEmpty() || region.isEmpty())
     {
         return;
     }
-    const QSizeF size = context.text->size(span.label(), context.layout->annotationFont);
-    const QRectF box  = boxIn(rect.adjusted(kLabelInset, kLabelGap, -kLabelInset, -kLabelGap), size,
-                              span.labelAlignment());
-    context.text->draw(*context.painter, span.label(), context.layout->annotationFont,
+    const QSizeF size = context.text->size(label, context.layout->annotationFont);
+    const QRectF box =
+        boxIn(region.adjusted(kLabelInset, kLabelGap, -kLabelInset, -kLabelGap), size, alignment);
+    context.text->draw(*context.painter, label, context.layout->annotationFont,
                        context.theme->secondaryText, box, Qt::AlignCenter);
     context.occupy(box);
+}
+
+void drawSpanLabel(const Context& context, const ShadedSpan& span)
+{
+    drawRegionLabel(context, spanRect(span, *context.layout), span.label(), span.labelAlignment());
+}
+
+// Rectangles
+// ------------------------------------------------------------------------------------------------------
+
+// The part of @p rect inside the plot area; empty if there is none.
+QRectF visibleRect(const RectAnnotation& rect, const PlotLayout& layout)
+{
+    return pixelRegion(rect.xRange(), rect.yRange(), layout.mappingsFor(rect), layout.plot);
+}
+
+void drawRect(const Context& context, const RectAnnotation& rect)
+{
+    const PlotLayout& layout = *context.layout;
+    const double      width  = rect.lineWidth();
+    const double      dpr    = layout.devicePixelRatio;
+    // Where the outline goes, an edge out of view just past the plot's edge (and so clipped away).
+    const QRectF reach = layout.plot.adjusted(-2.0 * width, -2.0 * width, 2.0 * width, 2.0 * width);
+    const QRectF region =
+        pixelRegion(rect.xRange(), rect.yRange(), layout.mappingsFor(rect), reach);
+    if (region.isEmpty())
+    {
+        return;  // out of view, or with a NaN edge
+    }
+    if (const QRectF visible = region.intersected(layout.plot);
+        rect.fillOpacity() > 0.0 && !visible.isEmpty())
+    {
+        QColor fill = rect.color();
+        fill.setAlphaF(static_cast<float>(static_cast<double>(fill.alphaF()) * rect.fillOpacity()));
+        context.painter->fillRect(snappedToDevice(visible, dpr), fill);
+    }
+    if (rect.lineStyle() == Qt::NoPen)
+    {
+        return;
+    }
+    const QRectF outline(
+        QPointF(crispLine(region.left(), width, dpr), crispLine(region.top(), width, dpr)),
+        QPointF(crispLine(region.right(), width, dpr), crispLine(region.bottom(), width, dpr)));
+    // As for lines: a width of whole device pixels covers whole pixels, without antialiasing.
+    const double deviceWidth = width * dpr;
+    const bool wholePixels = std::abs(deviceWidth - std::round(deviceWidth)) < kWholePixelTolerance;
+    context.painter->setRenderHint(QPainter::Antialiasing, !wholePixels);
+    context.painter->setPen(
+        QPen(rect.color(), width, rect.lineStyle(), Qt::FlatCap, Qt::MiterJoin));
+    context.painter->setBrush(Qt::NoBrush);
+    context.painter->drawRect(outline);
+    context.painter->setRenderHint(QPainter::Antialiasing, true);
+    // What a legend should keep clear of: the four edges.
+    const double half  = width / 2.0;
+    const QRectF outer = outline.adjusted(-half, -half, half, half);
+    for (const QRectF& edge : {QRectF(outer.left(), outer.top(), outer.width(), width),
+                               QRectF(outer.left(), outer.bottom() - width, outer.width(), width),
+                               QRectF(outer.left(), outer.top(), width, outer.height()),
+                               QRectF(outer.right() - width, outer.top(), width, outer.height())})
+    {
+        if (const QRectF shown = edge.intersected(layout.plot); !shown.isEmpty())
+        {
+            context.occupy(shown);
+        }
+    }
 }
 
 // Lines
@@ -561,6 +635,10 @@ void drawAnnotations(QPainter& painter, const PlotWidget& plot, const PlotLayout
         {
             drawSpan(context, *span);
         }
+        else if (const auto* rect = qobject_cast<const RectAnnotation*>(annotation))
+        {
+            drawRect(context, *rect);
+        }
         else if (const auto* line = qobject_cast<const ReferenceLine*>(annotation))
         {
             drawLine(context, *line);
@@ -603,6 +681,11 @@ void drawAnnotationLabels(QPainter& painter, const PlotWidget& plot, const PlotL
         if (const auto* span = qobject_cast<const ShadedSpan*>(annotation))
         {
             drawSpanLabel(context, *span);
+        }
+        else if (const auto* rect = qobject_cast<const RectAnnotation*>(annotation))
+        {
+            drawRegionLabel(context, visibleRect(*rect, *context.layout), rect->label(),
+                            rect->labelAlignment());
         }
         else if (const auto* line = qobject_cast<const ReferenceLine*>(annotation))
         {

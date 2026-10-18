@@ -2,6 +2,7 @@
 
 #include <QColor>
 #include <QPointF>
+#include <QRectF>
 #include <QString>
 #include <Qt>
 #include <limits>
@@ -13,6 +14,7 @@
 #include "rocketplot/Axis.h"
 #include "rocketplot/EventMarker.h"
 #include "rocketplot/PlotWidget.h"
+#include "rocketplot/RectAnnotation.h"
 #include "rocketplot/ReferenceLine.h"
 #include "rocketplot/ShadedSpan.h"
 #include "rocketplot/TextAnnotation.h"
@@ -77,6 +79,15 @@ void options(const QString& /*scratch*/)
     plot->addHorizontalSpan(-std::numeric_limits<double>::infinity(), 0.0, "Below zero");
     // [/annotations-spans]
 
+    // [annotations-rect]
+    // From (x, y) = (0.2, 10) to (0.8, 40), in data coordinates.
+    rocketplot::RectAnnotation* domain =
+        plot->addRect(QRectF(QPointF(0.2, 10.0), QPointF(0.8, 40.0)), "Search domain");
+    domain->setLineStyle(Qt::DashLine);  // solid by default; Qt::NoPen for no outline
+    domain->setLineWidth(1.5);           // the theme's annotation line width by default
+    domain->setFillOpacity(0.1);         // a fill in its color; 0, none, by default
+    // [/annotations-rect]
+
     // [annotations-text]
     rocketplot::TextAnnotation* peak = plot->addText(78.0, 31.4, "Max Q");
     peak->setOffset({40.0, -30.0});     // 40 px right of the point, 30 px above it
@@ -87,11 +98,12 @@ void options(const QString& /*scratch*/)
     // [/annotations-text]
 
     // [annotations-pinned]
-    rocketplot::TextAnnotation* summary = plot->addText(0.02, 0.98, "Apogee 212 km<br>Max Q 34 kPa");
+    rocketplot::TextAnnotation* summary =
+        plot->addText(0.02, 0.98, "Apogee 212 km<br>Max Q 34 kPa");
     summary->setCoordinates(rocketplot::AnnotationCoordinates::PLOT_AREA);
     summary->setAlignment(Qt::AlignLeft | Qt::AlignTop);  // its top-left corner near the plot's
-    summary->setFrameVisible(true);                        // a hairline box, as around the legend
-    summary->setBackgroundColor(QColor("#fff8e1"));        // a box of another color
+    summary->setFrameVisible(true);                       // a hairline box, as around the legend
+    summary->setBackgroundColor(QColor("#fff8e1"));       // a box of another color
 
     // A line at three quarters of the plot's height, whatever the y axis shows.
     plot->addHorizontalLine(0.75)->setCoordinates(rocketplot::AnnotationCoordinates::PLOT_AREA);

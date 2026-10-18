@@ -87,6 +87,7 @@
 #include "rocketplot/PlotGrid.h"
 #include "rocketplot/PlotLink.h"
 #include "rocketplot/Range.h"
+#include "rocketplot/RectAnnotation.h"
 #include "rocketplot/ReferenceLine.h"
 #include "rocketplot/ScatterSeries.h"
 #include "rocketplot/Series.h"
@@ -533,6 +534,13 @@ TextAnnotation* PlotWidget::addText(double x, double y, const QString& text)
 EventMarker* PlotWidget::addEvent(double x, const QString& label)
 {
     return adoptAnnotation(new EventMarker(this, x, label));
+}
+
+RectAnnotation* PlotWidget::addRect(const QRectF& rect, const QString& label)
+{
+    auto* annotation = new RectAnnotation(this, rect);
+    annotation->setLabel(label);
+    return adoptAnnotation(annotation);
 }
 
 QList<Annotation*> PlotWidget::annotations() const

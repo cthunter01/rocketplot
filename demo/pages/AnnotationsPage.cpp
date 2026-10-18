@@ -1,5 +1,6 @@
 #include <QColor>
 #include <QPointF>
+#include <QRectF>
 #include <QString>
 #include <QWidget>
 #include <Qt>
@@ -10,6 +11,7 @@
 #include "rocketplot/EventMarker.h"
 #include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotWidget.h"
+#include "rocketplot/RectAnnotation.h"
 #include "rocketplot/ReferenceLine.h"
 #include "rocketplot/ShadedSpan.h"
 #include "rocketplot/TextAnnotation.h"
@@ -49,6 +51,11 @@ QWidget* create(QWidget* parent)
     // Text at a data point; an offset (in pixels) moves it away and draws an arrow back.
     auto* note = plot->addText(95.0, 14.6, "Thrust is steady: the vehicle<br>gets lighter");
     note->setOffset(QPointF(60.0, 80.0));
+
+    // A rectangle at data coordinates: here around the coast between the stages.
+    auto* staging = plot->addRect(QRectF(QPointF(145.0, -13.0), QPointF(167.0, -3.0)), "Staging");
+    staging->setLineStyle(Qt::DashLine);
+    staging->setLabelAlignment(Qt::AlignRight | Qt::AlignTop);
 
     // Pinned to the plot area: fractions of it, (0, 0) at the bottom left. It stays put as the
     // view is panned and zoomed.

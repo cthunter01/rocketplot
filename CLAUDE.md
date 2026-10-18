@@ -59,7 +59,7 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
 
 ## Layout
 - `include/rocketplot/`: public headers (`PlotWidget`, `Series`/`LineSeries`/`ScatterSeries`, `Axis`, `Legend`,
-  `Annotation`/`ReferenceLine`/`ShadedSpan`/`TextAnnotation`/`EventMarker`, `PlotLink`, `PlotGrid` (plots in rows
+  `Annotation`/`ReferenceLine`/`ShadedSpan`/`RectAnnotation`/`TextAnnotation`/`EventMarker`, `PlotLink`, `PlotGrid` (plots in rows
   and columns: it makes the plots, links each column's x axes with `PlotLink`s and lines the plot areas up through
   `LayoutConstraints`), `InputBindings`, `Theme`,
   `ExportOptions`, `enums.h`, `plottime.h`, `text.h` (`literalText()`: user text shown as typed); Qt-free value types

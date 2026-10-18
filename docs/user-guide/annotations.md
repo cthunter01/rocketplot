@@ -34,6 +34,7 @@ note->setAlignment(Qt::AlignHCenter | Qt::AlignTop);  // the middle of the text'
 | --- | --- | --- |
 | `ReferenceLine` | `addHorizontalLine(y, label)`, `addVerticalLine(x, label)` | A line across the whole plot at one value |
 | `ShadedSpan` | `addHorizontalSpan(yMin, yMax, label)`, `addVerticalSpan(xMin, xMax, label)` | A filled band between two values |
+| `RectAnnotation` | `addRect(rect, label)` | A rectangle between two x and two y values |
 | `TextAnnotation` | `addText(x, y, text)` | Text at a point, optionally set off from it with an arrow |
 | `EventMarker` | `addEvent(x, label)` | A vertical line with its name on a flag at the top |
 
@@ -78,6 +79,24 @@ plot->addHorizontalSpan(-std::numeric_limits<double>::infinity(), 0.0, "Below ze
 Spans are drawn under the series, so the data stays readable through them. Their label is inside the span, at the
 bottom left by default, clear of the event flags along the top; `setLabelAlignment()` moves it.
 
+## Rectangles
+
+A rectangle between two x values and two y values: the bounds of a search, a region of interest, a tolerance box.
+It is outlined and not filled by default, under the series.
+
+<!-- example: annotations-rect -->
+```cpp
+// From (x, y) = (0.2, 10) to (0.8, 40), in data coordinates.
+rocketplot::RectAnnotation* domain =
+    plot->addRect(QRectF(QPointF(0.2, 10.0), QPointF(0.8, 40.0)), "Search domain");
+domain->setLineStyle(Qt::DashLine);  // solid by default; Qt::NoPen for no outline
+domain->setLineWidth(1.5);           // the theme's annotation line width by default
+domain->setFillOpacity(0.1);         // a fill in its color; 0, none, by default
+```
+
+Its label is inside it, at the top left by default. The part of a rectangle in view is drawn: an edge out of view is
+cut off at the plot's edge.
+
 ## Text
 
 Text at a point of the data. Left at the point, it labels it; moved away by an offset, it gets an arrow that
@@ -121,11 +140,12 @@ is simulated, a line at a fixed height:
 
 <!-- example: annotations-pinned -->
 ```cpp
-rocketplot::TextAnnotation* summary = plot->addText(0.02, 0.98, "Apogee 212 km<br>Max Q 34 kPa");
+rocketplot::TextAnnotation* summary =
+    plot->addText(0.02, 0.98, "Apogee 212 km<br>Max Q 34 kPa");
 summary->setCoordinates(rocketplot::AnnotationCoordinates::PLOT_AREA);
 summary->setAlignment(Qt::AlignLeft | Qt::AlignTop);  // its top-left corner near the plot's
-summary->setFrameVisible(true);                        // a hairline box, as around the legend
-summary->setBackgroundColor(QColor("#fff8e1"));        // a box of another color
+summary->setFrameVisible(true);                       // a hairline box, as around the legend
+summary->setBackgroundColor(QColor("#fff8e1"));       // a box of another color
 
 // A line at three quarters of the plot's height, whatever the y axis shows.
 plot->addHorizontalLine(0.75)->setCoordinates(rocketplot::AnnotationCoordinates::PLOT_AREA);

@@ -51,6 +51,7 @@ add_executable(rocketplot_tests
     widgets/PlotGridTests.cpp
     widgets/PlotLinkTests.cpp
     widgets/PlotWidgetTests.cpp
+    widgets/RectAnnotationTests.cpp
     widgets/ReferenceLineTests.cpp
     widgets/RenderedPlotTest.h
     widgets/ScatterSeriesTests.cpp

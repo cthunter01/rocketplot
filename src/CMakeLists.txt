@@ -107,6 +107,7 @@ target_sources(rocketplot
         PlotState.h
         PlotWidget.cpp
         RawMathFont.cpp
+        RectAnnotation.cpp
         RawMathFont.h
         ReferenceLine.cpp
         ScatterSeries.cpp
@@ -136,6 +137,7 @@ target_sources(rocketplot
             ${PROJECT_SOURCE_DIR}/include/rocketplot/PlotLink.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/PlotWidget.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/Range.h
+            ${PROJECT_SOURCE_DIR}/include/rocketplot/RectAnnotation.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/ReferenceLine.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/ScatterSeries.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/Series.h
