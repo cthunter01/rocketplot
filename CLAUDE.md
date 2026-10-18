@@ -10,9 +10,10 @@ on both); on macOS and Windows put Qt's prefix in `CMAKE_PREFIX_PATH` (for examp
 which is gitignored). CI builds Windows against Qt 6.8 (the minimum, so newer API is caught) and macOS against 6.10
 (Qt 6.8.3 links the AGL framework, which the macOS 26 SDK removed). FreeBSD is built in CI only, in a VM, with the
 `ci-clang` preset: Clang with libc++ and the Qt of FreeBSD's packages; the sanitizer, tidy and coverage presets
-are not checked there. CI's Arch image has the newest clang-tidy, which may be ahead of this machine's: new checks
-can fail the `tidy` job first.
-CI's image has no GoogleTest package either, so CI builds GoogleTest from source where this machine links the
+are not checked there. CI's Arch image has the newest GCC, but its Clang, clang-tidy and clang-format are this
+machine's LLVM major version (22, Fedora 44's), from Arch's versioned `clang22`/`llvm22` packages: when this machine's
+LLVM moves to a new major version, raise `LLVM_VERSION` in `.github/workflows/ci.yml` too.
+CI's image has no GoogleTest package, so CI builds GoogleTest from source where this machine links the
 installed shared library: `cmake --preset asan -B build/asan-fetched -DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=NEVER`, then
 `cmake --build build/asan-fetched` and `ctest --test-dir build/asan-fetched`, is the build CI's `asan` job runs.
 

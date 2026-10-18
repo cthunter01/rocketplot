@@ -1,5 +1,6 @@
 # Builds and tests the CI presets on Linux, macOS, Windows and FreeBSD, and checks formatting.
-# Linux runs in an Arch Linux container so CI has the same current GCC/Clang and Qt as the dev machine.
+# Linux runs in an Arch Linux container so CI has the same current GCC and Qt as the dev machine. Its LLVM (Clang,
+# clang-tidy, clang-format) is not Arch's newest but the dev machine's major version, from Arch's versioned packages.
 # macOS and Windows install the oldest supported Qt (6.8) instead, so use of newer Qt API is caught there.
 name: CI
 
@@ -7,6 +8,11 @@ on:
   push:
   pull_request:
   workflow_call:   # the Release workflow runs all of CI before it tags
+
+env:
+  # The LLVM major version of the Linux jobs: the dev machine's (Fedora 44's), so that new compiler warnings and
+  # clang-tidy checks don't fail CI first. Arch packages it as clang<N> and llvm<N>, in /usr/lib/llvm<N>/bin.
+  LLVM_VERSION: '22'
 
 jobs:
   linux:
@@ -21,7 +27,17 @@ jobs:
       - name: Install toolchain and Qt
         # A font is needed for the offscreen platform the widget tests use: without one, text measures zero.
         # qt6-tools: Qt's UiPlugin module, for the Designer plugin (the Qt installs on macOS and Windows have it).
-        run: pacman -Syu --noconfirm --needed cmake ninja clang git qt6-base qt6-svg qt6-tools ttf-dejavu
+        # clang<N> brings compiler-rt<N>, the sanitizers' runtime; llvm<N> has llvm-symbolizer, for their reports.
+        run: >-
+          pacman -Syu --noconfirm --needed cmake ninja "clang$LLVM_VERSION" "llvm$LLVM_VERSION" git
+          qt6-base qt6-svg qt6-tools ttf-dejavu
+      - name: Use LLVM ${{ env.LLVM_VERSION }}
+        run: echo "/usr/lib/llvm$LLVM_VERSION/bin" >> "$GITHUB_PATH"
+      - name: Check the LLVM version
+        run: |
+          for tool in clang++ clang-tidy llvm-symbolizer; do
+            "$tool" --version | grep -q "version $LLVM_VERSION\." || { echo "$tool is not LLVM $LLVM_VERSION" >&2; exit 1; }
+          done
       - uses: actions/checkout@v7
       - name: Configure, build and test
         run: cmake --workflow --preset ${{ matrix.preset }}
@@ -102,10 +118,13 @@ jobs:
     container: archlinux:base-devel
     steps:
       - name: Install clang-format
-        run: pacman -Syu --noconfirm --needed clang git
+        run: pacman -Syu --noconfirm --needed "clang$LLVM_VERSION" git
+      - name: Use LLVM ${{ env.LLVM_VERSION }}
+        run: echo "/usr/lib/llvm$LLVM_VERSION/bin" >> "$GITHUB_PATH"
       - uses: actions/checkout@v7
       - name: Check formatting
         run: |
+          clang-format --version | grep -q "version $LLVM_VERSION\." || { echo "clang-format is not LLVM $LLVM_VERSION" >&2; exit 1; }
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git ls-files -z -- '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' \
             | xargs -0 --no-run-if-empty clang-format --dry-run --Werror
