@@ -70,6 +70,16 @@ void Annotation::setLayer(AnnotationLayer layer)
     Q_EMIT changed();
 }
 
+void Annotation::setCoordinates(AnnotationCoordinates coordinates)
+{
+    if (coordinates == m_coordinates)
+    {
+        return;
+    }
+    m_coordinates = coordinates;
+    Q_EMIT changed();
+}
+
 Axis* Annotation::yAxis() const
 {
     return m_secondaryYAxis ? m_plot->yAxis2() : m_plot->yAxis();

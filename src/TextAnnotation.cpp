@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "rocketplot/Annotation.h"
+#include "rocketplot/PlotWidget.h"
 #include "rocketplot/Range.h"
 #include "rocketplot/Theme.h"
 #include "rocketplot/enums.h"
@@ -78,6 +79,46 @@ void TextAnnotation::setBackgroundVisible(bool visible)
         return;
     }
     m_backgroundVisible = visible;
+    Q_EMIT changed();
+}
+
+QColor TextAnnotation::backgroundColor() const
+{
+    return m_backgroundColor ? *m_backgroundColor : plot()->theme().legendBackground;
+}
+
+void TextAnnotation::setBackgroundColor(const QColor& color)
+{
+    if (!color.isValid())
+    {
+        resetBackgroundColor();
+        return;
+    }
+    if (m_backgroundColor == color)
+    {
+        return;
+    }
+    m_backgroundColor = color;
+    Q_EMIT changed();
+}
+
+void TextAnnotation::resetBackgroundColor()
+{
+    if (!m_backgroundColor)
+    {
+        return;
+    }
+    m_backgroundColor.reset();
+    Q_EMIT changed();
+}
+
+void TextAnnotation::setFrameVisible(bool visible)
+{
+    if (visible == m_frameVisible)
+    {
+        return;
+    }
+    m_frameVisible = visible;
     Q_EMIT changed();
 }
 

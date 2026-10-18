@@ -2,6 +2,7 @@
 
 #include <QLineF>
 #include <QPointF>
+#include <QRectF>
 #include <QRgb>
 #include <QString>
 #include <cstddef>
@@ -15,7 +16,6 @@
 class QColor;
 class QPainter;
 class QPen;
-class QRectF;
 
 namespace rocketplot
 {
@@ -120,6 +120,9 @@ private:
 [[nodiscard]] double crispPixel(double value, double devicePixelRatio);
 /// A pen one device pixel wide at any scale, for axes, grid lines and outlines.
 [[nodiscard]] QPen hairlinePen(const QColor& color);
+/// @p value rounded to whole device pixels, and @p rect with its edges so rounded.
+[[nodiscard]] double snapToDevice(double value, double devicePixelRatio);
+[[nodiscard]] QRectF snappedToDevice(const QRectF& rect, double devicePixelRatio);
 
 /// Draws the debug overlay: layout boxes (and the @p legend box), frame time and what each series
 /// drew.

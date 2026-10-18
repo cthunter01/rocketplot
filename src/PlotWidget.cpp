@@ -1203,7 +1203,8 @@ Range PlotWidget::xDataBounds(bool positiveOnly, bool withAnnotations) const
     }
     for (const Annotation* annotation : std::as_const(m_impl->annotations))
     {
-        if (annotation->isVisible() && annotation->isIncludedInAutoscale())
+        if (annotation->isVisible() && annotation->isIncludedInAutoscale() &&
+            annotation->coordinates() == AnnotationCoordinates::DATA)
         {
             const Range extent = annotation->xExtent();
             bounds             = bounds.united(positiveOnly ? positivePart(extent) : extent);
@@ -1227,6 +1228,7 @@ Range PlotWidget::yDataBounds(const Axis& axis, bool positiveOnly, bool visibleO
     for (const Annotation* annotation : std::as_const(m_impl->annotations))
     {
         if (annotation->isVisible() && annotation->isIncludedInAutoscale() &&
+            annotation->coordinates() == AnnotationCoordinates::DATA &&
             annotation->isOnSecondaryYAxis() == axis.isSecondary())
         {
             const Range extent = annotation->yExtent();

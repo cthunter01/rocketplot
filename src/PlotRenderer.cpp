@@ -124,6 +124,19 @@ QPen hairlinePen(const QColor& color)
     return pen;
 }
 
+double snapToDevice(double value, double devicePixelRatio)
+{
+    return std::round(value * devicePixelRatio) / devicePixelRatio;
+}
+
+QRectF snappedToDevice(const QRectF& rect, double devicePixelRatio)
+{
+    return {QPointF(snapToDevice(rect.left(), devicePixelRatio),
+                    snapToDevice(rect.top(), devicePixelRatio)),
+            QPointF(snapToDevice(rect.right(), devicePixelRatio),
+                    snapToDevice(rect.bottom(), devicePixelRatio))};
+}
+
 PlotRenderer::PlotRenderer(const PlotWidget& plot, const PlotLayout& layout, MarkerPainter& markers,
                            TextPainter& text)
   : m_plot(&plot), m_layout(&layout), m_theme(&plot.theme()), m_markers(&markers), m_text(&text)

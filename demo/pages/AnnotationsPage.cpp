@@ -13,6 +13,7 @@
 #include "rocketplot/ReferenceLine.h"
 #include "rocketplot/ShadedSpan.h"
 #include "rocketplot/TextAnnotation.h"
+#include "rocketplot/enums.h"
 
 namespace rocketplot::demo
 {
@@ -48,6 +49,13 @@ QWidget* create(QWidget* parent)
     // Text at a data point; an offset (in pixels) moves it away and draws an arrow back.
     auto* note = plot->addText(95.0, 14.6, "Thrust is steady: the vehicle<br>gets lighter");
     note->setOffset(QPointF(60.0, 80.0));
+
+    // Pinned to the plot area: fractions of it, (0, 0) at the bottom left. It stays put as the
+    // view is panned and zoomed.
+    auto* summary = plot->addText(0.98, 0.86, "Simulated flight, 3 g limit");
+    summary->setCoordinates(rocketplot::AnnotationCoordinates::PLOT_AREA);
+    summary->setAlignment(Qt::AlignRight | Qt::AlignTop);
+    summary->setFrameVisible(true);
     // [/snippet]
     return plot;
 }

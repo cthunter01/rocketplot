@@ -216,7 +216,8 @@ QRectF spanRect(const ShadedSpan& span, const PlotLayout& layout)
 {
     const QRectF&            plot     = layout.plot;
     const bool               vertical = span.orientation() == Qt::Vertical;
-    const core::AxisMapping& mapping  = vertical ? layout.x.mapping : layout.yFor(span).mapping;
+    const AnnotationMappings mappings = layout.mappingsFor(span);
+    const core::AxisMapping& mapping  = vertical ? mappings.x : mappings.y;
     const double             a        = edgePixel(mapping, span.min());
     const double             b        = edgePixel(mapping, span.max());
     if (std::isnan(a) || std::isnan(b))
@@ -286,15 +287,17 @@ std::optional<LinePlace> placeLine(const QRectF& plot, const core::AxisMapping& 
 
 std::optional<LinePlace> placeOf(const ReferenceLine& line, const PlotLayout& layout)
 {
-    const bool vertical = line.orientation() == Qt::Vertical;
-    return placeLine(layout.plot, vertical ? layout.x.mapping : layout.yFor(line).mapping, vertical,
-                     line.value(), line.lineWidth());
+    const bool               vertical = line.orientation() == Qt::Vertical;
+    const AnnotationMappings mappings = layout.mappingsFor(line);
+    return placeLine(layout.plot, vertical ? mappings.x : mappings.y, vertical, line.value(),
+                     line.lineWidth());
 }
 
 std::optional<LinePlace> placeOf(const EventMarker& event, const PlotLayout& layout,
                                  const Theme& theme)
 {
-    return placeLine(layout.plot, layout.x.mapping, true, event.x(), theme.annotationLineWidth);
+    return placeLine(layout.plot, layout.mappingsFor(event).x, true, event.x(),
+                     theme.annotationLineWidth);
 }
 
 void strokeLine(const Context& context, LinePlace place, const QPen& pen)
@@ -404,7 +407,7 @@ void drawEventFlags(const Context& context, const QList<Annotation*>& annotation
         {
             continue;
         }
-        const double pixel = context.layout->x.mapping.toPixel(event->x());
+        const double pixel = context.layout->mappingsFor(*event).x.toPixel(event->x());
         if (!std::isfinite(pixel))
         {
             continue;
@@ -484,9 +487,10 @@ void drawArrow(const Context& context, const QRectF& box, QPointF target, const 
 
 void drawText(const Context& context, const TextAnnotation& annotation)
 {
-    const PlotLayout& layout = *context.layout;
-    const QPointF     target(layout.x.mapping.toPixel(annotation.position().x()),
-                             layout.yFor(annotation).mapping.toPixel(annotation.position().y()));
+    const PlotLayout&        layout   = *context.layout;
+    const AnnotationMappings mappings = layout.mappingsFor(annotation);
+    const QPointF            target(mappings.x.toPixel(annotation.position().x()),
+                                    mappings.y.toPixel(annotation.position().y()));
     const QRectF reach = layout.plot.adjusted(-kTextReach, -kTextReach, kTextReach, kTextReach);
     if (annotation.text().isEmpty() || !std::isfinite(target.x()) || !std::isfinite(target.y()) ||
         !reach.contains(target))
@@ -507,12 +511,23 @@ void drawText(const Context& context, const TextAnnotation& annotation)
     }
     if (annotation.isBackgroundVisible())
     {
-        context.drawBoxedText(annotation.text(), color, box, context.theme->legendBackground);
+        context.drawBoxedText(annotation.text(), color, box, annotation.backgroundColor());
     }
     else
     {
         context.text->draw(*context.painter, annotation.text(), layout.annotationFont, color, box,
                            Qt::AlignCenter);
+    }
+    if (annotation.isFrameVisible())
+    {
+        // A hairline on whole device pixels, as the legend's.
+        const double pixel  = 1.0 / layout.devicePixelRatio;
+        const QRectF framed = snappedToDevice(box, layout.devicePixelRatio);
+        context.painter->setPen(hairlinePen(context.theme->legendBorder));
+        context.painter->setBrush(Qt::NoBrush);
+        context.painter->drawRoundedRect(
+            framed.adjusted(pixel / 2.0, pixel / 2.0, -pixel / 2.0, -pixel / 2.0), kLabelRadius,
+            kLabelRadius);
     }
     context.occupy(box);
 }

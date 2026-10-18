@@ -18,13 +18,16 @@ struct Theme;
 /// Something a plot draws at data coordinates that isn't data: the base of ReferenceLine,
 /// ShadedSpan, TextAnnotation and EventMarker. Annotations are created by the plot
 /// (PlotWidget::addHorizontalLine(), addVerticalSpan(), addText(), addEvent(), ...), which owns
-/// them. They move with the data as the view is panned and zoomed, and have no legend entry.
+/// them. They move with the data as the view is panned and zoomed (unless pinned to the plot area:
+/// setCoordinates()), and have no legend entry.
 class ROCKETPLOT_EXPORT Annotation : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(bool visible READ isVisible WRITE setVisible NOTIFY changed)
     Q_PROPERTY(QColor color READ color WRITE setColor RESET resetColor NOTIFY changed)
     Q_PROPERTY(rocketplot::AnnotationLayer layer READ layer WRITE setLayer NOTIFY changed)
+    Q_PROPERTY(rocketplot::AnnotationCoordinates coordinates READ coordinates WRITE setCoordinates
+                   NOTIFY changed)
     Q_PROPERTY(
         bool onSecondaryYAxis READ isOnSecondaryYAxis WRITE setOnSecondaryYAxis NOTIFY changed)
     Q_PROPERTY(bool includedInAutoscale READ isIncludedInAutoscale WRITE setIncludedInAutoscale
@@ -51,6 +54,19 @@ public:
     [[nodiscard]] AnnotationLayer layer() const noexcept { return m_layer; }
     void                          setLayer(AnnotationLayer layer);
 
+    /// What its x and y values are: data values (DATA, the default), or fractions of the plot
+    /// area (PLOT_AREA), which pin it to a place in the plot whatever the view: a note in a corner,
+    /// a line at a fixed height. The pixel offset of a TextAnnotation applies either way, and
+    /// autoscale never makes room for a pinned annotation.
+    ///
+    /// @code
+    /// auto* note = plot->addText(0.02, 0.98, "Simulated");
+    /// note->setCoordinates(rocketplot::AnnotationCoordinates::PLOT_AREA);
+    /// note->setAlignment(Qt::AlignLeft | Qt::AlignTop);   // its top-left corner in the plot's
+    /// @endcode
+    [[nodiscard]] AnnotationCoordinates coordinates() const noexcept { return m_coordinates; }
+    void                                setCoordinates(AnnotationCoordinates coordinates);
+
     /// The y axis its y values are on (for the kinds that have them): the plot's yAxis() (the
     /// default) or yAxis2().
     [[nodiscard]] Axis* yAxis() const;
@@ -59,7 +75,7 @@ public:
     void                setOnSecondaryYAxis(bool secondary);
 
     /// Whether autoscale makes room for the annotation as it does for data, so that a limit line
-    /// above all the data is in view. Off by default.
+    /// above all the data is in view. Off by default; ignored for one pinned to the plot area.
     [[nodiscard]] bool isIncludedInAutoscale() const noexcept { return m_includedInAutoscale; }
     void               setIncludedInAutoscale(bool included);
 
@@ -82,6 +98,7 @@ private:
     PlotWidget*           m_plot;
     std::optional<QColor> m_color;
     AnnotationLayer       m_layer;
+    AnnotationCoordinates m_coordinates         = AnnotationCoordinates::DATA;
     bool                  m_visible             = true;
     bool                  m_secondaryYAxis      = false;
     bool                  m_includedInAutoscale = false;

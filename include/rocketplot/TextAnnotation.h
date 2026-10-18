@@ -5,6 +5,7 @@
 #include <QPointF>
 #include <QString>
 #include <Qt>
+#include <optional>
 
 #include "rocketplot/Annotation.h"
 #include "rocketplot/Range.h"
@@ -33,6 +34,9 @@ class ROCKETPLOT_EXPORT TextAnnotation : public Annotation
     Q_PROPERTY(bool arrowVisible READ isArrowVisible WRITE setArrowVisible NOTIFY changed)
     Q_PROPERTY(
         bool backgroundVisible READ isBackgroundVisible WRITE setBackgroundVisible NOTIFY changed)
+    Q_PROPERTY(QColor backgroundColor READ backgroundColor WRITE setBackgroundColor RESET
+                   resetBackgroundColor NOTIFY changed)
+    Q_PROPERTY(bool frameVisible READ isFrameVisible WRITE setFrameVisible NOTIFY changed)
 
 public:
     ~TextAnnotation() override;
@@ -68,6 +72,17 @@ public:
     /// grid and the data. On by default.
     [[nodiscard]] bool isBackgroundVisible() const noexcept { return m_backgroundVisible; }
     void               setBackgroundVisible(bool visible);
+    /// The color of that box: the one set, or else the theme's legend background (which follows
+    /// theme changes).
+    [[nodiscard]] QColor backgroundColor() const;
+    void                 setBackgroundColor(const QColor& color);
+    void                 resetBackgroundColor();
+
+    /// Whether a hairline frame in the theme's legend border color is drawn around the text, as
+    /// around the legend: for a note that should read as a box of its own, such as a summary
+    /// pinned to a corner of the plot. Off by default.
+    [[nodiscard]] bool isFrameVisible() const noexcept { return m_frameVisible; }
+    void               setFrameVisible(bool visible);
 
 private:
     friend class PlotWidget;
@@ -77,12 +92,14 @@ private:
     [[nodiscard]] Range  xExtent() const override;
     [[nodiscard]] Range  yExtent() const override;
 
-    QPointF       m_position;
-    QString       m_text;
-    QPointF       m_offset;
-    Qt::Alignment m_alignment         = Qt::AlignCenter;
-    bool          m_arrowVisible      = true;
-    bool          m_backgroundVisible = true;
+    QPointF               m_position;
+    QString               m_text;
+    QPointF               m_offset;
+    std::optional<QColor> m_backgroundColor;
+    Qt::Alignment         m_alignment         = Qt::AlignCenter;
+    bool                  m_arrowVisible      = true;
+    bool                  m_backgroundVisible = true;
+    bool                  m_frameVisible      = false;
 };
 
 }  // namespace rocketplot

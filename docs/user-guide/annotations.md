@@ -99,7 +99,8 @@ peak->setPosition(79.5, 31.9);      // the point it is about, in data coordinate
 - The **alignment** says which part of the text is put there: `Qt::AlignCenter` (the default) centers it,
   `Qt::AlignLeft | Qt::AlignBottom` puts its bottom-left corner there, so that the text runs up and to the right.
 - The text has a box in the plot's background color behind it by default, which keeps it readable over the grid
-  and the data.
+  and the data. `setBackgroundColor()` gives the box a color of its own, and `setFrameVisible(true)` draws a
+  hairline around it, as around the legend.
 
 ## Event markers
 
@@ -111,6 +112,27 @@ the top. When there are more events than the rows that fit, the flags without ro
 zoomed in; their lines stay.
 
 An event without a label is only the line.
+
+## Pinned to the plot area
+
+An annotation can also stay in one place of the plot, whatever the view: its values are then fractions of the plot
+area, from (0, 0) at its bottom-left corner to (1, 1) at its top-right. A summary in a corner, a note that the data
+is simulated, a line at a fixed height:
+
+<!-- example: annotations-pinned -->
+```cpp
+rocketplot::TextAnnotation* summary = plot->addText(0.02, 0.98, "Apogee 212 km<br>Max Q 34 kPa");
+summary->setCoordinates(rocketplot::AnnotationCoordinates::PLOT_AREA);
+summary->setAlignment(Qt::AlignLeft | Qt::AlignTop);  // its top-left corner near the plot's
+summary->setFrameVisible(true);                        // a hairline box, as around the legend
+summary->setBackgroundColor(QColor("#fff8e1"));        // a box of another color
+
+// A line at three quarters of the plot's height, whatever the y axis shows.
+plot->addHorizontalLine(0.75)->setCoordinates(rocketplot::AnnotationCoordinates::PLOT_AREA);
+```
+
+Any annotation can be pinned. A text's offset is still in pixels, and autoscale never makes room for a pinned
+annotation.
 
 ## Common settings
 
@@ -134,6 +156,8 @@ plot->clearAnnotations();     // all of them
 - **Layer.** Spans start below the series; lines, text and events above. Labels are always drawn above the data.
 - **y axis.** The y values of a horizontal line, a horizontal span and a text are on the left axis unless set to
   the right one.
+- **Coordinates.** Data values (`AnnotationCoordinates::DATA`, the default), or fractions of the plot area
+  (`PLOT_AREA`), as above.
 - **Autoscale.** Off by default: annotations don't change what the axes show. Turn it on for a limit line that
   must stay in view even when all the data is far below it.
 

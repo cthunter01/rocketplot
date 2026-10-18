@@ -87,6 +87,20 @@ TEST_F(ReferenceLineTest, RunsAcrossThePlotAtItsValue)
     EXPECT_EQ(image.pixelColor(pixelAt(-0.3, 4.0)), plain.pixelColor(pixelAt(-0.3, 4.0)));
 }
 
+TEST_F(ReferenceLineTest, PinnedToThePlotAreaItsValueIsAFraction)
+{
+    ReferenceLine* line = m_plot.addHorizontalLine(0.25);
+    line->setCoordinates(rocketplot::AnnotationCoordinates::PLOT_AREA);
+    line->setColor(Qt::red);
+    line->setLineStyle(Qt::SolidLine);
+    line->setLineWidth(3.0);
+    const QRectF area = m_plot.plotArea();
+    const int    row  = static_cast<int>(area.bottom() - (0.25 * area.height()));
+    EXPECT_EQ(render().pixelColor(static_cast<int>(area.center().x()), row), QColor(Qt::red));
+    m_plot.yAxis()->setRange(-100.0, 100.0);
+    EXPECT_EQ(render().pixelColor(static_cast<int>(area.center().x()), row), QColor(Qt::red));
+}
+
 TEST_F(ReferenceLineTest, DashedInTheThemeColorByDefault)
 {
     m_plot.addHorizontalLine(4.0);

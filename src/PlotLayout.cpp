@@ -22,6 +22,7 @@
 #include "rocketplot/Annotation.h"
 #include "rocketplot/Axis.h"
 #include "rocketplot/PlotWidget.h"
+#include "rocketplot/Range.h"
 #include "rocketplot/Series.h"
 #include "rocketplot/Theme.h"
 #include "rocketplot/enums.h"
@@ -433,6 +434,17 @@ const AxisLayout& PlotLayout::yFor(const Series& series) const
 const AxisLayout& PlotLayout::yFor(const Annotation& annotation) const
 {
     return annotation.isOnSecondaryYAxis() ? y2 : y;
+}
+
+AnnotationMappings PlotLayout::mappingsFor(const Annotation& annotation) const
+{
+    if (annotation.coordinates() == AnnotationCoordinates::PLOT_AREA)
+    {
+        constexpr Range kFractions{.min = 0.0, .max = 1.0};
+        return {.x = core::AxisMapping(kFractions, plot.left(), plot.right()),
+                .y = core::AxisMapping(kFractions, plot.bottom(), plot.top())};
+    }
+    return {.x = x.mapping, .y = yFor(annotation).mapping};
 }
 
 core::Scale scaleOf(const Axis& axis)

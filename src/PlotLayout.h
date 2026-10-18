@@ -42,6 +42,13 @@ struct LayoutConstraints
     double minBottom = 0.0;
 };
 
+/// The mappings an annotation's x and y values are drawn with.
+struct AnnotationMappings
+{
+    core::AxisMapping x;
+    core::AxisMapping y;
+};
+
 /// Where everything goes for one frame. Computed from the plot's state and the target rectangle, so
 /// the same code lays out the widget and (later) image and vector exports.
 struct PlotLayout
@@ -74,6 +81,9 @@ struct PlotLayout
     /// The y layout a series is drawn against, or an annotation's y values are on.
     [[nodiscard]] const AxisLayout& yFor(const Series& series) const;
     [[nodiscard]] const AxisLayout& yFor(const Annotation& annotation) const;
+    /// How @p annotation's values map to pixels: through the x axis and its y axis, or for one
+    /// pinned to the plot area, as fractions of the plot area (y upward).
+    [[nodiscard]] AnnotationMappings mappingsFor(const Annotation& annotation) const;
 };
 
 /// Lays out @p plot in @p bounds, using @p font as the base font.

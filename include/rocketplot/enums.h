@@ -43,6 +43,15 @@ enum class AnnotationLayer : std::uint8_t
 };
 Q_ENUM_NS(AnnotationLayer)
 
+/// What an annotation's x and y values are (Annotation::setCoordinates()).
+enum class AnnotationCoordinates : std::uint8_t
+{
+    DATA,       ///< Data values on the axes: it moves with the data (the default)
+    PLOT_AREA,  ///< Fractions of the plot area, (0, 0) its bottom-left corner and (1, 1) its top
+                ///< right: it stays where it is as the view is panned and zoomed
+};
+Q_ENUM_NS(AnnotationCoordinates)
+
 /// Where the legend sits inside the plot area.
 enum class LegendAnchor : std::uint8_t
 {

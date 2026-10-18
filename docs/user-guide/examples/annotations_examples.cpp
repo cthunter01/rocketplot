@@ -86,6 +86,17 @@ void options(const QString& /*scratch*/)
     peak->setPosition(79.5, 31.9);      // the point it is about, in data coordinates
     // [/annotations-text]
 
+    // [annotations-pinned]
+    rocketplot::TextAnnotation* summary = plot->addText(0.02, 0.98, "Apogee 212 km<br>Max Q 34 kPa");
+    summary->setCoordinates(rocketplot::AnnotationCoordinates::PLOT_AREA);
+    summary->setAlignment(Qt::AlignLeft | Qt::AlignTop);  // its top-left corner near the plot's
+    summary->setFrameVisible(true);                        // a hairline box, as around the legend
+    summary->setBackgroundColor(QColor("#fff8e1"));        // a box of another color
+
+    // A line at three quarters of the plot's height, whatever the y axis shows.
+    plot->addHorizontalLine(0.75)->setCoordinates(rocketplot::AnnotationCoordinates::PLOT_AREA);
+    // [/annotations-pinned]
+
     // [annotations-common]
     rocketplot::Annotation* any = peak;
     any->setVisible(false);
