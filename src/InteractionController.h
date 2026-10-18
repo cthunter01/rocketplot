@@ -150,8 +150,8 @@ private:
     // A drag on the legend: the entry pressed, and where the legend was.
     struct LegendGrab
     {
-        QPointer<Series> entry;
-        QRectF           box;
+        QPointer<QObject> entry;  // its key (LegendEntry::key())
+        QRectF            box;
     };
     LegendGrab m_legendGrab;
     // A right-button drag or click just ended: a context menu asked for now (on the release) is

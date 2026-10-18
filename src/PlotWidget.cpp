@@ -64,6 +64,7 @@
 #include <vector>
 
 #include "AnnotationPainter.h"
+#include "FlagLayout.h"
 #include "InteractionController.h"
 #include "LegendLayout.h"
 #include "Logging.h"
@@ -159,6 +160,32 @@ private:
     std::optional<Theme> m_saved;
 };
 
+// Guarded pointers to @p series, for actions that run later, when some of them may be gone.
+QList<QPointer<Series>> pointersTo(const std::vector<Series*>& series)
+{
+    QList<QPointer<Series>> pointers;
+    for (Series* one : series)
+    {
+        pointers.append(one);
+    }
+    return pointers;
+}
+
+// What runs @p action on each of @p targets that is still there.
+template <class Action>
+auto forEachOf(const QList<QPointer<Series>>& targets, Action action)
+{
+    return [targets, action] {
+        for (const QPointer<Series>& target : targets)
+        {
+            if (Series* current = target.data())
+            {
+                action(*current);
+            }
+        }
+    };
+}
+
 // The part of @p range a log axis can show: its positive ends.
 Range positivePart(Range range)
 {
@@ -214,7 +241,7 @@ struct PlotWidget::Private
     LegendLayout           legendLayout;
     double                 valueWidth = 0.0;  // the widest values while the crosshair is shown
     std::optional<QPointF> pointer;           // over the widget
-    QPointer<Series>       pointed;           // the series whose legend entry the pointer is on
+    QPointer<QObject>      pointed;           // the key of the legend entry the pointer is on
     // What the annotations of the cached rendering drew that the pointer can be on, and the
     // annotation the pointer is on.
     std::vector<AnnotationHit> annotationHits;
@@ -1073,7 +1100,7 @@ void PlotWidget::showContextMenu(QPoint position, QPoint globalPosition)
 {
     if (const LegendEntry* entry = legendEntryAt(QPointF(position)))
     {
-        showEntryMenu(entry->series, globalPosition);
+        showEntryMenu(*entry, globalPosition);
         return;
     }
     auto* menu = new QMenu(this);
@@ -1127,6 +1154,10 @@ bool PlotWidget::isOnLegend(QPointF position) const
 
 void PlotWidget::pointAt(std::optional<QPointF> position)
 {
+    const auto shows = [this](const QObject* key) {
+        const LegendEntry* entry = m_impl->legendLayout.entryOf(key);
+        return entry != nullptr && entry->annotation == nullptr && entry->isVisible();
+    };
     if (Annotation* under = position ? annotationAt(*position) : nullptr;
         under != m_impl->hovered.data())
     {
@@ -1135,14 +1166,14 @@ void PlotWidget::pointAt(std::optional<QPointF> position)
     }
     m_impl->pointer             = position;
     const LegendEntry* entry    = position ? legendEntryAt(*position) : nullptr;
-    Series*            series   = entry != nullptr ? entry->series : nullptr;
-    const Series*      previous = m_impl->pointed.data();
-    if (series != previous)
+    QObject*           key      = entry != nullptr ? entry->key() : nullptr;
+    const QObject*     previous = m_impl->pointed.data();
+    if (key != previous)
     {
-        m_impl->pointed = series;
-        // The highlighted series is drawn over the others, which fade.
-        if ((series != nullptr && series->isVisible()) ||
-            (previous != nullptr && previous->isVisible()))
+        // The highlighted series are drawn over the others, which fade.
+        const bool redraw = shows(key) || shows(previous);
+        m_impl->pointed   = key;
+        if (redraw)
         {
             markDirty();
         }
@@ -1151,51 +1182,91 @@ void PlotWidget::pointAt(std::optional<QPointF> position)
     updateCursor();
 }
 
-const Series* PlotWidget::highlightedSeries() const
+QList<const Series*> PlotWidget::highlightedSeries() const
 {
-    const Series* series = m_impl->pointed.data();
-    return series != nullptr && series->isVisible() && m_impl->legend->isInteractive() ? series
-                                                                                       : nullptr;
+    QList<const Series*> highlighted;
+    const LegendEntry*   entry = m_impl->legendLayout.entryOf(m_impl->pointed.data());
+    if (entry == nullptr || !m_impl->legend->isInteractive())
+    {
+        return highlighted;
+    }
+    for (const Series* series : entry->series)
+    {
+        if (series->isVisible())
+        {
+            highlighted.append(series);
+        }
+    }
+    return highlighted;
 }
 
-void PlotWidget::isolateSeries(Series* series)
+void PlotWidget::toggleEntry(QObject* key)
 {
-    // Showing only the one already shown alone shows them all again.
-    const bool alone =
-        series->isVisible() && std::ranges::none_of(m_impl->series, [series](const Series* other) {
-            return other != series && other->isVisible();
-        });
-    for (Series* other : std::as_const(m_impl->series))
+    const LegendEntry* entry = m_impl->legendLayout.entryOf(key);
+    if (entry == nullptr)
     {
-        other->setVisible(alone || other == series);
+        return;
+    }
+    if (entry->annotation != nullptr)
+    {
+        entry->annotation->setVisible(!entry->annotation->isVisible());
+        return;
+    }
+    // Hidden all if any shows, else all shown.
+    const bool                 visible = !entry->isVisible();
+    const std::vector<Series*> members = entry->series;
+    for (Series* series : members)
+    {
+        series->setVisible(visible);
     }
 }
 
-void PlotWidget::showEntryMenu(Series* series, QPoint globalPosition)
+void PlotWidget::isolateEntry(QObject* key)
 {
+    const LegendEntry* entry = m_impl->legendLayout.entryOf(key);
+    if (entry == nullptr || entry->annotation != nullptr)
+    {
+        return;
+    }
+    // Showing only the ones already shown alone shows them all again.
+    const std::vector<Series*> members  = entry->series;
+    const auto                 isMember = [&members](const Series* series) {
+        return std::ranges::find(members, series) != members.end();
+    };
+    const bool alone =
+        std::ranges::any_of(members, [](const Series* one) { return one->isVisible(); }) &&
+        std::ranges::none_of(m_impl->series, [&](const Series* other) {
+            return !isMember(other) && other->isVisible();
+        });
+    for (Series* series : std::as_const(m_impl->series))
+    {
+        series->setVisible(alone || isMember(series));
+    }
+}
+
+void PlotWidget::showEntryMenu(const LegendEntry& entry, QPoint globalPosition)
+{
+    if (entry.annotation != nullptr)
+    {
+        showAnnotationEntryMenu(entry.annotation, globalPosition);
+        return;
+    }
     auto* menu = new QMenu(this);
     menu->setAttribute(Qt::WA_DeleteOnClose);
-    const QPointer<Series> target(series);
-    const auto             onTarget = [target](auto&& action) {
-        return [target, action] {
-            if (Series* current = target.data())
-            {
-                action(*current);
-            }
-        };
-    };
-
-    QAction* visible = menu->addAction(tr("Visible"));
+    const QList<QPointer<Series>> targets = pointersTo(entry.series);
+    QAction*                      visible = menu->addAction(tr("Visible"));
     visible->setCheckable(true);
-    visible->setChecked(series->isVisible());
+    visible->setChecked(entry.isVisible());
     connect(visible, &QAction::triggered, this,
-            onTarget([](Series& current) { current.setVisible(!current.isVisible()); }));
-    menu->addAction(tr("Show only this"), this, onTarget([this](Series& current) {
-                        for (Series* other : std::as_const(m_impl->series))
-                        {
-                            other->setVisible(other == &current);
-                        }
-                    }));
+            forEachOf(targets, [shown = !entry.isVisible()](Series& current) {
+                current.setVisible(shown);
+            }));
+    menu->addAction(tr("Show only this"), this, [this, targets] {
+        for (Series* other : std::as_const(m_impl->series))
+        {
+            other->setVisible(targets.contains(QPointer<Series>(other)));
+        }
+    });
     menu->addAction(tr("Show all"), this, [this] {
         for (Series* other : std::as_const(m_impl->series))
         {
@@ -1203,21 +1274,32 @@ void PlotWidget::showEntryMenu(Series* series, QPoint globalPosition)
         }
     });
     menu->addSeparator();
+    addStyleActions(menu, entry);
+    menu->addSeparator();
+    menu->addAction(tr("Remove"), this,
+                    forEachOf(targets, [this](Series& current) { removeSeries(&current); }));
+    Q_EMIT m_impl->legend->entryMenuAboutToShow(menu, entry.sample);
+    menu->popup(globalPosition);
+}
 
-    menu->addAction(tr("Color…"), this, onTarget([this](Series& current) {
-                        const QColor color =
-                            QColorDialog::getColor(current.color(), this, tr("Series color"));
-                        if (color.isValid())
-                        {
-                            current.setColor(color);
-                        }
-                    }));
-    if (series->m_color)
+void PlotWidget::addStyleActions(QMenu* menu, const LegendEntry& entry)
+{
+    const QList<QPointer<Series>> targets = pointersTo(entry.series);
+    const Series&                 sample  = *entry.sample;
+    menu->addAction(tr("Color…"), this, [this, targets, color = sample.color()] {
+        const QColor chosen = QColorDialog::getColor(color, this, tr("Series color"));
+        if (chosen.isValid())
+        {
+            forEachOf(targets, [&chosen](Series& current) { current.setColor(chosen); })();
+        }
+    });
+    if (std::ranges::any_of(entry.series,
+                            [](const Series* one) { return one->m_color.has_value(); }))
     {
         menu->addAction(tr("Theme color"), this,
-                        onTarget([](Series& current) { current.resetColor(); }));
+                        forEachOf(targets, [](Series& current) { current.resetColor(); }));
     }
-    if (const auto* line = qobject_cast<const LineSeries*>(series))
+    if (const auto* line = qobject_cast<const LineSeries*>(&sample))
     {
         QMenu*        widths = menu->addMenu(tr("Line width"));
         const QLocale locale;
@@ -1226,7 +1308,7 @@ void PlotWidget::showEntryMenu(Series* series, QPoint globalPosition)
             QAction* action = widths->addAction(tr("%1 px").arg(locale.toString(width)));
             action->setCheckable(true);
             action->setChecked(line->lineWidth() == width);
-            connect(action, &QAction::triggered, this, onTarget([width](Series& current) {
+            connect(action, &QAction::triggered, this, forEachOf(targets, [width](Series& current) {
                         if (auto* currentLine = qobject_cast<LineSeries*>(&current))
                         {
                             currentLine->setLineWidth(width);
@@ -1234,8 +1316,15 @@ void PlotWidget::showEntryMenu(Series* series, QPoint globalPosition)
                     }));
         }
     }
-    QMenu*     markers = menu->addMenu(tr("Marker"));
-    const auto shapes  = std::to_array<std::pair<Marker, QString>>({
+    addMarkerMenu(menu, entry);
+}
+
+void PlotWidget::addMarkerMenu(QMenu* menu, const LegendEntry& entry)
+{
+    const QList<QPointer<Series>> targets = pointersTo(entry.series);
+    const Series&                 sample  = *entry.sample;
+    QMenu*                        markers = menu->addMenu(tr("Marker"));
+    const auto                    shapes  = std::to_array<std::pair<Marker, QString>>({
         {Marker::NONE, tr("None")},
         {Marker::CIRCLE, tr("Circle")},
         {Marker::SQUARE, tr("Square")},
@@ -1244,23 +1333,57 @@ void PlotWidget::showEntryMenu(Series* series, QPoint globalPosition)
         {Marker::CROSS, tr("Cross")},
         {Marker::PLUS, tr("Plus")},
     });
-    const bool scatter = qobject_cast<LineSeries*>(series) == nullptr;
+    const bool                    scatter = qobject_cast<const LineSeries*>(&sample) == nullptr;
     for (const auto& [shape, name] : shapes)
     {
         if (shape == Marker::NONE && scatter)
         {
             continue;  // a scatter series without markers draws nothing
         }
-        QAction* action = markers->addAction(markerIcon(*series, shape), name);
+        QAction* action = markers->addAction(markerIcon(sample, shape), name);
         action->setCheckable(true);
-        action->setChecked(series->marker() == shape);
+        action->setChecked(sample.marker() == shape);
         connect(action, &QAction::triggered, this,
-                onTarget([shape](Series& current) { current.setMarker(shape); }));
+                forEachOf(targets, [shape](Series& current) { current.setMarker(shape); }));
+    }
+}
+
+void PlotWidget::showAnnotationEntryMenu(Annotation* annotation, QPoint globalPosition)
+{
+    auto* menu = new QMenu(this);
+    menu->setAttribute(Qt::WA_DeleteOnClose);
+    const QPointer<Annotation> target(annotation);
+    const auto                 onTarget = [target](auto&& action) {
+        return [target, action] {
+            if (Annotation* current = target.data())
+            {
+                action(*current);
+            }
+        };
+    };
+    QAction* visible = menu->addAction(tr("Visible"));
+    visible->setCheckable(true);
+    visible->setChecked(annotation->isVisible());
+    connect(visible, &QAction::triggered, this,
+            onTarget([](Annotation& current) { current.setVisible(!current.isVisible()); }));
+    menu->addSeparator();
+    menu->addAction(tr("Color…"), this, onTarget([this](Annotation& current) {
+                        const QColor color =
+                            QColorDialog::getColor(current.color(), this, tr("Annotation color"));
+                        if (color.isValid())
+                        {
+                            current.setColor(color);
+                        }
+                    }));
+    if (annotation->m_color)
+    {
+        menu->addAction(tr("Theme color"), this,
+                        onTarget([](Annotation& current) { current.resetColor(); }));
     }
     menu->addSeparator();
     menu->addAction(tr("Remove"), this,
-                    onTarget([this](Series& current) { removeSeries(&current); }));
-    Q_EMIT m_impl->legend->entryMenuAboutToShow(menu, series);
+                    onTarget([this](Annotation& current) { removeAnnotation(&current); }));
+    Q_EMIT m_impl->legend->annotationEntryMenuAboutToShow(menu, annotation);
     menu->popup(globalPosition);
 }
 
@@ -1583,10 +1706,9 @@ void PlotWidget::paintLayout(QPainter& painter, const PlotLayout& layout) const
     RenderStats     stats;
     const bool      best = m_impl->legend->anchor() == LegendAnchor::BEST;
     PlotRenderer    renderer(*this, layout, m_impl->markers, m_impl->text);
-    renderer.render(painter, stats,
-                    {.highlighted    = nullptr,
-                     .occupancy      = best ? &occupancy : nullptr,
-                     .annotationHits = nullptr});
+    renderer.render(
+        painter, stats,
+        {.highlighted = {}, .occupancy = best ? &occupancy : nullptr, .annotationHits = nullptr});
     // The legend where it hides the least in this layout, staying where it is on screen if that is
     // about as good.
     const LegendLayout legend = layoutLegend(*this, layout, m_impl->text,

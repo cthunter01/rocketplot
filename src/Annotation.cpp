@@ -91,6 +91,16 @@ void Annotation::setToolTip(const QString& toolTip)
     Q_EMIT changed();
 }
 
+void Annotation::setLegendName(const QString& name)
+{
+    if (name == m_legendName)
+    {
+        return;
+    }
+    m_legendName = name;
+    Q_EMIT changed();
+}
+
 Axis* Annotation::yAxis() const
 {
     return m_secondaryYAxis ? m_plot->yAxis2() : m_plot->yAxis();

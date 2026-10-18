@@ -14,8 +14,11 @@ class QMenu;
 namespace rocketplot
 {
 
-/// The plot's legend: one entry per named series (series with an empty name are left out). Owned by
-/// its PlotWidget (PlotWidget::legend()).
+class Annotation;
+
+/// The plot's legend: one entry per named series (series with an empty name are left out), or per
+/// legend group of series (Series::setLegendGroup()), then one per annotation with a legend name
+/// (Annotation::setLegendName()). Owned by its PlotWidget (PlotWidget::legend()).
 ///
 /// By default the legend appears once there are two or more entries; a single series is better
 /// named by the plot's title. setVisible() overrides that either way. It goes where it covers the
@@ -74,6 +77,8 @@ Q_SIGNALS:
     /// The context menu of @p series' entry is about to open: add to @p menu here. It is deleted
     /// once closed.
     void entryMenuAboutToShow(QMenu* menu, rocketplot::Series* series);
+    /// The same for the entry of an annotation (Annotation::setLegendName()).
+    void annotationEntryMenuAboutToShow(QMenu* menu, rocketplot::Annotation* annotation);
 
 private:
     friend class PlotWidget;

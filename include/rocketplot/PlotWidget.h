@@ -516,13 +516,19 @@ private:
     void exportWithDialog();
     // The legend: what the pointer is on (as last drawn, and if the legend is interactive), what
     // that highlights, and what clicking and its menu do.
-    [[nodiscard]] const LegendEntry* legendEntryAt(QPointF position) const;
-    [[nodiscard]] bool               isOnLegend(QPointF position) const;
-    void                             pointAt(std::optional<QPointF> position);
-    [[nodiscard]] const Series*      highlightedSeries() const;
-    void                             isolateSeries(Series* series);
-    void                             showEntryMenu(Series* series, QPoint globalPosition);
-    [[nodiscard]] QIcon              markerIcon(const Series& series, Marker shape) const;
+    [[nodiscard]] const LegendEntry*   legendEntryAt(QPointF position) const;
+    [[nodiscard]] bool                 isOnLegend(QPointF position) const;
+    void                               pointAt(std::optional<QPointF> position);
+    [[nodiscard]] QList<const Series*> highlightedSeries() const;
+    // What clicking and double-clicking a legend entry do, the entry given by its key
+    // (LegendEntry::key()): hide or show what it stands for, show only its series.
+    void                toggleEntry(QObject* key);
+    void                isolateEntry(QObject* key);
+    void                showEntryMenu(const LegendEntry& entry, QPoint globalPosition);
+    void                addStyleActions(QMenu* menu, const LegendEntry& entry);
+    void                addMarkerMenu(QMenu* menu, const LegendEntry& entry);
+    void                showAnnotationEntryMenu(Annotation* annotation, QPoint globalPosition);
+    [[nodiscard]] QIcon markerIcon(const Series& series, Marker shape) const;
     // Bounds of the x values autoscale fits (only positive ones for a log axis): the visible
     // series' points and errors, and with @p withAnnotations the annotations that ask to be
     // included.

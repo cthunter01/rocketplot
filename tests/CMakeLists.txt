@@ -66,6 +66,7 @@ add_executable(rocketplot_tests
     widgets/export_tests.cpp
     widgets/form_tests.cpp
     widgets/interaction_tests.cpp
+    widgets/legend_entries_tests.cpp
     widgets/math_tests.cpp
     widgets/plottime_tests.cpp
     widgets/state_tests.cpp

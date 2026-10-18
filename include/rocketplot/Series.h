@@ -53,6 +53,7 @@ class ROCKETPLOT_EXPORT Series : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QString name READ name WRITE setName NOTIFY changed)
+    Q_PROPERTY(QString legendGroup READ legendGroup WRITE setLegendGroup NOTIFY changed)
     Q_PROPERTY(bool visible READ isVisible WRITE setVisible NOTIFY changed)
     Q_PROPERTY(QColor color READ color WRITE setColor RESET resetColor NOTIFY changed)
     Q_PROPERTY(rocketplot::Marker marker READ marker WRITE setMarker NOTIFY changed)
@@ -74,9 +75,26 @@ public:
     [[nodiscard]] PlotWidget* plot() const noexcept { return m_plot; }
 
     /// The name in the legend. Math between $ signs and Qt rich text work too: "$v_z$". A series
-    /// with an empty name has no legend entry.
+    /// with an empty name has no legend entry (unless its legend group has one).
     [[nodiscard]] QString name() const { return m_name; }
     void                  setName(const QString& name);
+
+    /// Series of one legend group share one legend entry: the series that stand for one quantity
+    /// in several parts (the stages of a flight, the runs of a test), told apart by line style or
+    /// marker. The entry shows the name and the look of the group's first named series; clicking,
+    /// double-clicking, pointing at it and its menu act on every series of the group. Empty (the
+    /// default): an entry of its own, if the series has a name.
+    ///
+    /// @code
+    /// for (const Stage& stage : stages)
+    /// {
+    ///     auto* line = plot->addLine(stage.time, stage.altitude, "Altitude");
+    ///     line->setLegendGroup("altitude");
+    ///     line->setLineStyle(stage.lineStyle);
+    /// }
+    /// @endcode
+    [[nodiscard]] QString legendGroup() const { return m_legendGroup; }
+    void                  setLegendGroup(const QString& group);
 
     [[nodiscard]] bool isVisible() const noexcept { return m_visible; }
     void               setVisible(bool visible);
@@ -326,6 +344,7 @@ private:
     std::unique_ptr<core::SeriesData> m_data;
     std::unique_ptr<core::ErrorData>  m_errors;
     QString                           m_name;
+    QString                           m_legendGroup;
     bool                              m_visible = true;
     std::optional<QColor>             m_color;
     qsizetype                         m_colorIndex = 0;  // into the theme's series colors

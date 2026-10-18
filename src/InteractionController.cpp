@@ -288,7 +288,7 @@ bool InteractionController::mouseDoubleClick(const QMouseEvent& event)
     {
         if (const LegendEntry* entry = m_plot->legendEntryAt(event.position()))
         {
-            m_plot->isolateSeries(entry->series);
+            m_plot->isolateEntry(entry->key());
         }
         return true;
     }
@@ -383,7 +383,7 @@ bool InteractionController::beginDrag(QPointF position, Qt::MouseButton button,
     {
         const LegendEntry* entry = m_plot->legendEntryAt(position);
         m_legendGrab             = {
-            .entry = entry != nullptr ? entry->series : nullptr,
+            .entry = entry != nullptr ? entry->key() : nullptr,
             .box   = m_plot->legendArea(),
         };
         m_drag = {
@@ -472,9 +472,9 @@ void InteractionController::endDrag(QPointF position, bool click)
     if (m_drag.legend)
     {
         const Drag drag = std::exchange(m_drag, Drag{});
-        if (Series* entry = m_legendGrab.entry.data(); entry != nullptr && click && !drag.moved)
+        if (QObject* entry = m_legendGrab.entry.data(); entry != nullptr && click && !drag.moved)
         {
-            entry->setVisible(!entry->isVisible());
+            m_plot->toggleEntry(entry);
         }
         m_plot->pointAt(position);
         return;
@@ -723,7 +723,7 @@ void InteractionController::tapped(QPointF position)
         {
             if (const LegendEntry* entry = m_plot->legendEntryAt(position))
             {
-                m_plot->isolateSeries(entry->series);
+                m_plot->isolateEntry(entry->key());
             }
             return;
         }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QLineF>
+#include <QList>
 #include <QPointF>
 #include <QRectF>
 #include <QRgb>
@@ -54,9 +55,9 @@ struct RenderStats
 /// How to draw a frame, beyond what the plot says.
 struct RenderOptions
 {
-    /// Drawn on top of the others, which are faded (the series whose legend entry the user points
+    /// Drawn on top of the others, which are faded (the series of the legend entry the user points
     /// at).
-    const Series* highlighted = nullptr;
+    QList<const Series*> highlighted;
     /// Records where data is drawn, for placing the legend.
     core::Occupancy* occupancy = nullptr;
     /// Records what annotations drew that the pointer can be on.

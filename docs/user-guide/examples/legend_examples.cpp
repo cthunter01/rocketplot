@@ -2,19 +2,23 @@
 
 #include <QAction>
 #include <QClipboard>
+#include <QColor>
 #include <QGuiApplication>
 #include <QMenu>
 #include <QObject>
 #include <QPointF>
 #include <QRectF>
 #include <QString>
+#include <Qt>
 #include <vector>
 
 #include "Examples.h"
 #include "SampleData.h"
 #include "rocketplot/Axis.h"
 #include "rocketplot/Legend.h"
+#include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotWidget.h"
+#include "rocketplot/ReferenceLine.h"
 #include "rocketplot/Series.h"
 #include "rocketplot/enums.h"
 
@@ -33,6 +37,47 @@ void chillDown(PlotWidget* plot)
     plot->setTitle("Engine chill-down");
     plot->xAxis()->setLabel("Time (s)");
     plot->yAxis()->setLabel("Temperature (°C)");
+}
+
+// One run of a chill-down test: two sensors, and how its lines are drawn.
+struct Run
+{
+    std::vector<double> feed;
+    std::vector<double> housing;
+    Qt::PenStyle        style = Qt::SolidLine;
+};
+
+void groups(PlotWidget* plot)
+{
+    const std::vector<double> time = linspace(0.0, 600.0, 1201);
+    const std::vector<Run>    runs{
+        {.feed    = settling(time, 18.0, -160.0, 120.0, 0.2, 1),
+         .housing = settling(time, 21.0, -95.0, 200.0, 0.2, 3),
+         .style   = Qt::SolidLine},
+        {.feed    = settling(time, 18.0, -148.0, 120.0, 0.2, 2),
+         .housing = settling(time, 21.0, -83.0, 200.0, 0.2, 4),
+         .style   = Qt::DashLine},
+    };
+    plot->setTitle("Engine chill-down, two runs");
+    plot->xAxis()->setLabel("Time (s)");
+    plot->yAxis()->setLabel("Temperature (°C)");
+    // [legend-groups]
+    // Two runs of the same test: one entry per sensor for both, the runs told apart by line style.
+    for (const Run& run : runs)
+    {
+        rocketplot::LineSeries* feed = plot->addLine(time, run.feed, "LOX feed line");
+        feed->setLegendGroup("feed");
+        feed->setColor(QColor("#2a78d6"));
+        feed->setLineStyle(run.style);
+        rocketplot::LineSeries* housing = plot->addLine(time, run.housing, "Turbopump housing");
+        housing->setLegendGroup("housing");
+        housing->setColor(QColor("#e8743b"));
+        housing->setLineStyle(run.style);
+    }
+
+    // An annotation can have an entry too, after the series'.
+    plot->addHorizontalLine(-150.0)->setLegendName("Feed line target");
+    // [/legend-groups]
 }
 
 // The pointer on the legend's second entry.
@@ -82,6 +127,7 @@ void addLegendExamples(Examples& examples)
 {
     examples.addPlot(QStringLiteral("legend"), chillDown);
     examples.addPlot(QStringLiteral("legend-highlight"), chillDown, {720, 400}, secondEntry);
+    examples.addPlot(QStringLiteral("legend-groups"), groups);
     examples.demonstrations.push_back({.name = QStringLiteral("legend options"), .run = options});
 }
 

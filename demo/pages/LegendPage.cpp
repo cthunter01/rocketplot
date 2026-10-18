@@ -1,4 +1,5 @@
 #include <QCheckBox>
+#include <QColor>
 #include <QComboBox>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -7,13 +8,16 @@
 #include <QVBoxLayout>
 #include <QVariant>
 #include <QWidget>
+#include <utility>
 #include <vector>
 
 #include "DemoPage.h"
 #include "Generators.h"
 #include "rocketplot/Axis.h"
 #include "rocketplot/Legend.h"
+#include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotWidget.h"
+#include "rocketplot/ReferenceLine.h"
 #include "rocketplot/enums.h"
 
 namespace rocketplot::demo
@@ -49,10 +53,23 @@ QWidget* create(QWidget* parent)
     plot->yAxis()->setLabel("Temperature (°C)");
     const std::vector<double> time = linspace(0.0, 600.0, 6001);
     plot->addLine(time, warmUp(time, 21.0, 64.0, 180.0, 0.4, 1), "Turbopump housing");
-    plot->addLine(time, warmUp(time, 21.0, 38.0, 240.0, 0.3, 2), "Avionics bay");
+    // Two sensors in one bay: one legend entry for both (a legend group), told apart by style.
+    for (const auto& [rise, style] :
+         {std::pair(38.0, Qt::SolidLine), std::pair(35.0, Qt::DashLine)})
+    {
+        rocketplot::LineSeries* bay =
+            plot->addLine(time, warmUp(time, 21.0, rise, 240.0, 0.3, 2), "Avionics bay");
+        bay->setLegendGroup("avionics");
+        bay->setColor(QColor(0x8e, 0x5c, 0xc8));
+        bay->setLineStyle(style);
+    }
     plot->addLine(time, warmUp(time, 21.0, 12.0, 400.0, 0.2, 3), "Payload fairing");
     plot->addLine(time, warmUp(time, 18.0, -9.0, 120.0, 0.3, 4), "LOX feed line");
     plot->addLine(time, warmUp(time, 21.0, 4.0, 60.0, 0.2, 5), "Battery");
+    // An annotation with an entry of its own: click it to hide the line.
+    auto* limit = plot->addHorizontalLine(90.0);
+    limit->setLegendName("Housing limit");
+    limit->setIncludedInAutoscale(true);
 
     // The legend goes where it hides the least data (LegendAnchor::BEST, the default). With the
     // crosshair on, each entry shows its series' value at the pointer.

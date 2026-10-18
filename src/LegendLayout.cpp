@@ -9,6 +9,7 @@
 #include <QRectF>
 #include <QSizeF>
 #include <QString>
+#include <QStringView>
 #include <Qt>
 #include <algorithm>
 #include <array>
@@ -16,17 +17,26 @@
 #include <cstddef>
 #include <limits>
 #include <optional>
+#include <utility>
 #include <vector>
 
+#include "AnnotationPainter.h"
 #include "MarkerPainter.h"
 #include "PlotLayout.h"
 #include "PlotRenderer.h"
 #include "TextPainter.h"
 #include "core/Occupancy.h"
+#include "rocketplot/Annotation.h"
+#include "rocketplot/EventMarker.h"
+#include "rocketplot/IconAnnotation.h"
 #include "rocketplot/Legend.h"
 #include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotWidget.h"
+#include "rocketplot/RectAnnotation.h"
+#include "rocketplot/ReferenceLine.h"
 #include "rocketplot/Series.h"
+#include "rocketplot/ShadedSpan.h"
+#include "rocketplot/TextAnnotation.h"
 #include "rocketplot/Theme.h"
 #include "rocketplot/enums.h"
 
@@ -60,6 +70,9 @@ constexpr std::array kBestOrder = {
     LegendAnchor::BOTTOM,       LegendAnchor::TOP,
 };
 
+// The value of a series that has none at the crosshair's x.
+constexpr QStringView kNoValue = u"—";
+
 QFont valueFont(const PlotLayout& layout)
 {
     QFont font = layout.legendFont;
@@ -81,7 +94,7 @@ QString valueOf(const Series& series, const PlotLayout& layout, double x,
     const double y = index ? series.y(*index) : std::numeric_limits<double>::quiet_NaN();
     if (!std::isfinite(y))
     {
-        return QStringLiteral("—");
+        return kNoValue.toString();
     }
     return valueLabel(*series.yAxis(), layout.yFor(series).mapping, y);
 }
@@ -157,7 +170,188 @@ void drawSwatch(QPainter& painter, const Series& series, const Theme& theme, QPo
     MarkerPainter::draw(painter, center, markerStyle(series, theme));
 }
 
+// The legend's entries: one per named series, one per legend group with a named series (named and
+// looking after the first named one), then one per annotation with a legend name.
+std::vector<LegendEntry> legendEntries(const PlotWidget& plot)
+{
+    std::vector<LegendEntry> entries;
+    for (Series* series : plot.series())
+    {
+        const QString group = series->legendGroup();
+        const auto joined = group.isEmpty()
+                                ? entries.end()
+                                : std::ranges::find_if(entries, [&group](const LegendEntry& entry) {
+                                      return entry.group == group;
+                                  });
+        if (joined != entries.end())
+        {
+            joined->series.push_back(series);
+            if (joined->sample == nullptr && !series->name().isEmpty())
+            {
+                joined->sample = series;
+                joined->name   = series->name();
+            }
+        }
+        else if (!group.isEmpty() || !series->name().isEmpty())
+        {
+            LegendEntry entry;
+            entry.series = {series};
+            entry.group  = group;
+            if (!series->name().isEmpty())
+            {
+                entry.sample = series;
+                entry.name   = series->name();
+            }
+            entries.push_back(std::move(entry));
+        }
+    }
+    std::erase_if(entries, [](const LegendEntry& entry) { return entry.sample == nullptr; });
+    for (Annotation* annotation : plot.annotations())
+    {
+        if (!annotation->legendName().isEmpty())
+        {
+            LegendEntry entry;
+            entry.annotation = annotation;
+            entry.name       = annotation->legendName();
+            entries.push_back(std::move(entry));
+        }
+    }
+    return entries;
+}
+
+// The value an entry shows at the crosshair (at @p x): of the series of the point the crosshair is
+// on, or of the first of its series that has one there. None for an annotation.
+QString entryValue(const LegendEntry& entry, const PlotLayout& layout, const LegendState& state,
+                   double x)
+{
+    QString value;
+    for (const Series* series : entry.series)
+    {
+        if (!series->isVisible())
+        {
+            continue;
+        }
+        if (series == state.crosshairSeries)
+        {
+            return valueOf(*series, layout, x, state.crosshairIndex);
+        }
+        if (value.isEmpty() || value == kNoValue)
+        {
+            value = valueOf(*series, layout, x, std::nullopt);
+        }
+    }
+    return value;
+}
+
+// What an annotation looks like, as small as a swatch.
+void drawAnnotationSwatch(QPainter& painter, const Annotation& annotation, const PlotLayout& layout,
+                          QPointF center)
+{
+    const Theme& theme = annotation.plot()->theme();
+    const QColor color = annotation.color();
+    const QRectF patch(center.x() - (kSwatch / 2.0), center.y() - (kSwatchBand / 2.0), kSwatch,
+                       kSwatchBand);
+    const auto   faded = [&color](double opacity) {
+        QColor fill = color;
+        fill.setAlphaF(static_cast<float>(static_cast<double>(fill.alphaF()) * opacity));
+        return fill;
+    };
+    if (const auto* line = qobject_cast<const ReferenceLine*>(&annotation))
+    {
+        painter.setPen(QPen(color, std::min(line->lineWidth(), kMaxSwatchLine), line->lineStyle(),
+                            Qt::FlatCap));
+        painter.drawLine(center - QPointF(kSwatch / 2.0, 0.0),
+                         center + QPointF(kSwatch / 2.0, 0.0));
+    }
+    else if (const auto* span = qobject_cast<const ShadedSpan*>(&annotation))
+    {
+        painter.fillRect(patch, faded(span->opacity()));
+    }
+    else if (const auto* rect = qobject_cast<const RectAnnotation*>(&annotation))
+    {
+        painter.fillRect(patch, faded(rect->fillOpacity()));
+        if (rect->lineStyle() != Qt::NoPen)
+        {
+            painter.setPen(QPen(color, std::min(rect->lineWidth(), kMaxSwatchLine),
+                                rect->lineStyle(), Qt::FlatCap, Qt::MiterJoin));
+            painter.setBrush(Qt::NoBrush);
+            painter.drawRect(patch);
+        }
+    }
+    else if (const auto* icon = qobject_cast<const IconAnnotation*>(&annotation))
+    {
+        const double side = std::min(kSwatch, QFontMetricsF(layout.legendFont).height());
+        drawIcon(painter, icon->icon(),
+                 QRectF(center - QPointF(side / 2.0, side / 2.0), QSizeF(side, side)),
+                 layout.devicePixelRatio);
+    }
+    else if (const auto* event = qobject_cast<const EventMarker*>(&annotation))
+    {
+        // Its line, with a flag at the top, or its icon.
+        const double side = QFontMetricsF(layout.legendFont).height();
+        if (!event->icon().isNull())
+        {
+            drawIcon(painter, event->icon(),
+                     QRectF(center - QPointF(side / 2.0, side / 2.0), QSizeF(side, side)),
+                     layout.devicePixelRatio);
+            return;
+        }
+        const double left = center.x() - (kSwatch / 4.0);
+        painter.setPen(QPen(color, theme.annotationLineWidth, Qt::SolidLine, Qt::FlatCap));
+        painter.drawLine(QPointF(left, center.y() - (side / 2.0)),
+                         QPointF(left, center.y() + (side / 2.0)));
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(color);
+        painter.drawRoundedRect(QRectF(left, center.y() - (side / 2.0), kSwatch / 2.0, side / 2.0),
+                                kRowRadius / 2.0, kRowRadius / 2.0);
+        painter.setBrush(Qt::NoBrush);
+    }
+    else if (const auto* note = qobject_cast<const TextAnnotation*>(&annotation))
+    {
+        // A framed box of its background, with a line of its text color.
+        const double pixel = 1.0 / layout.devicePixelRatio;
+        painter.setPen(hairlinePen(theme.legendBorder));
+        painter.setBrush(note->backgroundColor());
+        painter.drawRoundedRect(
+            patch.adjusted(pixel / 2.0, pixel / 2.0, -pixel / 2.0, -pixel / 2.0), kRowRadius / 2.0,
+            kRowRadius / 2.0);
+        painter.setBrush(Qt::NoBrush);
+        painter.setPen(QPen(color, 1.0, Qt::SolidLine, Qt::FlatCap));
+        painter.drawLine(QPointF(patch.left() + 4.0, center.y()),
+                         QPointF(patch.right() - 4.0, center.y()));
+    }
+}
+
 }  // namespace
+
+QObject* LegendEntry::key() const
+{
+    if (annotation != nullptr)
+    {
+        return annotation;
+    }
+    return sample;
+}
+
+bool LegendEntry::isVisible() const
+{
+    if (annotation != nullptr)
+    {
+        return annotation->isVisible();
+    }
+    return std::ranges::any_of(series, [](const Series* one) { return one->isVisible(); });
+}
+
+const LegendEntry* LegendLayout::entryOf(const QObject* key) const
+{
+    if (key == nullptr)
+    {
+        return nullptr;
+    }
+    const auto entry =
+        std::ranges::find_if(entries, [key](const LegendEntry& one) { return one.key() == key; });
+    return entry == entries.end() ? nullptr : &*entry;
+}
 
 const LegendEntry* LegendLayout::entryAt(QPointF position) const
 {
@@ -226,14 +420,7 @@ LegendLayout layoutLegend(const PlotWidget& plot, const PlotLayout& layout, Text
     {
         return legend;
     }
-    for (Series* series : plot.series())
-    {
-        if (!series->name().isEmpty())
-        {
-            legend.entries.push_back(
-                {.series = series, .name = series->name(), .value = {}, .row = {}});
-        }
-    }
+    legend.entries        = legendEntries(plot);
     const Legend& options = *plot.legend();
     if (!options.isShownFor(static_cast<qsizetype>(legend.entries.size())))
     {
@@ -255,13 +442,8 @@ LegendLayout layoutLegend(const PlotWidget& plot, const PlotLayout& layout, Text
         double              widest = 0.0;
         for (LegendEntry& entry : legend.entries)
         {
-            if (entry.series->isVisible())
-            {
-                const bool onPoint = entry.series == state.crosshairSeries;
-                entry.value = valueOf(*entry.series, layout, *state.crosshairX,
-                                      onPoint ? std::optional(state.crosshairIndex) : std::nullopt);
-                widest      = std::max(widest, metrics.horizontalAdvance(entry.value));
-            }
+            entry.value = entryValue(entry, layout, state, *state.crosshairX);
+            widest      = std::max(widest, metrics.horizontalAdvance(entry.value));
         }
         legend.valueWidth = widest > 0.0 ? std::max(widest, state.minValueWidth) : 0.0;
     }
@@ -292,7 +474,7 @@ LegendLayout layoutLegend(const PlotWidget& plot, const PlotLayout& layout, Text
 }
 
 void drawLegend(QPainter& painter, const PlotWidget& plot, const PlotLayout& layout,
-                const LegendLayout& legend, TextPainter& text, const Series* pointed)
+                const LegendLayout& legend, TextPainter& text, const QObject* pointed)
 {
     if (!legend.isShown())
     {
@@ -317,7 +499,7 @@ void drawLegend(QPainter& painter, const PlotWidget& plot, const PlotLayout& lay
     {
         const QRectF row(box.left(), entry.row.center().y() - (legend.rowHeight / 2.0), box.width(),
                          legend.rowHeight);
-        if (entry.series == pointed)
+        if (pointed != nullptr && entry.key() == pointed)
         {
             painter.setPen(Qt::NoPen);
             painter.setBrush(theme.legendBorder);
@@ -325,9 +507,16 @@ void drawLegend(QPainter& painter, const PlotWidget& plot, const PlotLayout& lay
                                     kRowRadius, kRowRadius);
         }
         painter.setBrush(Qt::NoBrush);
-        painter.setOpacity(entry.series->isVisible() ? 1.0 : kHiddenOpacity);
-        drawSwatch(painter, *entry.series, theme,
-                   QPointF(box.left() + kPadding + (kSwatch / 2.0), row.center().y()));
+        painter.setOpacity(entry.isVisible() ? 1.0 : kHiddenOpacity);
+        const QPointF swatch(box.left() + kPadding + (kSwatch / 2.0), row.center().y());
+        if (entry.annotation != nullptr)
+        {
+            drawAnnotationSwatch(painter, *entry.annotation, layout, swatch);
+        }
+        else
+        {
+            drawSwatch(painter, *entry.sample, theme, swatch);
+        }
         text.draw(painter, entry.name, layout.legendFont, theme.text,
                   QRectF(textLeft, row.top(), std::max(0.0, nameRight - textLeft), row.height()),
                   Qt::AlignLeft | Qt::AlignVCenter, true);

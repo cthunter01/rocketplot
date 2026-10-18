@@ -2,8 +2,9 @@
 
 [User Guide](index.md) · previous: [Interaction](interaction.md) · next: [Several plots](multiple-plots.md)
 
-The legend lists the plot's named series: a sample of how each is drawn, and its name. It sits inside the plot
-area and is also where the user turns series on and off.
+The legend lists the plot's named series: a sample of how each is drawn, and its name. It can also list
+annotations, and give several series one entry. It sits inside the plot area and is also where the user turns
+series on and off.
 
 ![Three lines and their legend](images/legend.png)
 
@@ -15,6 +16,41 @@ Every series with a name has an entry, in the order the series were added. A ser
 this for series that need no explanation, such as a faint trace of raw samples under a smoothed line.
 
 `series->setName()` changes an entry; an empty name removes it.
+
+### Several series, one entry
+
+Series that stand for one quantity in several parts (the stages of a flight, the runs of a test) can share one
+entry: give them the same legend group. The entry has the name and the look of the group's first named series,
+and clicking it, double-clicking it, pointing at it and its menu act on every series of the group. Give them one
+color and tell them apart by line style or marker, as below.
+
+![Two runs of two sensors: two entries, each for a solid and a dashed line, and an entry for a target line](images/legend-groups.png)
+
+<!-- example: legend-groups -->
+```cpp
+// Two runs of the same test: one entry per sensor for both, the runs told apart by line style.
+for (const Run& run : runs)
+{
+    rocketplot::LineSeries* feed = plot->addLine(time, run.feed, "LOX feed line");
+    feed->setLegendGroup("feed");
+    feed->setColor(QColor("#2a78d6"));
+    feed->setLineStyle(run.style);
+    rocketplot::LineSeries* housing = plot->addLine(time, run.housing, "Turbopump housing");
+    housing->setLegendGroup("housing");
+    housing->setColor(QColor("#e8743b"));
+    housing->setLineStyle(run.style);
+}
+
+// An annotation can have an entry too, after the series'.
+plot->addHorizontalLine(-150.0)->setLegendName("Feed line target");
+```
+
+### Annotations
+
+An annotation with a legend name (`setLegendName()`) has an entry after the series': a sample of the line, the
+shaded span, the rectangle, the flag or icon, or the text box. Clicking it hides or shows the annotation, and its
+menu has Visible, Color…, Theme color and Remove (and `annotationEntryMenuAboutToShow()` to add to it). It shows
+no value at the crosshair.
 
 ## When it shows
 
@@ -47,7 +83,7 @@ the window is resized.
 | Gesture on an entry | What it does |
 | --- | --- |
 | Click | Hides the series, or shows it again. The entry stays, dimmed |
-| Double-click | Shows only this series; again to show them all |
+| Double-click | Shows only this series (or group); again to show them all |
 | Point at it | Brings the series forward and fades the others, to pick one line out of many |
 | Right-click | A menu for this series: visible, show only this, show all, color, line width, marker, remove |
 | Drag (anywhere on the legend) | Moves the legend |
@@ -66,7 +102,8 @@ can save and restore; see [Saving and restoring state](state.md).
 
 With the plot's crosshair on, each entry shows its series' value at the pointer; see
 [Interaction](interaction.md#the-crosshair). When the crosshair follows the data and is on a point, the entry
-of that point's series shows the value of the point itself.
+of that point's series shows the value of the point itself. The entry of a legend group shows the value of the
+series the crosshair is on, or else of the first of its series that has one there.
 
 ## Settings
 

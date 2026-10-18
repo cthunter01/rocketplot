@@ -20,7 +20,7 @@ struct Theme;
 /// ShadedSpan, TextAnnotation and EventMarker. Annotations are created by the plot
 /// (PlotWidget::addHorizontalLine(), addVerticalSpan(), addText(), addEvent(), ...), which owns
 /// them. They move with the data as the view is panned and zoomed (unless pinned to the plot area:
-/// setCoordinates()), and have no legend entry.
+/// setCoordinates()), and have no legend entry unless given a legend name (setLegendName()).
 class ROCKETPLOT_EXPORT Annotation : public QObject
 {
     Q_OBJECT
@@ -34,6 +34,7 @@ class ROCKETPLOT_EXPORT Annotation : public QObject
     Q_PROPERTY(bool includedInAutoscale READ isIncludedInAutoscale WRITE setIncludedInAutoscale
                    NOTIFY changed)
     Q_PROPERTY(QString toolTip READ toolTip WRITE setToolTip NOTIFY changed)
+    Q_PROPERTY(QString legendName READ legendName WRITE setLegendName NOTIFY changed)
 
 public:
     ~Annotation() override;
@@ -88,6 +89,13 @@ public:
     [[nodiscard]] QString toolTip() const { return m_toolTip; }
     void                  setToolTip(const QString& toolTip);
 
+    /// The name of the annotation's entry in the legend, after the series' entries: for a value
+    /// line ("Nominal", "Mean") or a region that the legend should explain. The entry shows a
+    /// sample of the annotation; clicking it hides or shows the annotation. Empty (the default):
+    /// no entry.
+    [[nodiscard]] QString legendName() const { return m_legendName; }
+    void                  setLegendName(const QString& name);
+
 Q_SIGNALS:
     /// A property changed.
     void changed();
@@ -107,6 +115,7 @@ private:
     PlotWidget*           m_plot;
     std::optional<QColor> m_color;
     QString               m_toolTip;
+    QString               m_legendName;
     AnnotationLayer       m_layer;
     AnnotationCoordinates m_coordinates         = AnnotationCoordinates::DATA;
     bool                  m_visible             = true;

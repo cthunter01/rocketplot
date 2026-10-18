@@ -41,6 +41,16 @@ Series::Series(PlotWidget* plot, Marker marker, ErrorStyle errorStyle)
 
 Series::~Series() = default;
 
+void Series::setLegendGroup(const QString& group)
+{
+    if (group == m_legendGroup)
+    {
+        return;
+    }
+    m_legendGroup = group;
+    Q_EMIT changed();
+}
+
 void Series::setName(const QString& name)
 {
     if (name == m_name)

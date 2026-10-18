@@ -20,6 +20,7 @@
 #include <cmath>
 #include <cstddef>
 #include <span>
+#include <utility>
 #include <vector>
 
 #include "AnnotationPainter.h"
@@ -239,11 +240,14 @@ void PlotRenderer::drawGrid(QPainter& painter) const
 void PlotRenderer::drawSeries(QPainter& painter, RenderStats& stats)
 {
     painter.save();
-    const QList<Series*> all         = m_plot->series();
-    const Series*        highlighted = m_options.highlighted;
-    if (highlighted != nullptr && !all.contains(highlighted))
+    const QList<Series*> all = m_plot->series();
+    QList<const Series*> highlighted;
+    for (const Series* series : m_options.highlighted)
     {
-        highlighted = nullptr;
+        if (all.contains(series))
+        {
+            highlighted.append(series);
+        }
     }
     const auto draw = [&](const Series& series) {
         SeriesStats seriesStats{.name = series.name(), .totalPoints = series.size()};
@@ -251,8 +255,8 @@ void PlotRenderer::drawSeries(QPainter& painter, RenderStats& stats)
         seriesStats.scatter = line == nullptr;
         if (series.isVisible())
         {
-            painter.setOpacity(highlighted != nullptr && &series != highlighted ? kFadedOpacity
-                                                                                : 1.0);
+            painter.setOpacity(
+                !highlighted.isEmpty() && !highlighted.contains(&series) ? kFadedOpacity : 1.0);
             if (line != nullptr)
             {
                 drawLine(painter, *line, seriesStats);
@@ -266,15 +270,15 @@ void PlotRenderer::drawSeries(QPainter& painter, RenderStats& stats)
     };
     for (const Series* series : all)
     {
-        if (series != highlighted)
+        if (!highlighted.contains(series))
         {
             draw(*series);
         }
     }
     // The highlighted series on top of the others.
-    if (highlighted != nullptr)
+    for (const Series* series : std::as_const(highlighted))
     {
-        draw(*highlighted);
+        draw(*series);
     }
     painter.restore();
 }
