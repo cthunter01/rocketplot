@@ -14,6 +14,7 @@ add_library(rocketplot_core OBJECT
     core/GlyphSubstitutions.cpp
     core/Interpolate.cpp
     core/LabelStagger.cpp
+    core/LegendFlow.cpp
     core/LineBand.cpp
     core/MathLayout.cpp
     core/MathParser.cpp

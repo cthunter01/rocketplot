@@ -3,6 +3,7 @@
 #include <QColor>
 #include <QFont>
 #include <QFontMetricsF>
+#include <QLatin1Char>
 #include <QPainter>
 #include <QPen>
 #include <QPointF>
@@ -25,13 +26,17 @@
 #include "PlotLayout.h"
 #include "PlotRenderer.h"
 #include "TextPainter.h"
+#include "core/AxisMapping.h"
+#include "core/LegendFlow.h"
 #include "core/Occupancy.h"
 #include "rocketplot/Annotation.h"
+#include "rocketplot/Axis.h"
 #include "rocketplot/EventMarker.h"
 #include "rocketplot/IconAnnotation.h"
 #include "rocketplot/Legend.h"
 #include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotWidget.h"
+#include "rocketplot/Range.h"
 #include "rocketplot/RectAnnotation.h"
 #include "rocketplot/ReferenceLine.h"
 #include "rocketplot/Series.h"
@@ -52,6 +57,7 @@ constexpr double kSwatch        = 24.0;
 constexpr double kSwatchGap     = 8.0;
 constexpr double kRowGap        = 4.0;
 constexpr double kValueGap      = 16.0;  // between a name and its value
+constexpr double kColumnGap     = 16.0;  // between the columns of an outside legend
 constexpr double kRadius        = 4.0;
 constexpr double kRowRadius     = 3.0;
 constexpr double kHiddenOpacity = 0.35;
@@ -170,55 +176,6 @@ void drawSwatch(QPainter& painter, const Series& series, const Theme& theme, QPo
     MarkerPainter::draw(painter, center, markerStyle(series, theme));
 }
 
-// The legend's entries: one per named series, one per legend group with a named series (named and
-// looking after the first named one), then one per annotation with a legend name.
-std::vector<LegendEntry> legendEntries(const PlotWidget& plot)
-{
-    std::vector<LegendEntry> entries;
-    for (Series* series : plot.series())
-    {
-        const QString group = series->legendGroup();
-        const auto joined = group.isEmpty()
-                                ? entries.end()
-                                : std::ranges::find_if(entries, [&group](const LegendEntry& entry) {
-                                      return entry.group == group;
-                                  });
-        if (joined != entries.end())
-        {
-            joined->series.push_back(series);
-            if (joined->sample == nullptr && !series->name().isEmpty())
-            {
-                joined->sample = series;
-                joined->name   = series->name();
-            }
-        }
-        else if (!group.isEmpty() || !series->name().isEmpty())
-        {
-            LegendEntry entry;
-            entry.series = {series};
-            entry.group  = group;
-            if (!series->name().isEmpty())
-            {
-                entry.sample = series;
-                entry.name   = series->name();
-            }
-            entries.push_back(std::move(entry));
-        }
-    }
-    std::erase_if(entries, [](const LegendEntry& entry) { return entry.sample == nullptr; });
-    for (Annotation* annotation : plot.annotations())
-    {
-        if (!annotation->legendName().isEmpty())
-        {
-            LegendEntry entry;
-            entry.annotation = annotation;
-            entry.name       = annotation->legendName();
-            entries.push_back(std::move(entry));
-        }
-    }
-    return entries;
-}
-
 // The value an entry shows at the crosshair (at @p x): of the series of the point the crosshair is
 // on, or of the first of its series that has one there. None for an annotation.
 QString entryValue(const LegendEntry& entry, const PlotLayout& layout, const LegendState& state,
@@ -322,7 +279,172 @@ void drawAnnotationSwatch(QPainter& painter, const Annotation& annotation, const
     }
 }
 
+// The width of the value column an outside legend keeps for the values at the crosshair, so that
+// it doesn't change size (and the plot area with it) as the crosshair moves: the widest value of
+// the ends of its series' y ranges, and a digit more. 0 while no values are shown.
+double reservedValueWidth(const PlotWidget& plot, const PlotLayout& layout,
+                          const std::vector<LegendEntry>& entries)
+{
+    if (!plot.isCrosshairEnabled() || !plot.legend()->areValuesVisible())
+    {
+        return 0.0;
+    }
+    const QFontMetricsF metrics(valueFont(layout));
+    double              widest = 0.0;
+    for (const LegendEntry& entry : entries)
+    {
+        for (const Series* series : entry.series)
+        {
+            const Axis&             axis = *series->yAxis();
+            const core::AxisMapping mapping(axis.range(), layout.bounds.bottom(),
+                                            layout.bounds.top(), scaleOf(axis));
+            const Range             bounds = series->yBounds();
+            for (const double value : {bounds.min, bounds.max})
+            {
+                if (std::isfinite(value))
+                {
+                    widest = std::max(widest,
+                                      metrics.horizontalAdvance(valueLabel(axis, mapping, value)));
+                }
+            }
+        }
+    }
+    return widest > 0.0 ? widest + metrics.horizontalAdvance(QLatin1Char('0')) : 0.0;
+}
+
+// Places the rows of an outside legend in the cells of its grid.
+void placeOutsideRows(LegendLayout& legend, const OutsideLegend& outside)
+{
+    const double pitch = outside.rowHeight + kRowGap;
+    for (std::size_t i = 0; i < legend.entries.size(); ++i)
+    {
+        const std::size_t column = outside.grid.columnOf(i);
+        double            left   = legend.box.left() + kPadding;
+        for (std::size_t before = 0; before < column; ++before)
+        {
+            left += outside.grid.columnWidths[before] + kColumnGap;
+        }
+        const double top =
+            legend.box.top() + kPadding + (static_cast<double>(outside.grid.rowOf(i)) * pitch);
+        legend.entries[i].row = QRectF(left - kPadding, top - (kRowGap / 2.0),
+                                       outside.grid.columnWidths[column] + (2.0 * kPadding), pitch);
+    }
+}
+
 }  // namespace
+
+bool isOutside(LegendAnchor anchor) noexcept
+{
+    return anchor == LegendAnchor::OUTSIDE_BOTTOM || anchor == LegendAnchor::OUTSIDE_RIGHT;
+}
+
+std::vector<LegendEntry> legendEntries(const PlotWidget& plot)
+{
+    std::vector<LegendEntry> entries;
+    for (Series* series : plot.series())
+    {
+        const QString group = series->legendGroup();
+        const auto joined = group.isEmpty()
+                                ? entries.end()
+                                : std::ranges::find_if(entries, [&group](const LegendEntry& entry) {
+                                      return entry.group == group;
+                                  });
+        if (joined != entries.end())
+        {
+            joined->series.push_back(series);
+            if (joined->sample == nullptr && !series->name().isEmpty())
+            {
+                joined->sample = series;
+                joined->name   = series->name();
+            }
+        }
+        else if (!group.isEmpty() || !series->name().isEmpty())
+        {
+            LegendEntry entry;
+            entry.series = {series};
+            entry.group  = group;
+            if (!series->name().isEmpty())
+            {
+                entry.sample = series;
+                entry.name   = series->name();
+            }
+            entries.push_back(std::move(entry));
+        }
+    }
+    std::erase_if(entries, [](const LegendEntry& entry) { return entry.sample == nullptr; });
+    for (Annotation* annotation : plot.annotations())
+    {
+        if (!annotation->legendName().isEmpty())
+        {
+            LegendEntry entry;
+            entry.annotation = annotation;
+            entry.name       = annotation->legendName();
+            entries.push_back(std::move(entry));
+        }
+    }
+    return entries;
+}
+
+OutsideLegend measureOutsideLegend(const PlotWidget& plot, const PlotLayout& layout,
+                                   TextPainter& text, double available, double limit)
+{
+    OutsideLegend      result;
+    const Legend&      options = *plot.legend();
+    const LegendAnchor anchor  = options.anchor();
+    if (!isOutside(anchor))
+    {
+        return result;
+    }
+    const std::vector<LegendEntry> entries = legendEntries(plot);
+    if (!options.isShownFor(static_cast<qsizetype>(entries.size())))
+    {
+        return result;
+    }
+    double              nameHeight = QFontMetricsF(layout.legendFont).height();
+    std::vector<double> widths;
+    result.valueWidth = reservedValueWidth(plot, layout, entries);
+    const double fixed =
+        kSwatch + kSwatchGap + (result.valueWidth > 0.0 ? kValueGap + result.valueWidth : 0.0);
+    for (const LegendEntry& entry : entries)
+    {
+        const QSizeF name = text.size(entry.name, layout.legendFont);
+        nameHeight        = std::max(nameHeight, name.height());
+        widths.push_back(fixed + name.width());
+    }
+    result.rowHeight    = std::max(nameHeight, plot.theme().markerSize + 2.0);
+    const double pitch  = result.rowHeight + kRowGap;
+    const auto   rowsIn = [pitch](double height) {
+        return static_cast<std::size_t>(std::max(1.0, std::floor((height + kRowGap) / pitch)));
+    };
+    if (anchor == LegendAnchor::OUTSIDE_BOTTOM)
+    {
+        // Across, in as many columns as fit; rows past the limit are left out.
+        result.grid      = core::flowAcross(widths, available - (2.0 * kPadding), kColumnGap);
+        result.grid.rows = std::min(result.grid.rows, rowsIn(limit - (2.0 * kPadding)));
+        result.entries   = std::min(entries.size(), result.grid.rows * result.grid.columns());
+    }
+    else
+    {
+        // Down, in columns as tall as the room; too wide, the names are shortened.
+        result.grid          = core::flowDown(widths, rowsIn(available - (2.0 * kPadding)));
+        result.entries       = entries.size();
+        const auto   columns = static_cast<double>(result.grid.columns());
+        const double room    = limit - (2.0 * kPadding) - ((columns - 1.0) * kColumnGap);
+        const double names   = result.grid.width(0.0) - (columns * fixed);
+        if (result.grid.width(0.0) > room && names > 0.0)
+        {
+            const double share = std::max(0.0, room - (columns * fixed)) / names;
+            for (double& width : result.grid.columnWidths)
+            {
+                width = fixed + ((width - fixed) * share);
+            }
+        }
+    }
+    const auto rows = static_cast<double>(result.grid.rows);
+    result.box = QRectF(0.0, 0.0, (2.0 * kPadding) + result.grid.width(kColumnGap),
+                        (2.0 * kPadding) + (rows * result.rowHeight) + ((rows - 1.0) * kRowGap));
+    return result;
+}
 
 QObject* LegendEntry::key() const
 {
@@ -396,6 +518,8 @@ QRectF legendRect(const QRectF& plotArea, QSizeF size, LegendAnchor anchor, QPoi
                     top + (std::max(0.0, bottom - top) * position.y()), width, height};
         case LegendAnchor::BEST:
         case LegendAnchor::TOP_RIGHT:
+        case LegendAnchor::OUTSIDE_BOTTOM:  // placed by the plot's layout
+        case LegendAnchor::OUTSIDE_RIGHT:
             break;
     }
     return {right, top, width, height};
@@ -422,6 +546,30 @@ LegendLayout layoutLegend(const PlotWidget& plot, const PlotLayout& layout, Text
     }
     legend.entries        = legendEntries(plot);
     const Legend& options = *plot.legend();
+    if (isOutside(options.anchor()))
+    {
+        // Where the layout made room for it, with the value column it kept.
+        const OutsideLegend& outside = layout.legend;
+        if (outside.box.isNull())
+        {
+            legend.entries.clear();
+            return legend;
+        }
+        legend.entries.resize(std::min(legend.entries.size(), outside.entries));
+        legend.box        = outside.box;
+        legend.anchor     = options.anchor();
+        legend.rowHeight  = outside.rowHeight;
+        legend.valueWidth = outside.valueWidth;
+        if (state.crosshairX && outside.valueWidth > 0.0)
+        {
+            for (LegendEntry& entry : legend.entries)
+            {
+                entry.value = entryValue(entry, layout, state, *state.crosshairX);
+            }
+        }
+        placeOutsideRows(legend, outside);
+        return legend;
+    }
     if (!options.isShownFor(static_cast<qsizetype>(legend.entries.size())))
     {
         legend.entries.clear();
@@ -485,20 +633,23 @@ void drawLegend(QPainter& painter, const PlotWidget& plot, const PlotLayout& lay
     const double  pixel = 1.0 / layout.devicePixelRatio;
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setPen(hairlinePen(theme.legendBorder));
-    painter.setBrush(theme.legendBackground);
-    painter.drawRoundedRect(box.adjusted(pixel / 2.0, pixel / 2.0, -pixel / 2.0, -pixel / 2.0),
-                            kRadius, kRadius);
-
-    const double textLeft   = box.left() + kPadding + kSwatch + kSwatchGap;
-    const double valueRight = box.right() - kPadding;
-    const double nameRight =
-        legend.valueWidth > 0.0 ? valueRight - legend.valueWidth - kValueGap : valueRight;
+    if (!isOutside(legend.anchor))  // outside the plot area, it needs no box to stand out
+    {
+        painter.setPen(hairlinePen(theme.legendBorder));
+        painter.setBrush(theme.legendBackground);
+        painter.drawRoundedRect(box.adjusted(pixel / 2.0, pixel / 2.0, -pixel / 2.0, -pixel / 2.0),
+                                kRadius, kRadius);
+    }
     const QFont values = valueFont(layout);
     for (const LegendEntry& entry : legend.entries)
     {
-        const QRectF row(box.left(), entry.row.center().y() - (legend.rowHeight / 2.0), box.width(),
-                         legend.rowHeight);
+        // The entry's cell: the legend's width inside it, a column of the grid outside.
+        const QRectF row(entry.row.left(), entry.row.center().y() - (legend.rowHeight / 2.0),
+                         entry.row.width(), legend.rowHeight);
+        const double textLeft   = row.left() + kPadding + kSwatch + kSwatchGap;
+        const double valueRight = row.right() - kPadding;
+        const double nameRight =
+            legend.valueWidth > 0.0 ? valueRight - legend.valueWidth - kValueGap : valueRight;
         if (pointed != nullptr && entry.key() == pointed)
         {
             painter.setPen(Qt::NoPen);
@@ -508,7 +659,7 @@ void drawLegend(QPainter& painter, const PlotWidget& plot, const PlotLayout& lay
         }
         painter.setBrush(Qt::NoBrush);
         painter.setOpacity(entry.isVisible() ? 1.0 : kHiddenOpacity);
-        const QPointF swatch(box.left() + kPadding + (kSwatch / 2.0), row.center().y());
+        const QPointF swatch(row.left() + kPadding + (kSwatch / 2.0), row.center().y());
         if (entry.annotation != nullptr)
         {
             drawAnnotationSwatch(painter, *entry.annotation, layout, swatch);

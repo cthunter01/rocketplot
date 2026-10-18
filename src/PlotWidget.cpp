@@ -370,6 +370,12 @@ PlotWidget::PlotWidget(QWidget* parent) : QWidget(parent), m_impl(std::make_uniq
         }
     });
     connect(m_impl->legend, &Legend::changed, this, [this] {
+        // A legend outside the plot area, or one that was, takes room from it: a new layout.
+        if (isOutside(m_impl->legend->anchor()) || !m_impl->cacheLayout.legend.box.isNull())
+        {
+            invalidate();
+            return;
+        }
         // The legend is drawn over the cached rendering, which has the data a BEST legend avoids
         // only if it was rendered for one.
         if (m_impl->legend->anchor() == LegendAnchor::BEST && !m_impl->occupancy.isRecorded())
@@ -873,6 +879,10 @@ void PlotWidget::setCrosshairEnabled(bool enabled)
     }
     m_impl->crosshair  = enabled;
     m_impl->pointStale = true;
+    if (isOutside(m_impl->legend->anchor()) && m_impl->legend->areValuesVisible())
+    {
+        invalidate();  // it keeps a column for the values, or no longer does
+    }
     m_impl->linkedX.reset();
     if (enabled && underMouse())
     {
@@ -1082,8 +1092,19 @@ void PlotWidget::updateCursor()
     if (m_impl->legend->isInteractive() && m_impl->pointer &&
         m_impl->legendLayout.box.contains(*m_impl->pointer))
     {
-        // Entries are clicked; the rest of the box is a handle.
-        setCursor(m_impl->pointed ? Qt::PointingHandCursor : Qt::OpenHandCursor);
+        // Entries are clicked; the rest of the box is a handle, inside the plot area.
+        if (m_impl->pointed)
+        {
+            setCursor(Qt::PointingHandCursor);
+        }
+        else if (isOutside(m_impl->legend->anchor()))
+        {
+            unsetCursor();
+        }
+        else
+        {
+            setCursor(Qt::OpenHandCursor);
+        }
         return;
     }
     if (m_impl->hover)

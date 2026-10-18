@@ -117,6 +117,10 @@ InteractionController::Region InteractionController::regionAt(const PlotLayout& 
     {
         return Region::PLOT;
     }
+    if (layout.legend.box.contains(position))
+    {
+        return Region::OUTSIDE;  // a legend outside the plot area, under or right of it
+    }
     // Below the plot (as wide as it) is the x axis; left and right of it (as tall as it) the y
     // axes.
     if (position.x() >= plot.left() && position.x() <= plot.right() && position.y() > plot.bottom())
@@ -439,7 +443,8 @@ void InteractionController::dragTo(QPointF position)
     m_drag.moved   = m_drag.moved || (position - m_drag.start).manhattanLength() >= dragDistance();
     if (m_drag.legend)
     {
-        if (m_drag.moved)
+        // A legend outside the plot area stays where the layout puts it.
+        if (m_drag.moved && !isOutside(m_plot->legend()->anchor()))
         {
             // Wherever it is dropped, it stays inside the plot area.
             const QRectF& box     = m_legendGrab.box;

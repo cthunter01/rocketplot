@@ -4,11 +4,13 @@
 #include <QRectF>
 #include <QString>
 #include <QStringList>
+#include <cstddef>
 #include <optional>
 #include <vector>
 
 #include "FlagLayout.h"
 #include "core/AxisMapping.h"
+#include "core/LegendFlow.h"
 #include "rocketplot/Range.h"
 
 namespace rocketplot
@@ -54,6 +56,17 @@ struct RangeOverrides
     std::optional<Range> y2;
 };
 
+/// A legend outside the plot area (LegendAnchor::OUTSIDE_BOTTOM, OUTSIDE_RIGHT), which the plot
+/// area makes room for.
+struct OutsideLegend
+{
+    QRectF           box;  ///< Null when there is none
+    core::LegendGrid grid;
+    std::size_t      entries    = 0;  ///< How many of the legend's entries there is room for
+    double           rowHeight  = 0.0;
+    double           valueWidth = 0.0;  ///< Kept for the values at the crosshair; 0 for none
+};
+
 /// The mappings an annotation's x and y values are drawn with.
 struct AnnotationMappings
 {
@@ -77,6 +90,8 @@ struct PlotLayout
     QRectF flagBand;
     /// The flags of the plot's events: over the plot area, or in the band.
     FlagLayout flags;
+    /// The legend, when it is outside the plot area.
+    OutsideLegend legend;
 
     AxisLayout x;
     AxisLayout y;

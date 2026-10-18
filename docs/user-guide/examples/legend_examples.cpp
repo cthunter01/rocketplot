@@ -39,6 +39,18 @@ void chillDown(PlotWidget* plot)
     plot->yAxis()->setLabel("Temperature (°C)");
 }
 
+void outside(PlotWidget* plot)
+{
+    chillDown(plot);
+    const std::vector<double> time = linspace(0.0, 600.0, 1201);
+    plot->addLine(time, settling(time, 19.0, -120.0, 160.0, 1.0, 4), "Pump inlet");
+    plot->addLine(time, settling(time, 20.0, -20.0, 360.0, 0.6, 5), "Valve body");
+    // [legend-outside]
+    // Under the plot, outside the plot area: the entries run across in rows.
+    plot->legend()->setAnchor(rocketplot::LegendAnchor::OUTSIDE_BOTTOM);
+    // [/legend-outside]
+}
+
 // One run of a chill-down test: two sensors, and how its lines are drawn.
 struct Run
 {
@@ -128,6 +140,7 @@ void addLegendExamples(Examples& examples)
     examples.addPlot(QStringLiteral("legend"), chillDown);
     examples.addPlot(QStringLiteral("legend-highlight"), chillDown, {720, 400}, secondEntry);
     examples.addPlot(QStringLiteral("legend-groups"), groups);
+    examples.addPlot(QStringLiteral("legend-outside"), outside);
     examples.demonstrations.push_back({.name = QStringLiteral("legend options"), .run = options});
 }
 

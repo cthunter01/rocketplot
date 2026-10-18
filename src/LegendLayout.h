@@ -25,6 +25,7 @@ class Annotation;
 class PlotWidget;
 class Series;
 class TextPainter;
+struct OutsideLegend;
 struct PlotLayout;
 
 /// One entry of the legend as drawn: of a series, of the series of a legend group, or of an
@@ -82,6 +83,20 @@ struct LegendState
     /// Where a BEST legend went last time: it stays there unless another spot is clearly better.
     std::optional<LegendAnchor> previousBest;
 };
+
+/// Whether @p anchor puts the legend outside the plot area.
+[[nodiscard]] bool isOutside(LegendAnchor anchor) noexcept;
+
+/// The entries of @p plot's legend: one per named series, one per legend group with a named series
+/// (named and drawn after the first named one), then one per annotation with a legend name.
+[[nodiscard]] std::vector<LegendEntry> legendEntries(const PlotWidget& plot);
+
+/// @p plot's legend laid out outside the plot area, as @p layout's fonts measure it: across
+/// @p available pixels and no taller than @p limit (OUTSIDE_BOTTOM; rows past it are left out),
+/// or down @p available pixels and no wider than @p limit (OUTSIDE_RIGHT; names are shortened).
+/// Its box is at the origin; null when the legend isn't outside or isn't shown.
+[[nodiscard]] OutsideLegend measureOutsideLegend(const PlotWidget& plot, const PlotLayout& layout,
+                                                 TextPainter& text, double available, double limit);
 
 /// Lays out the legend of @p plot over its layout.
 [[nodiscard]] LegendLayout layoutLegend(const PlotWidget& plot, const PlotLayout& layout,

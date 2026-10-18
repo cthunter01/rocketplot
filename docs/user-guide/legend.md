@@ -78,6 +78,29 @@ The anchors are the four corners and the four edges: `TOP_LEFT`, `TOP`, `TOP_RIG
 `CUSTOM`. Because the position is a fraction and not a pixel count, the legend stays inside the plot area when
 the window is resized.
 
+### Outside the plot area
+
+A legend of many entries covers the data wherever it goes inside the plot area. Two anchors put it outside, and
+the plot area makes room for it:
+
+![Five lines and their legend under the plot, its entries in rows](images/legend-outside.png)
+
+<!-- example: legend-outside -->
+```cpp
+// Under the plot, outside the plot area: the entries run across in rows.
+plot->legend()->setAnchor(rocketplot::LegendAnchor::OUTSIDE_BOTTOM);
+```
+
+| Anchor | Where | Its entries |
+| --- | --- | --- |
+| `OUTSIDE_BOTTOM` | Under the plot, centered under the plot area | Across in rows, as many to a row as fit the width; rows that would take more than 40% of the height are left out |
+| `OUTSIDE_RIGHT` | Right of the plot area, from its top | Down in columns as tall as the plot area; names are shortened where the columns would take more than 40% of the width |
+
+An outside legend has no box (the plot area's edge sets it apart), can't be dragged, and doesn't move with the
+pointer: while the crosshair shows values, its value column is as wide as the widest value of its series, so the
+plot area doesn't change size as the pointer moves. Clicking, pointing and its menu work as inside the plot area,
+and the plots of a grid stay lined up. `BEST` never puts the legend outside.
+
 ## What the user can do with it
 
 | Gesture on an entry | What it does |

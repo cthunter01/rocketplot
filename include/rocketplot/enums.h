@@ -63,7 +63,7 @@ enum class FlagPlacement : std::uint8_t
 };
 Q_ENUM_NS(FlagPlacement)
 
-/// Where the legend sits inside the plot area.
+/// Where the legend sits: inside the plot area, or outside it (OUTSIDE_BOTTOM, OUTSIDE_RIGHT).
 enum class LegendAnchor : std::uint8_t
 {
     BEST,  ///< The corner or edge where it covers the least data, moving only when another is
@@ -76,7 +76,11 @@ enum class LegendAnchor : std::uint8_t
     BOTTOM,
     BOTTOM_LEFT,
     LEFT,
-    CUSTOM,  ///< At Legend::position(), e.g. where the user dragged it
+    CUSTOM,          ///< At Legend::position(), e.g. where the user dragged it
+    OUTSIDE_BOTTOM,  ///< Under the plot, outside the plot area, its entries running across in
+                     ///< rows as wide as the plot
+    OUTSIDE_RIGHT,   ///< Right of the plot, outside the plot area, its entries in columns as tall
+                     ///< as the plot area
 };
 Q_ENUM_NS(LegendAnchor)
 

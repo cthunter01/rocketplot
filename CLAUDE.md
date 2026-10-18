@@ -67,7 +67,8 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
   `export.h` is generated into `build/<preset>/include/rocketplot/`
 - `src/core/`: `rocketplot_core`, an OBJECT library with no Qt: series storage (`SeriesData`), min/max pyramid,
   decimation, line band outlines, clipping, errors (`ErrorData` holds the ends of the bars, `ErrorGeometry` turns them
-  into bars and band outlines), `LabelStagger` (rows for event flags), `CsvWriter` (the data in view as CSV text),
+  into bars and band outlines), `LabelStagger` (rows for event flags), `LegendFlow` (the grid of a legend outside the
+  plot area), `CsvWriter` (the data in view as CSV text),
   `NearestPoint` (the data point a snapping or tracing crosshair goes to: sorted series through the pyramid),
   `Interpolate` (the y a drawn line passes through at an x, `Series::valueAt()`),
   axis mapping (linear/log), ticks (`TickGenerator` linear/log, `TimeTicks` calendar), labels and readouts
@@ -80,7 +81,7 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
   `PlotRenderer` (paints a layout; shared by the screen and the exports), `PlotExport` (the image, SVG and PDF devices
   an export paints on; `PlotWidget::paintExport()` is what they all draw), `InteractionController` (mouse, wheel,
   trackpad and touch input through the `InputBindings`), `ViewHistory` (back/forward), `LegendLayout` (legend
-  placement, values and drawing), `Occupancy` (where data was drawn, for the legend's BEST spot), `Overlays`
+  entries, placement, values and drawing; an outside legend is measured by `layoutPlot()`, which makes room for it), `Occupancy` (where data was drawn, for the legend's BEST spot), `Overlays`
   (crosshair and zoom box), `AnnotationPainter` (annotations are part of the cached rendering: under the series, over
   them, then their labels; it records what the pointer can be on, for `PlotWidget::annotationAt()` and tool tips),
   `FlagLayout` (where event flags go: rows over the data, or a band above the plot area that `layoutPlot()` settles;

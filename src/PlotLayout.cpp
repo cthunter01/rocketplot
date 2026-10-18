@@ -15,6 +15,7 @@
 #include <utility>
 
 #include "FlagLayout.h"
+#include "LegendLayout.h"
 #include "TextPainter.h"
 #include "core/AxisMapping.h"
 #include "core/AxisTicks.h"
@@ -22,6 +23,7 @@
 #include "core/TimeTicks.h"
 #include "rocketplot/Annotation.h"
 #include "rocketplot/Axis.h"
+#include "rocketplot/Legend.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/Range.h"
 #include "rocketplot/Series.h"
@@ -60,6 +62,10 @@ constexpr double kFlagRowShare = 0.5;
 constexpr double kMaxBandShare = 0.3;
 constexpr double kBandGap      = 4.0;
 constexpr int    kBandPasses   = 3;
+// A legend outside the plot area: the gap between it and what is next to it, and the share of the
+// height (under the plot) or width (right of it) it may take.
+constexpr double kLegendGap      = 8.0;
+constexpr double kMaxLegendShare = 0.4;
 
 // The ranges a layout uses: the axes' own, or overrides of them.
 struct Ranges
@@ -236,11 +242,12 @@ struct Vertical
     double xRow          = 0.0;
     double xAxisHeight   = 0.0;
     double flagBand      = 0.0;  // the band's height, above the plot area and its gap
+    double legendTop     = 0.0;  // of a legend under the plot
 };
 
 Vertical layoutVertically(const PlotWidget& plot, PlotLayout& layout, TextPainter& text,
                           const LayoutConstraints& constraints, const Ranges& ranges,
-                          double flagBand)
+                          double flagBand, double legendHeight)
 {
     const QRectF& bounds      = layout.bounds;
     const double  tickHeight  = tickLabelHeight(layout);
@@ -284,7 +291,12 @@ Vertical layoutVertically(const PlotWidget& plot, PlotLayout& layout, TextPainte
 
     const QSizeF xTitle =
         layout.x.shown ? text.size(plot.xAxis()->label(), layout.labelFont) : QSizeF();
-    double bottom    = bounds.bottom() - kOuterPadding;
+    double bottom = bounds.bottom() - kOuterPadding;
+    if (legendHeight > 0.0)  // a legend at the very bottom
+    {
+        vertical.legendTop = bottom - legendHeight;
+        bottom             = vertical.legendTop - kLegendGap;
+    }
     vertical.xRow    = std::max(xTitle.height(), xAnnotation ? tickHeight : 0.0);
     vertical.xRowTop = bottom - vertical.xRow;
     if (vertical.xRow > 0.0)
@@ -337,9 +349,8 @@ double layoutLeftAxis(const PlotWidget& plot, PlotLayout& layout, TextPainter& t
 
 // The same for the secondary y axis on the right. Returns the right edge of the plot area.
 double layoutRightAxis(const PlotWidget& plot, PlotLayout& layout, TextPainter& text, Range range,
-                       double plotTop, double plotHeight)
+                       double plotTop, double plotHeight, double right)
 {
-    double right = layout.bounds.right() - kOuterPadding;
     if (!layout.y2.shown)
     {
         return right;
@@ -357,10 +368,10 @@ double layoutRightAxis(const PlotWidget& plot, PlotLayout& layout, TextPainter& 
     return right - labels - plot.theme().tickLength;
 }
 
-// The x ticks, spaced by their labels' width, with the last label kept inside the target (which
+// The x ticks, spaced by their labels' width, with the last label kept left of @p limit (which
 // may move the plot's right edge in). Returns the plot area's right edge.
 double layoutXTicks(const Axis& xAxis, Range range, PlotLayout& layout, double plotLeft,
-                    double right)
+                    double right, double limit)
 {
     const QFontMetricsF metrics(layout.tickFont);
     const QRectF&       bounds = layout.bounds;
@@ -380,7 +391,7 @@ double layoutXTicks(const Axis& xAxis, Range range, PlotLayout& layout, double p
         {
             const double lastRightEdge = mapping.toPixel(layout.x.major.back()) +
                                          (metrics.horizontalAdvance(layout.x.labels.back()) / 2.0);
-            overflow                   = lastRightEdge - (bounds.right() - (kOuterPadding / 2.0));
+            overflow                   = lastRightEdge - limit;
         }
         const double needed = widestLabel(layout.x.labels, metrics) + kXLabelSpacing;
         if (closestTicks(layout.x, mapping) < needed)
@@ -524,20 +535,43 @@ PlotLayout layoutOnce(const PlotWidget& plot, const QRectF& bounds, const QFont&
     layout.y.labeled  = plot.yAxis()->areTickLabelsVisible();
     layout.y2.labeled = plot.yAxis2()->areTickLabelsVisible();
 
-    const Vertical vertical = layoutVertically(plot, layout, text, constraints, ranges, flagBand);
+    // A legend under the plot, as tall as its rows across the width.
+    const LegendAnchor anchor = plot.legend()->anchor();
+    if (anchor == LegendAnchor::OUTSIDE_BOTTOM)
+    {
+        layout.legend =
+            measureOutsideLegend(plot, layout, text, bounds.width() - (2.0 * kOuterPadding),
+                                 bounds.height() * kMaxLegendShare);
+    }
+    const Vertical vertical = layoutVertically(plot, layout, text, constraints, ranges, flagBand,
+                                               layout.legend.box.height());
     if (vertical.plotBottom - vertical.plotTop < kMinPlotSize)
     {
         return layout;
     }
     const double plotHeight = vertical.plotBottom - vertical.plotTop;
+    // A legend right of the plot, in columns as tall as the plot area.
+    double right = bounds.right() - kOuterPadding;
+    double limit = bounds.right() - (kOuterPadding / 2.0);  // for the last x label
+    if (anchor == LegendAnchor::OUTSIDE_RIGHT)
+    {
+        layout.legend =
+            measureOutsideLegend(plot, layout, text, plotHeight, bounds.width() * kMaxLegendShare);
+        if (!layout.legend.box.isNull())
+        {
+            layout.legend.box.moveTopRight(QPointF(right, vertical.plotTop));
+            right = layout.legend.box.left() - kLegendGap;
+            limit = right + (kLegendGap / 2.0);
+        }
+    }
     const double left = layoutLeftAxis(plot, layout, text, ranges.y, vertical.plotTop, plotHeight);
-    double right = layoutRightAxis(plot, layout, text, ranges.y2, vertical.plotTop, plotHeight);
+    right = layoutRightAxis(plot, layout, text, ranges.y2, vertical.plotTop, plotHeight, right);
     layout.naturalLeft  = left - bounds.left();
     layout.naturalRight = bounds.right() - right;
     const double plotLeft =
         snap(std::max(left, bounds.left() + constraints.minLeft), devicePixelRatio);
     right                  = std::min(right, bounds.right() - constraints.minRight);
-    const double plotRight = layoutXTicks(*plot.xAxis(), ranges.x, layout, plotLeft, right);
+    const double plotRight = layoutXTicks(*plot.xAxis(), ranges.x, layout, plotLeft, right, limit);
     if (plotRight - plotLeft < kMinPlotSize)
     {
         return layout;
@@ -545,6 +579,15 @@ PlotLayout layoutOnce(const PlotWidget& plot, const QRectF& bounds, const QFont&
 
     layout.plot = QRectF(plotLeft, vertical.plotTop, plotRight - plotLeft, plotHeight);
     placeAxes(plot, layout, vertical, ranges);
+    if (anchor == LegendAnchor::OUTSIDE_BOTTOM && !layout.legend.box.isNull())
+    {
+        // Centered under the plot area, inside the target.
+        const double width      = layout.legend.box.width();
+        const double legendLeft = std::clamp(
+            layout.plot.center().x() - (width / 2.0), bounds.left() + kOuterPadding,
+            std::max(bounds.left() + kOuterPadding, bounds.right() - kOuterPadding - width));
+        layout.legend.box.moveTopLeft(QPointF(legendLeft, vertical.legendTop));
+    }
     layout.valid = true;
     return layout;
 }

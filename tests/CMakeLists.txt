@@ -14,6 +14,7 @@ add_executable(rocketplot_core_tests
     core/GlyphSubstitutionsTests.cpp
     core/InterpolateTests.cpp
     core/LabelStaggerTests.cpp
+    core/LegendFlowTests.cpp
     core/LineBandTests.cpp
     core/MathDump.h
     core/MathLayoutTests.cpp
@@ -67,6 +68,7 @@ add_executable(rocketplot_tests
     widgets/form_tests.cpp
     widgets/interaction_tests.cpp
     widgets/legend_entries_tests.cpp
+    widgets/outside_legend_tests.cpp
     widgets/math_tests.cpp
     widgets/plottime_tests.cpp
     widgets/state_tests.cpp
