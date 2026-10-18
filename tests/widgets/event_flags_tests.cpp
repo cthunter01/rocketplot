@@ -9,6 +9,7 @@
 #include <Qt>
 #include <cmath>
 #include <cstddef>
+#include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -113,8 +114,8 @@ TEST_F(EventFlagsTest, OverTheDataHorizontallyByDefault)
 {
     EXPECT_EQ(m_plot.eventFlagPlacement(), FlagPlacement::OVER_DATA);
     EXPECT_EQ(m_plot.eventFlagOrientation(), Qt::Horizontal);
-    QSignalSpy placement(&m_plot, &PlotWidget::eventFlagPlacementChanged);
-    QSignalSpy orientation(&m_plot, &PlotWidget::eventFlagOrientationChanged);
+    const QSignalSpy placement(&m_plot, &PlotWidget::eventFlagPlacementChanged);
+    const QSignalSpy orientation(&m_plot, &PlotWidget::eventFlagOrientationChanged);
     m_plot.setEventFlagPlacement(FlagPlacement::OVER_DATA);
     m_plot.setEventFlagOrientation(Qt::Horizontal);
     m_plot.setEventFlagPlacement(FlagPlacement::HEADROOM);
@@ -210,9 +211,9 @@ TEST_F(EventFlagsTest, AboveThePlotAreaNoFlagIsInIt)
     static_cast<void>(m_plot.grab());
     const QRectF area = m_plot.plotArea();
     EXPECT_GT(area.top(), plainTop + 40.0);  // three rows of flags above it
-    for (double y = area.top() + 1.0; y < area.bottom(); y += 4.0)
+    for (int y = static_cast<int>(area.top()) + 1; y < static_cast<int>(area.bottom()); y += 4)
     {
-        for (double x = area.left() + 1.0; x < area.right(); x += 4.0)
+        for (int x = static_cast<int>(area.left()) + 1; x < static_cast<int>(area.right()); x += 4)
         {
             ASSERT_EQ(qobject_cast<EventMarker*>(m_plot.annotationAt(QPointF(x, y))), nullptr)
                 << x << ", " << y;

@@ -18,7 +18,6 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <cstddef>
 #include <limits>
 #include <optional>
 #include <vector>
@@ -29,7 +28,6 @@
 #include "TextPainter.h"
 #include "core/AxisMapping.h"
 #include "core/Decimator.h"
-#include "core/LabelStagger.h"
 #include "core/Occupancy.h"
 #include "rocketplot/Annotation.h"
 #include "rocketplot/EventMarker.h"
@@ -185,12 +183,12 @@ QColor textOn(const QColor& fill, const Theme& theme)
 // What every drawing function here needs.
 struct Context
 {
-    QPainter*                   painter;
-    const PlotLayout*           layout;
-    const Theme*                theme;
-    TextPainter*                text;
-    core::Occupancy*            occupancy;
-    std::vector<AnnotationHit>* hits;
+    QPainter*                   painter   = nullptr;
+    const PlotLayout*           layout    = nullptr;
+    const Theme*                theme     = nullptr;
+    TextPainter*                text      = nullptr;
+    core::Occupancy*            occupancy = nullptr;
+    std::vector<AnnotationHit>* hits      = nullptr;
     QRectF                      clip;  // where what is drawn shows
 
     void occupy(const QRectF& rect) const

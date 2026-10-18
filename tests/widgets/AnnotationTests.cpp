@@ -281,7 +281,7 @@ TEST_F(PointingTest, HoveringSignalsOnAndOff)
     Annotation* icon = m_plot.addIcon(2.0, 2.0, redIcon());
     static_cast<void>(render());
     QTest::mouseMove(&m_plot, QPoint(1, 1));
-    QSignalSpy hovered(&m_plot, &PlotWidget::annotationHovered);
+    const QSignalSpy hovered(&m_plot, &PlotWidget::annotationHovered);
     QTest::mouseMove(&m_plot, pixelAt(2.0, 2.0));
     ASSERT_EQ(hovered.count(), 1);
     EXPECT_EQ(qvariant_cast<Annotation*>(hovered.at(0).at(0)), icon);

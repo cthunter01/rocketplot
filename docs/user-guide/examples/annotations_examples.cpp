@@ -68,7 +68,7 @@ void icons(PlotWidget* plot)
     plot->setTitle("Ascent acceleration");
     plot->xAxis()->setLabel("Time (s)");
     plot->yAxis()->setLabel("Acceleration (m/s²)");
-    rocketplot::LineSeries* acceleration = plot->addLine(ascent.time, ascent.acceleration);
+    const rocketplot::LineSeries* acceleration = plot->addLine(ascent.time, ascent.acceleration);
     // [annotations-icons]
     const QIcon warning = plot->style()->standardIcon(QStyle::SP_MessageBoxWarning);
     const QIcon start   = plot->style()->standardIcon(QStyle::SP_MediaPlay);  // or QIcon(":/...")

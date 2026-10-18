@@ -19,7 +19,6 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
-#include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -403,12 +402,36 @@ QRect differenceOf(const QImage& a, const QImage& b)
     return ink;
 }
 
-TEST_F(PlotWidgetTest, ASubtitleGoesUnderTheTitle)
+// Whether any pixel of @p area of @p image is @p color.
+bool hasColor(const QImage& image, const QRect& area, const QColor& color)
 {
-    QSignalSpy changed(&m_plot, &PlotWidget::subtitleChanged);
-    QFont      font = m_plot.font();
-    font.setPixelSize(30);  // large glyphs, with pixels of the text's own color
-    m_plot.setFont(font);
+    for (int y = area.top(); y <= area.bottom(); ++y)
+    {
+        for (int x = area.left(); x <= area.right(); ++x)
+        {
+            if (image.pixelColor(x, y) == color)
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// Where @p plot draws the text that @p set sets: what changes with it, the layout staying the
+// same. @p image gets the plot as drawn.
+QRect inkOfText(PlotWidget& plot, void (PlotWidget::*set)(const QString&), QImage& image)
+{
+    (plot.*set)("Flight 8");
+    const QImage other = plot.grab().toImage();
+    (plot.*set)("Flight 7");
+    image = plot.grab().toImage();
+    return differenceOf(image, other);
+}
+
+TEST_F(PlotWidgetTest, ASubtitleMakesRoomUnderTheTitle)
+{
+    const QSignalSpy changed(&m_plot, &PlotWidget::subtitleChanged);
     m_plot.setTitle("Ascent");
     const double titledTop = m_plot.plotArea().top();
     m_plot.setSubtitle("Flight 7");
@@ -416,41 +439,27 @@ TEST_F(PlotWidgetTest, ASubtitleGoesUnderTheTitle)
     EXPECT_EQ(changed.count(), 1);
     m_plot.setSubtitle("Flight 7");
     EXPECT_EQ(changed.count(), 1);
-    EXPECT_GT(m_plot.plotArea().top(), titledTop + 20.0);  // the plot area makes room for it
+    EXPECT_GT(m_plot.plotArea().top(), titledTop + 8.0);
+}
 
-    // Where each is drawn: what changes with the text, the layout staying the same.
-    const auto inkOf = [this](void (PlotWidget::*set)(const QString&)) {
-        (m_plot.*set)("Flight 7");
-        const QImage one = m_plot.grab().toImage();
-        (m_plot.*set)("Flight 8");
-        const QImage other = m_plot.grab().toImage();
-        (m_plot.*set)("Flight 7");
-        return std::pair(differenceOf(one, other), other);
-    };
-    const auto [titleInk, titled]       = inkOf(&PlotWidget::setTitle);
-    const auto [subtitleInk, subtitled] = inkOf(&PlotWidget::setSubtitle);
+TEST_F(PlotWidgetTest, ASubtitleIsDrawnUnderTheTitleInTheSecondaryColor)
+{
+    QFont font = m_plot.font();
+    font.setPixelSize(30);  // large glyphs, with pixels of the text's own color
+    m_plot.setFont(font);
+    m_plot.setTitle("Flight 7");
+    m_plot.setSubtitle("Flight 7");
+    QImage      titled;
+    QImage      subtitled;
+    const QRect titleInk    = inkOfText(m_plot, &PlotWidget::setTitle, titled);
+    const QRect subtitleInk = inkOfText(m_plot, &PlotWidget::setSubtitle, subtitled);
     ASSERT_FALSE(titleInk.isEmpty());
     ASSERT_FALSE(subtitleInk.isEmpty());
     EXPECT_GT(subtitleInk.top(), titleInk.bottom());
     EXPECT_LT(subtitleInk.bottom(), m_plot.plotArea().top());
-
-    // In the secondary text color, where the title is in the text color.
-    const auto has = [](const QImage& image, const QRect& area, const QColor& color) {
-        for (int y = area.top(); y <= area.bottom(); ++y)
-        {
-            for (int x = area.left(); x <= area.right(); ++x)
-            {
-                if (image.pixelColor(x, y) == color)
-                {
-                    return true;
-                }
-            }
-        }
-        return false;
-    };
-    EXPECT_TRUE(has(subtitled, subtitleInk, m_plot.theme().secondaryText));
-    EXPECT_FALSE(has(subtitled, subtitleInk, m_plot.theme().text));
-    EXPECT_TRUE(has(titled, titleInk, m_plot.theme().text));
+    EXPECT_TRUE(hasColor(subtitled, subtitleInk, m_plot.theme().secondaryText));
+    EXPECT_FALSE(hasColor(subtitled, subtitleInk, m_plot.theme().text));
+    EXPECT_TRUE(hasColor(titled, titleInk, m_plot.theme().text));
 }
 
 TEST_F(PlotWidgetTest, ASubtitleWithoutATitleIsWhereTheTitleWouldBe)

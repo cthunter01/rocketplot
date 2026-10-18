@@ -27,7 +27,25 @@ namespace
 using rocketplot::PlotWidget;
 using rocketplot::TextAnnotation;
 
-using TextAnnotationTest = rocketplot::test::RenderedPlotTest;
+class TextAnnotationTest : public rocketplot::test::RenderedPlotTest
+{
+protected:
+    // Where @p annotation is drawn: what differs without it.
+    QRect inkOf(rocketplot::Annotation* annotation)
+    {
+        const QImage with = render();
+        annotation->setVisible(false);
+        const QImage without = render();
+        annotation->setVisible(true);
+        return inkRect(with, without, with.rect());
+    }
+
+    // @p rect from the top-left corner of the plot area.
+    [[nodiscard]] QRect inArea(const QRect& rect) const
+    {
+        return rect.translated(-m_plot.plotArea().topLeft().toPoint());
+    }
+};
 
 // A square of pixels around @p center.
 QRect around(QPoint center, int reach)
@@ -162,14 +180,7 @@ TEST_F(TextAnnotationTest, PinnedToThePlotAreaItStaysPutAsTheViewChanges)
     TextAnnotation* note = m_plot.addText(0.5, 0.5, "Pinned");
     note->setCoordinates(rocketplot::AnnotationCoordinates::PLOT_AREA);
     note->setBackgroundVisible(false);
-    const auto inkOf = [this, note] {
-        const QImage with = render();
-        note->setVisible(false);
-        const QImage without = render();
-        note->setVisible(true);
-        return inkRect(with, without, with.rect());
-    };
-    const QRect ink = inkOf();
+    const QRect ink = inkOf(note);
     ASSERT_FALSE(ink.isEmpty());
     EXPECT_NEAR(ink.center().x(), m_plot.plotArea().center().x(), 2.0);
     EXPECT_NEAR(ink.center().y(), m_plot.plotArea().center().y(), 3.0);
@@ -177,20 +188,21 @@ TEST_F(TextAnnotationTest, PinnedToThePlotAreaItStaysPutAsTheViewChanges)
     // move as the tick labels get wider or narrower).
     note->setPosition(0.0, 1.0);
     note->setAlignment(Qt::AlignLeft | Qt::AlignTop);
-    const auto inArea = [this](const QRect& rect) {
-        return rect.translated(-m_plot.plotArea().topLeft().toPoint());
-    };
-    const QRect placed = inArea(inkOf());
+    const QRect placed = inArea(inkOf(note));
     EXPECT_LT(placed.left(), 10);
     EXPECT_LT(placed.top(), 10);
     m_plot.xAxis()->setRange(100.0, 300.0);
     m_plot.yAxis()->setRange(-5.0, 5.0);
-    EXPECT_EQ(inArea(inkOf()), placed);
+    EXPECT_EQ(inArea(inkOf(note)), placed);
+}
 
-    // (0, 0) is the bottom-left corner.
-    note->setPosition(0.0, 0.0);
+TEST_F(TextAnnotationTest, PinnedToThePlotAreaZeroIsTheBottomLeftCorner)
+{
+    TextAnnotation* note = m_plot.addText(0.0, 0.0, "Pinned");
+    note->setCoordinates(rocketplot::AnnotationCoordinates::PLOT_AREA);
+    note->setBackgroundVisible(false);
     note->setAlignment(Qt::AlignLeft | Qt::AlignBottom);
-    const QRect corner = inkOf();
+    const QRect corner = inkOf(note);
     const QRect area   = m_plot.plotArea().toAlignedRect();
     EXPECT_GE(corner.left(), area.left());
     EXPECT_LT(corner.left(), area.left() + 10);

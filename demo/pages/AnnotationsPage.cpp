@@ -43,8 +43,8 @@ QWidget* create(QWidget* parent)
     plot->setTitle("Ascent acceleration");
     plot->xAxis()->setLabel("Time (s)");
     plot->yAxis()->setLabel("Acceleration (m/s²)");
-    const Ascent            ascent       = simulateAscent(300.0, 10.0, 3);
-    rocketplot::LineSeries* acceleration = plot->addLine(ascent.time, ascent.acceleration);
+    const Ascent                  ascent       = simulateAscent(300.0, 10.0, 3);
+    const rocketplot::LineSeries* acceleration = plot->addLine(ascent.time, ascent.acceleration);
 
     // Events: a line with a flag. Flags too close to share a row are staggered.
     plot->addEvent(0.0, "Liftoff")->setIcon(plot->style()->standardIcon(QStyle::SP_MediaPlay));

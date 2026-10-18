@@ -83,7 +83,7 @@ Range followRange(Range bounds, double window, double margin)
 
 Range withHeadroom(Range range, double share, Scale scale)
 {
-    if (!(share > 0.0 && share < 1.0) || !isUsableRange(range, scale))
+    if (!(share > 0.0) || !(share < 1.0) || !isUsableRange(range, scale))  // NaN too
     {
         return range;
     }

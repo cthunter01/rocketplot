@@ -14,6 +14,7 @@
 #include <limits>
 #include <utility>
 
+#include "FlagLayout.h"
 #include "TextPainter.h"
 #include "core/AxisMapping.h"
 #include "core/AxisTicks.h"
