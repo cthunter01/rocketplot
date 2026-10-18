@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "rocketplot/NumericRange.h"
+#include "rocketplot/Range.h"
 #include "rocketplot/Series.h"
 #include "rocketplot/export.h"
 
@@ -33,9 +34,11 @@ concept ColorRange =
 ///
 /// Every marker has the series' markerSize() and color() unless the points are given their own
 /// (setSizes(), setColors()): a third and fourth value per point, shown as a bubble's size or a
-/// color scale. Like errors, these belong to the points the series has when they are set:
-/// replacing the data removes them, and points appended later use the series' size and color.
-/// They throw std::invalid_argument unless there is one value per point.
+/// color. A fourth value can also be given as a number (setColorValues()), which the plot's
+/// ColorScale turns into a color and shows in a key. Like errors, these belong to the points the
+/// series has when they are set: replacing the data removes them, and points appended later use
+/// the series' size and color. They throw std::invalid_argument unless there is one value per
+/// point.
 class ROCKETPLOT_EXPORT ScatterSeries : public Series
 {
     Q_OBJECT
@@ -76,7 +79,23 @@ public:
     /// Back to color() for every point.
     void               clearColors();
     [[nodiscard]] bool hasColors() const noexcept { return !m_colors.empty(); }
-    /// The marker color of point @p index.
+
+    /// Gives each point a value, copied, that the plot's ColorScale colors it by (NaN: its
+    /// nanColor()). Takes the place of setColors(), and setColors() of it.
+    template <NumericRange V>
+    void setColorValues(const V& values)
+    {
+        setColorValues(detail::toDoubleVector(values));
+    }
+    void setColorValues(std::vector<double>&& values);
+    /// Back to color() for every point.
+    void               clearColorValues();
+    [[nodiscard]] bool hasColorValues() const noexcept { return !m_colorValues.empty(); }
+    /// The color value of point @p index; NaN where it has none.
+    [[nodiscard]] double colorValue(std::size_t index) const;
+
+    /// The marker color of point @p index: its own, the one its color value has on the color
+    /// scale, or color().
     [[nodiscard]] QColor pointColor(std::size_t index) const;
 
 private:
@@ -89,9 +108,15 @@ private:
     [[nodiscard]] bool pick(const core::PickQuery& query, core::NearestPoint& found) const override;
     [[nodiscard]] std::span<const double> sizes() const noexcept { return m_sizes; }
     [[nodiscard]] std::span<const QRgb>   colors() const noexcept { return m_colors; }
+    [[nodiscard]] std::span<const double> colorValues() const noexcept { return m_colorValues; }
+    // The smallest and largest finite color values, for the color scale's autoscale.
+    [[nodiscard]] Range colorBounds() const noexcept { return m_colorBounds; }
+    void                addCsvColumns(core::CsvSeries& columns) const override;
 
     std::vector<double> m_sizes;  // one per point they were set for; 0 for a hidden point
     std::vector<QRgb>   m_colors;
+    std::vector<double> m_colorValues;
+    Range               m_colorBounds = Range::empty();
     double              m_largestSize = 0.0;
 };
 

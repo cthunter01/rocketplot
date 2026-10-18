@@ -14,9 +14,9 @@ The key idea is the split between what a plot *shows* and how it is *set up to s
 | --- | --- |
 | The theme mode; whether the crosshair is on, and what it follows; where event flags go and which way; whether the y axes' zeros line up; the aspect ratio | The data |
 | Each axis: range; autoscale, its mode, margin, zero rule and follow window; scale type, number format and time zone; grid, minor grid, visibility, tick labels | The series' names |
-| The legend: visibility, anchor, position, values at the crosshair | The title and the axis labels |
-| Each series: visibility, color, marker, its size, fill and ring width; line width, style, dash pattern and caps, markers always shown; error style, cap size and band opacity, y axis | The annotations |
-| | The input bindings; a custom theme's colors |
+| The legend: visibility, anchor, position, values at the crosshair; the color scale: visibility, range or autoscale, map, NaN color, number format | The title, the axis labels and the color scale's label; a gradient of your own |
+| Each series: visibility, color, marker, its size, fill and ring width; line width, style, dash pattern and caps, markers always shown; error style, cap size and band opacity, y axis; for bars their fill, outline and gap, for a histogram its bins, range and normalization, for a box how it is drawn | The annotations; a box's statistics and position |
+| | The input bindings; a custom theme's colors; the names of a category axis |
 
 So the order of things is: your code builds the plot (adds the series, sets titles and labels, adds annotations),
 then restores the state on top.
@@ -68,6 +68,15 @@ A plot of two series, after the user zoomed in, hid one series and recolored the
 ```json
 {
     "aspectRatio": 0,
+    "colorScale": {
+        "autoscale": true,
+        "colorMap": "VIRIDIS",
+        "max": 1,
+        "min": 0,
+        "nanColor": null,
+        "numberFormat": "AUTO",
+        "visible": null
+    },
     "crosshair": false,
     "crosshairMode": "FREE",
     "eventFlagOrientation": "Horizontal",
@@ -194,7 +203,7 @@ plot->restoreState(view);  // the axes, the legend and the crosshair
 ```
 
 The top-level keys are `themeMode`, `crosshair`, `crosshairMode`, `eventFlagPlacement`, `eventFlagOrientation`,
-`yAxesZeroAligned`, `aspectRatio`, `xAxis`, `yAxis`, `yAxis2`, `legend` and `series`. This is also how to copy
+`yAxesZeroAligned`, `aspectRatio`, `xAxis`, `yAxis`, `yAxis2`, `legend`, `colorScale` and `series`. This is also how to copy
 only the view from one plot to another: save the first, keep the axis keys, restore on the second.
 
 ## A grid's state

@@ -60,7 +60,7 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
 ## Layout
 - `include/rocketplot/`: public headers (`PlotWidget`, `Series`/`LineSeries`/`ScatterSeries`/`BarSeries`/
   `HistogramSeries`/`BoxSeries` (a series' `kind()` says which; kinds with points of their own lock the data
-  functions; `BoxStatistics` is Qt-free, like `Range`),
+  functions; `BoxStatistics` is Qt-free, like `Range`), `ColorScale` (a plot's colors of values, with a key),
   `Axis`, `Legend`,
   `Annotation`/`ReferenceLine`/`ShadedSpan`/`RectAnnotation`/`TextAnnotation`/`IconAnnotation`/`EventMarker`, `PlotLink`, `PlotGrid` (plots in rows
   and columns: it makes the plots, links each column's x axes with `PlotLink`s and lines the plot areas up through
@@ -75,7 +75,8 @@ everything else static, so CI catches a missing `ROCKETPLOT_EXPORT`.
   `NearestPoint` (the data point a snapping or tracing crosshair goes to: sorted series through the pyramid),
   `Interpolate` (the y a drawn line passes through at an x, `Series::valueAt()`),
   `Histogram` (values counted into bins), `Bars` (bar rectangles snapped to device pixels, and picking them),
-  `BoxSummary` (quartiles, whiskers and outliers of values),
+  `BoxSummary` (quartiles, whiskers and outliers of values), `ColorMap` (the color tables, gradients and
+  lookup tables),
   axis mapping (linear/log), `Aspect` (ranges widened to an aspect ratio), ticks (`TickGenerator` linear/log, `TimeTicks` calendar), labels and readouts
   (`NumberFormatter`), `AxisTicks` (picks per axis kind, category names too), autoscale. Math in labels: `MathSegments` (the `$` rule),
   `MathParser` (a TeX subset into a list of `MathAtom`s, with `MathSymbols`' tables), `MathPlainText` (a formula as

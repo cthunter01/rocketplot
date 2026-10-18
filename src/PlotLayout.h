@@ -96,6 +96,11 @@ struct PlotLayout
     AxisLayout x;
     AxisLayout y;
     AxisLayout y2;  ///< The secondary y axis, on the right
+    /// The key of the color scale, right of the plot area (and of y2): its bar of colors, as tall
+    /// as the plot area, and its ticks, labels and title beside it.
+    bool       colorKeyShown = false;
+    AxisLayout colorKey;
+    QRectF     colorBar;
 
     QFont tickFont;
     QFont labelFont;
@@ -133,6 +138,9 @@ struct PlotLayout
 
 /// The scale an axis maps values with.
 [[nodiscard]] core::Scale scaleOf(const Axis& axis);
+
+/// The title beside the color key: the scale's label, and what its tick labels leave out.
+[[nodiscard]] QString colorKeyTitle(const QString& label, const QString& annotation);
 
 /// The value at @p pixel of an axis laid out as @p mapping, written in full to the precision a
 /// pixel resolves there (for the crosshair's tags).

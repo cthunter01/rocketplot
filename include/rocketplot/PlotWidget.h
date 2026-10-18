@@ -52,6 +52,7 @@ class PlotGrid;
 class PlotLink;
 class BarSeries;
 class BoxSeries;
+class ColorScale;
 struct BoxStatistics;
 class HistogramSeries;
 class LineSeries;
@@ -298,6 +299,8 @@ public:
     /// The secondary y axis, on the right. Shown once a series uses it (Series::setYAxis()).
     [[nodiscard]] Axis*   yAxis2() const noexcept;
     [[nodiscard]] Legend* legend() const noexcept;
+    /// The colors of the points' color values (ScatterSeries::setColorValues()) and their key.
+    [[nodiscard]] ColorScale* colorScale() const noexcept;
     /// The link this plot's x axis is tied to, if any (see PlotLink).
     [[nodiscard]] PlotLink* link() const noexcept;
 
@@ -563,8 +566,10 @@ private:
     void            seriesDataChanged();
     void            seriesStyleChanged();
     void            applyAutoscale();
-    void            refitX();
-    void            refitY();
+    // Fits the color scale to the color values of the visible series, while it autoscales.
+    void refitColorScale();
+    void refitX();
+    void refitY();
     // The range autoscale fits @p axis (a y axis) to, before any headroom; nothing when it doesn't
     // autoscale, or keeps its range (fitting what's visible with nothing in view).
     [[nodiscard]] std::optional<Range> fitY(const Axis& axis) const;

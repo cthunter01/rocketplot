@@ -7,6 +7,7 @@
 #include <QRgb>
 #include <QString>
 #include <cstddef>
+#include <span>
 #include <vector>
 
 #include "core/Bars.h"
@@ -92,6 +93,8 @@ private:
     void drawScatter(QPainter& painter, const ScatterSeries& series, SeriesStats& stats);
     void drawStyledScatter(QPainter& painter, const ScatterSeries& series, const MarkerStyle& style,
                            SeriesStats& stats);
+    // m_colors of the points m_indices names, from their color @p values on the plot's scale.
+    void colorByValue(std::span<const double> values, QRgb fallback);
     void drawBars(QPainter& painter, const BarSeries& series, SeriesStats& stats);
     void drawBox(QPainter& painter, const BoxSeries& series, SeriesStats& stats);
     // How a series' errors are drawn in this frame.
@@ -106,6 +109,7 @@ private:
     void drawErrorBars(QPainter& painter, const Series& series, bool withY, SeriesStats& stats);
     void drawAxes(QPainter& painter) const;
     void drawLabels(QPainter& painter) const;
+    void drawColorKey(QPainter& painter) const;
 
     const PlotWidget*             m_plot;
     const PlotLayout*             m_layout;

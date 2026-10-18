@@ -17,6 +17,7 @@ add_library(rocketplot_demo_lib STATIC
     TelemetrySimulator.h
     pages/AnnotationsPage.cpp
     pages/BasicLinesPage.cpp
+    pages/ColorScalePage.cpp
     pages/DateTimePage.cpp
     pages/ErrorBarsPage.cpp
     pages/ExportPage.cpp

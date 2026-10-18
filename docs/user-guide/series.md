@@ -132,8 +132,9 @@ firings->setColors(colors);
 - `setColors()` takes one color per point: `QColor`, `QRgb` or `Qt::GlobalColor`. For a value on a scale, use one
   hue from light to dark, as here; a rainbow hides the order of the values.
 
-The library doesn't draw a key for sizes or colors. Say what they mean in the title, a label or the text beside
-the plot.
+The library draws no key for sizes, nor for colors you give. For a value shown as color with a key beside the
+plot, give the points the values instead, and the plot's color scale colors them
+([Color scale](axes.md#color-scale)).
 
 Like errors, sizes and colors belong to the points they were set for. `clearSizes()` and `clearColors()` go back
 to the series' own.

@@ -5,6 +5,7 @@
 #include <QFontDatabase>
 #include <QFontMetricsF>
 #include <QLineF>
+#include <QLinearGradient>
 #include <QList>
 #include <QLocale>
 #include <QPaintEngine>
@@ -40,6 +41,7 @@
 #include "rocketplot/BarSeries.h"
 #include "rocketplot/BoxSeries.h"
 #include "rocketplot/BoxStatistics.h"
+#include "rocketplot/ColorScale.h"
 #include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/Range.h"
@@ -206,6 +208,7 @@ void PlotRenderer::render(QPainter& painter, RenderStats& stats, const RenderOpt
     drawAxes(painter);
     painter.setRenderHint(QPainter::Antialiasing, true);
     drawLabels(painter);
+    drawColorKey(painter);
 }
 
 void PlotRenderer::drawGrid(QPainter& painter) const
@@ -516,7 +519,7 @@ void PlotRenderer::drawScatter(QPainter& painter, const ScatterSeries& series, S
     }
 
     const MarkerStyle style = markerStyle(series, *m_theme);
-    if (series.hasSizes() || series.hasColors())
+    if (series.hasSizes() || series.hasColors() || series.hasColorValues())
     {
         drawStyledScatter(painter, series, style, stats);
         return;
@@ -539,6 +542,7 @@ void PlotRenderer::drawStyledScatter(QPainter& painter, const ScatterSeries& ser
 {
     const std::span<const double> sizes  = series.sizes();
     const std::span<const QRgb>   colors = series.colors();
+    const std::span<const double> values = series.colorValues();
     // Markers with their own sizes or colors differ, so only those on the same pixel are drawn as
     // one. The largest reaches into the plot from furthest outside it.
     const double reach = std::max(style.size, series.m_largestSize);
@@ -561,6 +565,10 @@ void PlotRenderer::drawStyledScatter(QPainter& painter, const ScatterSeries& ser
             m_colors.push_back(index < colors.size() ? colors[index] : style.color.rgba());
         }
     }
+    if (!values.empty())
+    {
+        colorByValue(values, style.color.rgba());
+    }
     m_markers->draw(painter, m_points, m_sizes, m_colors, style);
     if (m_options.occupancy == nullptr)
     {
@@ -575,6 +583,33 @@ void PlotRenderer::drawStyledScatter(QPainter& painter, const ScatterSeries& ser
             .right  = m_points[i].x + half,
             .bottom = m_points[i].y + half,
         });
+    }
+}
+
+void PlotRenderer::colorByValue(std::span<const double> values, QRgb fallback)
+{
+    // The scale's colors, looked up once for all the points of this frame.
+    const ColorScale&        scale  = *m_plot->colorScale();
+    const ColorScale::Lookup lookup = scale.lookup();
+    const QRgb               nan    = scale.nanColor().rgba();
+    const Range              range  = scale.range();
+    const auto               last   = static_cast<double>(lookup.size() - 1);
+    m_colors.clear();
+    for (const std::size_t index : m_indices)
+    {
+        if (index >= values.size())
+        {
+            m_colors.push_back(fallback);  // a point added after the values were set
+            continue;
+        }
+        const double value = values[index];
+        if (std::isnan(value))
+        {
+            m_colors.push_back(nan);
+            continue;
+        }
+        const double t = std::clamp((value - range.min) / range.span(), 0.0, 1.0);
+        m_colors.push_back(lookup.at(static_cast<std::size_t>(std::lround(t * last))));
     }
 }
 
@@ -872,6 +907,58 @@ void PlotRenderer::drawAxes(QPainter& painter) const
         yTicks(m_layout->y2, m_layout->y2.minor, axisX2, 1.0, m_theme->minorTickLength);
         yTicks(m_layout->y2, m_layout->y2.major, axisX2, 1.0, m_theme->tickLength);
     }
+}
+
+void PlotRenderer::drawColorKey(QPainter& painter) const
+{
+    if (!m_layout->colorKeyShown)
+    {
+        return;
+    }
+    const ColorScale& scale = *m_plot->colorScale();
+    const AxisLayout& key   = m_layout->colorKey;
+    const double      dpr   = m_layout->devicePixelRatio;
+    const QRectF      bar   = snappedToDevice(m_layout->colorBar, dpr);
+    painter.save();
+    // The colors, from the minimum at the bottom to the maximum at the top: a gradient, which an
+    // SVG or PDF keeps as one.
+    QLinearGradient colors(bar.bottomLeft(), bar.topLeft());
+    colors.setStops(scale.gradient());
+    painter.setRenderHint(QPainter::Antialiasing, false);
+    painter.fillRect(bar, colors);
+    // A frame on the pixels around it, and ticks out of its right side.
+    painter.setPen(hairlinePen(m_theme->axisLine));
+    const double pixel = 1.0 / dpr;
+    painter.drawRect(QRectF(QPointF(bar.left() - (0.5 * pixel), bar.top() - (0.5 * pixel)),
+                            QPointF(bar.right() + (0.5 * pixel), bar.bottom() + (0.5 * pixel))));
+    for (const double value : key.major)
+    {
+        const double py = crispPixel(key.mapping.toPixel(value), dpr);
+        painter.drawLine(QPointF(bar.right(), py), QPointF(bar.right() + m_theme->tickLength, py));
+    }
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    const double lineHeight = QFontMetricsF(m_layout->tickFont).height();
+    painter.setFont(m_layout->tickFont);
+    painter.setPen(m_theme->secondaryText);
+    const double labelLeft = bar.right() + m_theme->tickLength + kTickLabelGap;
+    for (qsizetype i = 0; i < key.labels.size(); ++i)
+    {
+        const double py = key.mapping.toPixel(key.major[static_cast<std::size_t>(i)]);
+        painter.drawText(QRectF(labelLeft, py - (lineHeight / 2.0), kLabelBoxWidth, lineHeight),
+                         static_cast<int>((Qt::AlignLeft | Qt::AlignVCenter).toInt()),
+                         key.labels.at(i));
+    }
+    if (!key.titleRect.isNull())
+    {
+        const QRectF& rect = key.titleRect;
+        painter.translate(rect.center());
+        painter.rotate(-90.0);
+        m_text->draw(painter, colorKeyTitle(scale.label(), key.annotation), m_layout->labelFont,
+                     m_theme->secondaryText,
+                     QRectF(-rect.height() / 2.0, -rect.width() / 2.0, rect.height(), rect.width()),
+                     Qt::AlignCenter, true);
+    }
+    painter.restore();
 }
 
 void PlotRenderer::drawLabels(QPainter& painter) const

@@ -198,6 +198,38 @@ plot->addBars(std::vector{-0.4, 0.4, 0.6, 1.4, 1.6, 2.4},
 [Box plots](series.md#box-plots) stand over categories, as do bars: a bar from i - 0.4 to i + 0.4 with a NaN
 height in each gap between them, as above.
 
+## Color scale
+
+A fourth value per point, shown as its color with a key beside the plot: give a scatter series color values,
+and the plot's `colorScale()` colors them.
+
+![Landings scattered further in stronger wind, colored by wind speed, with a key](images/axes-color.png)
+
+<!-- example: axes-color -->
+```cpp
+rocketplot::ScatterSeries* landings = plot->addScatter(crossrange, downrange, "Landings");
+landings->setColorValues(wind);  // one per point: its color on the plot's color scale
+
+rocketplot::ColorScale* scale = plot->colorScale();
+scale->setLabel("Wind (m/s)");
+scale->setColorMap(rocketplot::ColorMap::CIVIDIS);  // VIRIDIS by default
+```
+
+- The scale runs from `min()` to `max()`. It autoscales (the default) to the smallest and largest finite color
+  values of the visible series; `setRange()` fixes it, and values beyond it get the color of the end they are
+  past. A NaN value gets `nanColor()`, the theme's secondary text color unless you set one.
+- `colorMap` picks the colors: `VIRIDIS`, `PLASMA`, `INFERNO`, `MAGMA` and `CIVIDIS` go from dark to light,
+  evenly in lightness, so the order of the values still reads in gray and to most color-blind readers (`CIVIDIS`
+  is the same to them). `GRAY` is black to white. `COOL_WARM` and `BLUE_RED` diverge from a light middle, for
+  values above and below one that matters: set a range centered on it. `setGradient()` takes a gradient of your
+  own, as for a `QLinearGradient`.
+- The key shows once a visible series has color values (`setVisible()` decides otherwise), right of the plot
+  area: a bar of the colors, with ticks, numbers in its `numberFormat` and its `label`. Linked plots and grids
+  stay lined up with it.
+- `setColorValues()` and `setColors()` take each other's place, and both go when the data is replaced. The
+  legend shows the scale's middle color, the crosshair the point's own, and the CSV export the values, in a
+  column named after the label.
+
 ## A second y axis
 
 Two series measured in different units can share a plot: one on the left axis, one on the right.

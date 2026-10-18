@@ -139,6 +139,22 @@ enum class ScaleType : std::uint8_t
 };
 Q_ENUM_NS(ScaleType)
 
+/// The colors of a ColorScale, from its minimum to its maximum.
+enum class ColorMap : std::uint8_t
+{
+    VIRIDIS,    ///< Dark blue through green to yellow: even in lightness, readable in gray (the
+                ///< default)
+    PLASMA,     ///< Dark blue through red to yellow
+    INFERNO,    ///< Black through red to pale yellow
+    MAGMA,      ///< Black through purple to pale yellow
+    CIVIDIS,    ///< Blue to yellow, alike to most forms of color blindness
+    GRAY,       ///< Black to white
+    COOL_WARM,  ///< Blue through light gray to red: diverging, for values about a middle
+    BLUE_RED,   ///< Blue through white to red, at full strength
+    CUSTOM,     ///< A gradient of your own (ColorScale::setGradient())
+};
+Q_ENUM_NS(ColorMap)
+
 /// How an axis writes its numbers.
 enum class NumberFormat : std::uint8_t
 {

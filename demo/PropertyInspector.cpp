@@ -49,6 +49,7 @@
 
 #include "rocketplot/Annotation.h"
 #include "rocketplot/Axis.h"
+#include "rocketplot/ColorScale.h"
 #include "rocketplot/Legend.h"
 #include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotWidget.h"
@@ -805,6 +806,7 @@ void PropertyInspector::rebuild()
         addObject(top, plot->yAxis(), key + QLatin1String("/y"), 1);
         addObject(top, plot->yAxis2(), key + QLatin1String("/y2"), 1);
         addObject(top, plot->legend(), key + QLatin1String("/legend"), 1);
+        addObject(top, plot->colorScale(), key + QLatin1String("/colorScale"), 1);
 
         const QList<Series*> series = plot->series();
         QTreeWidgetItem*     group  = addGroup(top, key + QLatin1String("/series"));

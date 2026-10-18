@@ -36,6 +36,7 @@ DemoPage interactionPage();
 DemoPage legendPage();
 DemoPage annotationsPage();
 DemoPage statisticsPage();
+DemoPage colorScalePage();
 DemoPage exportPage();
 DemoPage statePage();
 DemoPage largeDataPage();

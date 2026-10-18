@@ -134,7 +134,9 @@ InteractionController::Region InteractionController::regionAt(const PlotLayout& 
         {
             return Region::Y_AXIS;
         }
-        if (position.x() > plot.right() && layout.y2.shown)
+        // The right axis as far as it reaches: not the color key right of it.
+        if (position.x() > plot.right() && position.x() <= layout.y2.area.right() &&
+            layout.y2.shown)
         {
             return Region::Y2_AXIS;
         }

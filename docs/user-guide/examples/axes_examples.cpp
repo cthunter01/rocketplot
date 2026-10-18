@@ -18,10 +18,12 @@
 #include "Examples.h"
 #include "SampleData.h"
 #include "rocketplot/Axis.h"
+#include "rocketplot/ColorScale.h"
 #include "rocketplot/Legend.h"
 #include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/Range.h"
+#include "rocketplot/ScatterSeries.h"
 #include "rocketplot/enums.h"
 #include "rocketplot/plottime.h"
 
@@ -189,6 +191,34 @@ void categories(const QString& /*scratch*/)
     // [/axes-categories]
 }
 
+void colorScale(PlotWidget* plot)
+{
+    // 600 landings: the stronger the wind, the further they scatter.
+    const std::vector<double> gustX = noise(600, 1.0, 21);
+    const std::vector<double> gustY = noise(600, 1.0, 22);
+    const std::vector<double> calm  = noise(600, 1.0, 23);
+    std::vector<double>       crossrange(600);
+    std::vector<double>       downrange(600);
+    std::vector<double>       wind(600);
+    for (std::size_t i = 0; i < wind.size(); ++i)
+    {
+        wind[i]       = 4.0 + (3.0 * std::abs(calm[i]));
+        crossrange[i] = gustX[i] * (5.0 + (2.0 * wind[i]));
+        downrange[i]  = gustY[i] * (5.0 + (2.5 * wind[i]));
+    }
+    // [axes-color]
+    rocketplot::ScatterSeries* landings = plot->addScatter(crossrange, downrange, "Landings");
+    landings->setColorValues(wind);  // one per point: its color on the plot's color scale
+
+    rocketplot::ColorScale* scale = plot->colorScale();
+    scale->setLabel("Wind (m/s)");
+    scale->setColorMap(rocketplot::ColorMap::CIVIDIS);  // VIRIDIS by default
+    // [/axes-color]
+    plot->xAxis()->setLabel("Crossrange (m)");
+    plot->yAxis()->setLabel("Downrange (m)");
+    plot->setAspectRatio(1.0);
+}
+
 void twoAxes(PlotWidget* plot)
 {
     const Ascent              ascent = sampleAscent();
@@ -284,6 +314,7 @@ void addAxesExamples(Examples& examples)
     examples.addPlot(QStringLiteral("axes-log"), logScale);
     examples.addPlot(QStringLiteral("axes-time"), dateTime);
     examples.addPlot(QStringLiteral("axes-two"), twoAxes);
+    examples.addPlot(QStringLiteral("axes-color"), colorScale, {720, 400});
     examples.addPlot(QStringLiteral("axes-two-zero"), alignedZeros, {720, 340});
     examples.addPlot(QStringLiteral("axes-si"), siPrefixes, {720, 340});
     examples.addPlot(QStringLiteral("axes-offset"), offsetLabels, {720, 340});

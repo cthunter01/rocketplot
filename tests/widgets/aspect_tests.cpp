@@ -25,6 +25,7 @@
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/Range.h"
 #include "rocketplot/RectAnnotation.h"
+#include "rocketplot/ScatterSeries.h"
 #include "rocketplot/enums.h"
 
 namespace
@@ -232,6 +233,15 @@ TEST_F(AspectTest, TheRightAxisIsFree)
         ->setYAxis(m_plot.yAxis2());
     EXPECT_LT(aspectError(m_plot), 1e-9);
     EXPECT_LT(m_plot.yAxis2()->range().span(), 1100.0);  // fits its own data
+}
+
+TEST_F(AspectTest, AColorKeyKeepsTheRatio)
+{
+    const double right   = m_plot.plotArea().right();
+    auto*        colored = m_plot.addScatter(std::vector<double>{1, 2}, std::vector<double>{1, 2});
+    colored->setColorValues(std::vector<double>{0, 1});
+    EXPECT_LT(m_plot.plotArea().right(), right);  // the key took room
+    EXPECT_LT(aspectError(m_plot), 1e-9);
 }
 
 TEST_F(AspectTest, ItIsPartOfTheState)

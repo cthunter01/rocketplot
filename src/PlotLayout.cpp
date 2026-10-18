@@ -25,6 +25,7 @@
 #include "core/TimeTicks.h"
 #include "rocketplot/Annotation.h"
 #include "rocketplot/Axis.h"
+#include "rocketplot/ColorScale.h"
 #include "rocketplot/Legend.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/Range.h"
@@ -67,7 +68,10 @@ constexpr double kBandGap      = 4.0;
 constexpr int    kBandPasses   = 3;
 // A legend outside the plot area: the gap between it and what is next to it, and the share of the
 // height (under the plot) or width (right of it) it may take.
-constexpr double kLegendGap      = 8.0;
+constexpr double kLegendGap = 8.0;
+// The color scale's key: the bar's width, and the room between it and the axis left of it.
+constexpr double kColorBarWidth  = 12.0;
+constexpr double kColorKeyGap    = 16.0;
 constexpr double kMaxLegendShare = 0.4;
 
 // The ranges a layout uses: the axes' own, or overrides of them.
@@ -117,9 +121,9 @@ core::TickKind kindOf(const Axis& axis)
     return core::TickKind::LINEAR;
 }
 
-core::NumberStyle styleOf(const Axis& axis)
+core::NumberStyle styleOf(NumberFormat format)
 {
-    switch (axis.numberFormat())
+    switch (format)
     {
         case NumberFormat::AUTO:
             return core::NumberStyle::AUTO;
@@ -174,7 +178,7 @@ QString formatAxisValue(const Axis& axis, double value, double resolution)
     const bool                     time       = axis.scaleType() == ScaleType::DATE_TIME;
     const std::vector<std::string> categories = categoriesOf(axis);
     return QString::fromStdString(
-        core::formatReadout(value, resolution, kindOf(axis), styleOf(axis),
+        core::formatReadout(value, resolution, kindOf(axis), styleOf(axis.numberFormat()),
                             time ? utcOffsetOf(axis.timeZone()) : core::UtcOffset{}, categories));
 }
 
@@ -194,7 +198,7 @@ void fillTicks(AxisLayout& layout, const Axis& axis, Range range, double lengthP
     const core::TickRequest        request{
         .range             = range,
         .kind              = kindOf(axis),
-        .style             = styleOf(axis),
+        .style             = styleOf(axis.numberFormat()),
         .lengthPx          = lengthPx,
         .minSpacingPx      = minSpacingPx,
         .minMinorSpacingPx = kMinorSpacing,
@@ -395,6 +399,50 @@ double layoutRightAxis(const PlotWidget& plot, PlotLayout& layout, TextPainter& 
     return right - labels - plot.theme().tickLength;
 }
 
+// The key of the color scale, if it is shown, from @p right leftward: its title, labels, ticks and
+// bar. Returns the right edge of what is left of it.
+double layoutColorKey(const PlotWidget& plot, PlotLayout& layout, TextPainter& text, double plotTop,
+                      double plotHeight, double right)
+{
+    const ColorScale& scale = *plot.colorScale();
+    if (!scale.isVisible())
+    {
+        return right;
+    }
+    layout.colorKeyShown      = true;
+    AxisLayout&           key = layout.colorKey;
+    const QFontMetricsF   metrics(layout.tickFont);
+    const core::AxisTicks ticks = core::makeTicks({
+        .range        = scale.range(),
+        .kind         = core::TickKind::LINEAR,
+        .style        = styleOf(scale.numberFormat()),
+        .lengthPx     = plotHeight,
+        .minSpacingPx = metrics.height() * kYLabelSpacing,
+    });
+    key.shown                   = true;
+    key.major                   = ticks.major;
+    key.labels.clear();
+    for (const std::string& label : ticks.labels)
+    {
+        key.labels.append(QString::fromStdString(label));
+    }
+    key.annotation     = QString::fromStdString(ticks.annotation);
+    const QSizeF title = text.size(colorKeyTitle(scale.label(), key.annotation), layout.labelFont);
+    if (!title.isEmpty())
+    {
+        key.titleRect = QRectF(right - title.height(), plotTop, title.height(), plotHeight);
+        right -= title.height() + kAxisLabelGap;
+    }
+    const double labelsRight = right;
+    right -= widestLabel(key.labels, metrics) + kTickLabelGap + plot.theme().tickLength;
+    const double barRight = snap(right, layout.devicePixelRatio);
+    const double barLeft  = snap(right - kColorBarWidth, layout.devicePixelRatio);
+    layout.colorBar       = QRectF(barLeft, plotTop, barRight - barLeft, plotHeight);
+    key.area              = QRectF(barRight, plotTop, labelsRight - barRight, plotHeight);
+    key.mapping           = core::AxisMapping(scale.range(), plotTop + plotHeight, plotTop);
+    return barLeft - kColorKeyGap;
+}
+
 // The x ticks, spaced by their labels' width, with the last label kept left of @p limit (which
 // may move the plot's right edge in). Returns the plot area's right edge.
 double layoutXTicks(const Axis& xAxis, Range range, PlotLayout& layout, double plotLeft,
@@ -466,8 +514,16 @@ void placeAxes(const PlotWidget& plot, PlotLayout& layout, const Vertical& verti
     layout.y.area          = QRectF(yAreaLeft, area.top(), area.left() - yAreaLeft, area.height());
     layout.y.annotationRect =
         QRectF(contentLeft, vertical.annotationTop, area.center().x() - contentLeft, tickHeight);
-    const double y2AreaRight =
-        layout.y2.titleRect.isNull() ? contentRight : layout.y2.titleRect.left();
+    // The right axis reaches as far as its title, or the color key, or the edge.
+    double y2AreaRight = contentRight;
+    if (!layout.y2.titleRect.isNull())
+    {
+        y2AreaRight = layout.y2.titleRect.left();
+    }
+    else if (layout.colorKeyShown)
+    {
+        y2AreaRight = layout.colorBar.left() - (kColorKeyGap / 2.0);
+    }
     layout.y2.area = QRectF(area.right(), area.top(), y2AreaRight - area.right(), area.height());
     layout.y2.annotationRect = QRectF(area.center().x(), vertical.annotationTop,
                                       contentRight - area.center().x(), tickHeight);
@@ -537,6 +593,15 @@ core::Scale scaleOf(const Axis& axis)
     return axis.scaleType() == ScaleType::LOGARITHMIC ? core::Scale::LOG : core::Scale::LINEAR;
 }
 
+QString colorKeyTitle(const QString& label, const QString& annotation)
+{
+    if (annotation.isEmpty())
+    {
+        return label;
+    }
+    return label.isEmpty() ? annotation : label + QStringLiteral("  ") + annotation;
+}
+
 QString readoutLabel(const Axis& axis, const core::AxisMapping& mapping, double pixel)
 {
     const double value = mapping.toValue(pixel);
@@ -598,6 +663,7 @@ PlotLayout layoutOnce(const PlotWidget& plot, const QRectF& bounds, const QFont&
         }
     }
     const double left = layoutLeftAxis(plot, layout, text, ranges.y, vertical.plotTop, plotHeight);
+    right             = layoutColorKey(plot, layout, text, vertical.plotTop, plotHeight, right);
     right = layoutRightAxis(plot, layout, text, ranges.y2, vertical.plotTop, plotHeight, right);
     layout.naturalLeft  = left - bounds.left();
     layout.naturalRight = bounds.right() - right;

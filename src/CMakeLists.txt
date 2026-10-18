@@ -10,6 +10,7 @@ add_library(rocketplot_core OBJECT
     core/AxisTicks.cpp
     core/Bars.cpp
     core/BoxSummary.cpp
+    core/ColorMap.cpp
     core/CsvWriter.cpp
     core/Decimator.cpp
     core/ErrorData.cpp
@@ -84,6 +85,7 @@ target_sources(rocketplot
         BarSeries.cpp
         BoxSeries.cpp
         BoxStatistics.cpp
+        ColorScale.cpp
         BundledMathFont.h
         ${rocketplot_math_font_source}
         EventMarker.cpp
@@ -143,6 +145,7 @@ target_sources(rocketplot
             ${PROJECT_SOURCE_DIR}/include/rocketplot/BarSeries.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/BoxSeries.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/BoxStatistics.h
+            ${PROJECT_SOURCE_DIR}/include/rocketplot/ColorScale.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/EventMarker.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/ExportOptions.h
             ${PROJECT_SOURCE_DIR}/include/rocketplot/HistogramSeries.h

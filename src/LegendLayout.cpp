@@ -33,6 +33,7 @@
 #include "rocketplot/Axis.h"
 #include "rocketplot/BarSeries.h"
 #include "rocketplot/BoxSeries.h"
+#include "rocketplot/ColorScale.h"
 #include "rocketplot/EventMarker.h"
 #include "rocketplot/IconAnnotation.h"
 #include "rocketplot/Legend.h"
@@ -41,6 +42,7 @@
 #include "rocketplot/Range.h"
 #include "rocketplot/RectAnnotation.h"
 #include "rocketplot/ReferenceLine.h"
+#include "rocketplot/ScatterSeries.h"
 #include "rocketplot/Series.h"
 #include "rocketplot/ShadedSpan.h"
 #include "rocketplot/TextAnnotation.h"
@@ -219,9 +221,19 @@ void drawSwatch(QPainter& painter, const Series& series, const Theme& theme, QPo
             MarkerPainter::draw(painter, center, markerStyle(series, theme));
             break;
         case SeriesKind::SCATTER:
+        {
             drawErrorSwatch(painter, series, theme, center);
-            MarkerPainter::draw(painter, center, markerStyle(series, theme));
+            MarkerStyle style   = markerStyle(series, theme);
+            const auto* scatter = qobject_cast<const ScatterSeries*>(&series);
+            if (scatter != nullptr && scatter->hasColorValues())
+            {
+                // Colored by value: the middle of the scale.
+                const ColorScale& scale = *series.plot()->colorScale();
+                style.color             = scale.colorAt(scale.range().center());
+            }
+            MarkerPainter::draw(painter, center, style);
             break;
+        }
         case SeriesKind::BARS:
             if (const auto* bars = qobject_cast<const BarSeries*>(&series))
             {

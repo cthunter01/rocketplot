@@ -2,16 +2,24 @@
 
 #include <QColor>
 #include <QRgb>
+#include <QString>
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <format>
+#include <limits>
 #include <optional>
 #include <stdexcept>
+#include <string>
 #include <utility>
 #include <vector>
 
+#include "TextPainter.h"
+#include "core/CsvWriter.h"
 #include "core/NearestPoint.h"
+#include "rocketplot/ColorScale.h"
+#include "rocketplot/PlotWidget.h"
+#include "rocketplot/Range.h"
 #include "rocketplot/Series.h"
 #include "rocketplot/enums.h"
 
@@ -74,7 +82,48 @@ void ScatterSeries::applyColors(std::vector<QRgb>&& colors)
 {
     requireOnePerPoint("colors", colors.size(), size());
     m_colors = std::move(colors);
+    if (!m_colorValues.empty())
+    {
+        m_colorValues.clear();
+        m_colorBounds = Range::empty();
+        Q_EMIT dataChanged();  // the color scale fits what is left
+    }
     Q_EMIT changed();
+}
+
+void ScatterSeries::setColorValues(std::vector<double>&& values)
+{
+    requireOnePerPoint("color values", values.size(), size());
+    m_colorValues = std::move(values);
+    m_colors.clear();
+    m_colorBounds = Range::empty();
+    for (const double value : m_colorValues)
+    {
+        if (std::isfinite(value))
+        {
+            m_colorBounds = m_colorBounds.including(value);
+        }
+    }
+    Q_EMIT dataChanged();  // the color scale fits them
+    Q_EMIT changed();
+}
+
+void ScatterSeries::clearColorValues()
+{
+    if (m_colorValues.empty())
+    {
+        return;
+    }
+    m_colorValues.clear();
+    m_colorBounds = Range::empty();
+    Q_EMIT dataChanged();
+    Q_EMIT changed();
+}
+
+double ScatterSeries::colorValue(std::size_t index) const
+{
+    return index < m_colorValues.size() ? m_colorValues[index]
+                                        : std::numeric_limits<double>::quiet_NaN();
 }
 
 void ScatterSeries::clearColors()
@@ -89,7 +138,23 @@ void ScatterSeries::clearColors()
 
 QColor ScatterSeries::pointColor(std::size_t index) const
 {
+    if (index < m_colorValues.size())
+    {
+        return plot()->colorScale()->colorAt(m_colorValues[index]);
+    }
     return index < m_colors.size() ? QColor::fromRgba(m_colors[index]) : color();
+}
+
+void ScatterSeries::addCsvColumns(core::CsvSeries& columns) const
+{
+    if (m_colorValues.empty())
+    {
+        return;
+    }
+    const QString label = plainText(plot()->colorScale()->label());
+    columns.columns.push_back(
+        {.suffix = "(" + (label.isEmpty() ? std::string("color value") : label.toStdString()) + ")",
+         .values = m_colorValues});
 }
 
 bool ScatterSeries::pick(const core::PickQuery& query, core::NearestPoint& found) const
@@ -111,6 +176,8 @@ void ScatterSeries::pointsReplaced()
 {
     m_sizes.clear();
     m_colors.clear();
+    m_colorValues.clear();
+    m_colorBounds = Range::empty();
     m_largestSize = 0.0;
 }
 

@@ -90,6 +90,7 @@
 #include "rocketplot/BarSeries.h"
 #include "rocketplot/BoxSeries.h"
 #include "rocketplot/BoxStatistics.h"
+#include "rocketplot/ColorScale.h"
 #include "rocketplot/EventMarker.h"
 #include "rocketplot/ExportOptions.h"
 #include "rocketplot/HistogramSeries.h"
@@ -220,6 +221,7 @@ struct PlotWidget::Private
     Axis*                                  yAxis        = nullptr;
     Axis*                                  yAxis2       = nullptr;
     Legend*                                legend       = nullptr;
+    ColorScale*                            colorScale   = nullptr;
     qsizetype                              colorCounter = 0;
     MarkerPainter                          markers;
     TextPainter                            text;
@@ -346,10 +348,16 @@ struct PlotWidget::Private
 
 PlotWidget::PlotWidget(QWidget* parent) : QWidget(parent), m_impl(std::make_unique<Private>(*this))
 {
-    m_impl->xAxis  = new Axis(Qt::Horizontal, false, this);
-    m_impl->yAxis  = new Axis(Qt::Vertical, false, this);
-    m_impl->yAxis2 = new Axis(Qt::Vertical, true, this);
-    m_impl->legend = new Legend(this);
+    m_impl->xAxis      = new Axis(Qt::Horizontal, false, this);
+    m_impl->yAxis      = new Axis(Qt::Vertical, false, this);
+    m_impl->yAxis2     = new Axis(Qt::Vertical, true, this);
+    m_impl->legend     = new Legend(this);
+    m_impl->colorScale = new ColorScale(this);
+    // A new setting or range: drawn again; autoscale turned on: fitted now.
+    connect(m_impl->colorScale, &ColorScale::changed, this, [this] {
+        refitColorScale();
+        invalidate();
+    });
     m_impl->interaction =
         std::make_unique<InteractionController>(*this, [this] { return m_impl->layout(*this); });
     m_impl->debugOverlay = qEnvironmentVariableIntValue("ROCKETPLOT_DEBUG_OVERLAY") == 1;
@@ -774,6 +782,11 @@ Axis* PlotWidget::yAxis2() const noexcept
 Legend* PlotWidget::legend() const noexcept
 {
     return m_impl->legend;
+}
+
+ColorScale* PlotWidget::colorScale() const noexcept
+{
+    return m_impl->colorScale;
 }
 
 PlotLink* PlotWidget::link() const noexcept
@@ -1669,7 +1682,36 @@ void PlotWidget::applyAutoscale()
 {
     refitX();
     refitY();
+    refitColorScale();
     settleAspect();
+}
+
+void PlotWidget::refitColorScale()
+{
+    ColorScale& scale = *m_impl->colorScale;
+    if (!scale.autoscale())
+    {
+        return;
+    }
+    Range bounds = Range::empty();
+    for (const Series* series : std::as_const(m_impl->series))
+    {
+        const auto* scatter = qobject_cast<const ScatterSeries*>(series);
+        if (scatter != nullptr && scatter->isVisible())
+        {
+            bounds = bounds.united(scatter->colorBounds());
+        }
+    }
+    if (!bounds.isValid())
+    {
+        return;  // nothing to fit: stays where it is
+    }
+    if (!core::isUsableRange(bounds))
+    {
+        // One value: a range around it, as an axis has.
+        bounds = core::autoscaleRange(bounds, 0.0);
+    }
+    scale.applyRange(bounds);
 }
 
 Range PlotWidget::xDataBounds(bool positiveOnly, bool withAnnotations) const
@@ -2319,6 +2361,9 @@ QJsonObject PlotWidget::saveState() const
     QJsonObject legend;
     m_impl->legend->saveState(legend);
     state.insert(QLatin1String("legend"), legend);
+    QJsonObject colorScale;
+    m_impl->colorScale->saveState(colorScale);
+    state.insert(QLatin1String("colorScale"), colorScale);
     QJsonArray series;
     for (const Series* one : std::as_const(m_impl->series))
     {
@@ -2397,6 +2442,10 @@ bool PlotWidget::restoreState(const QJsonObject& state)
     if (const QJsonValue legend = state.value(QLatin1String("legend")); legend.isObject())
     {
         m_impl->legend->restoreState(legend.toObject());
+    }
+    if (const QJsonValue scale = state.value(QLatin1String("colorScale")); scale.isObject())
+    {
+        m_impl->colorScale->restoreState(scale.toObject());
     }
     invalidate();
     return true;

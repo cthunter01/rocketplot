@@ -5,6 +5,7 @@
         <file alias="AnnotationsPage.cpp">pages/AnnotationsPage.cpp</file>
         <file alias="DataImportWidget.cpp">DataImportWidget.cpp</file>
         <file alias="BasicLinesPage.cpp">pages/BasicLinesPage.cpp</file>
+        <file alias="ColorScalePage.cpp">pages/ColorScalePage.cpp</file>
         <file alias="DateTimePage.cpp">pages/DateTimePage.cpp</file>
         <file alias="ErrorBarsPage.cpp">pages/ErrorBarsPage.cpp</file>
         <file alias="ExportPage.cpp">pages/ExportPage.cpp</file>
