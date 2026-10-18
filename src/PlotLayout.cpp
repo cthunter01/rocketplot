@@ -229,9 +229,10 @@ double closestTicks(const AxisLayout& layout, const core::AxisMapping& mapping)
     return closest;
 }
 
-void setFonts(PlotLayout& layout, const QFont& font, const Theme& theme)
+void setFonts(PlotLayout& layout, const QFont& plotFont, const Theme& theme)
 {
-    layout.tickFont = scaledFont(font, theme.tickFontScale);
+    const QFont font = grayAntialiased(plotFont);
+    layout.tickFont  = scaledFont(font, theme.tickFontScale);
     layout.tickFont.setFeature(QFont::Tag("tnum"),
                                1);  // digits of equal width: labels don't jitter
     layout.labelFont = scaledFont(font, theme.labelFontScale);
@@ -564,6 +565,13 @@ QFont scaledFont(const QFont& base, double scale)
     {
         font.setPixelSize(std::max(1, static_cast<int>(std::lround(base.pixelSize() * scale))));
     }
+    return font;
+}
+
+QFont grayAntialiased(QFont font)
+{
+    font.setStyleStrategy(
+        static_cast<QFont::StyleStrategy>(font.styleStrategy() | QFont::NoSubpixelAntialias));
     return font;
 }
 

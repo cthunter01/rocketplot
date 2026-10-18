@@ -138,6 +138,11 @@ struct PlotLayout
 /// @p base at @p scale times its size (a theme's font scales).
 [[nodiscard]] QFont scaledFont(const QFont& base, double scale);
 
+/// @p font antialiased in gray, as Qt draws text into a pixmap or an image. What a widget draws
+/// over its cached rendering (the legend, the crosshair's labels, a grid's title) then looks like
+/// the rest and like an export, where fontconfig asks for subpixel antialiasing (as Ubuntu's does).
+[[nodiscard]] QFont grayAntialiased(QFont font);
+
 /// The scale an axis maps values with.
 [[nodiscard]] core::Scale scaleOf(const Axis& axis);
 

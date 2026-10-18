@@ -57,7 +57,7 @@ constexpr QSize  kPlotMinimumSize{160, 100};
 
 QFont titleFont(const QFont& base, const Theme& theme)
 {
-    QFont font = scaledFont(base, theme.titleFontScale * kTitleScale);
+    QFont font = scaledFont(grayAntialiased(base), theme.titleFontScale * kTitleScale);
     font.setWeight(QFont::DemiBold);
     return font;
 }
