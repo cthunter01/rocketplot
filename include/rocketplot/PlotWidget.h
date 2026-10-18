@@ -534,6 +534,9 @@ private:
     [[nodiscard]] RangeOverrides headroomRanges(double share) const;
     // Brings the y axes' headroom up to date for the widget's size; before it is drawn.
     void settleHeadroom();
+    // Whether a visible series stands on 0 along @p orientation (on @p yAxis, unless null): bars
+    // from a baseline, which autoscale keeps at the end of the range.
+    [[nodiscard]] bool standsOnZero(Qt::Orientation orientation, const Axis* yAxis) const;
     // The range autoscale fits the x axis to; nothing when it doesn't autoscale.
     [[nodiscard]] std::optional<Range> fitX() const;
     // Whether aspectRatio() applies: set, with both axes linear.
@@ -600,6 +603,7 @@ private:
     void                showEntryMenu(const LegendEntry& entry, QPoint globalPosition);
     void                addStyleActions(QMenu* menu, const LegendEntry& entry);
     void                addMarkerMenu(QMenu* menu, const LegendEntry& entry);
+    void                addLineWidthMenu(QMenu* menu, const LegendEntry& entry);
     void                showAnnotationEntryMenu(Annotation* annotation, QPoint globalPosition);
     [[nodiscard]] QIcon markerIcon(const Series& series, Marker shape) const;
     // Bounds of the x values autoscale fits (only positive ones for a log axis): the visible

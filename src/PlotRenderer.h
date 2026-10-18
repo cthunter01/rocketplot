@@ -13,6 +13,7 @@
 #include "core/ErrorGeometry.h"
 #include "core/LineBand.h"
 #include "core/Occupancy.h"
+#include "rocketplot/enums.h"
 
 class QColor;
 class QPainter;
@@ -36,7 +37,7 @@ struct Theme;
 struct SeriesStats
 {
     QString              name;
-    bool                 scatter       = false;
+    SeriesKind           kind          = SeriesKind::LINE;
     core::DecimationMode mode          = core::DecimationMode::RAW;
     std::size_t          totalPoints   = 0;
     std::size_t          visiblePoints = 0;      ///< Points decimation looked at
@@ -83,7 +84,7 @@ private:
     // Fills each run of @p polygons in @p color.
     void fillPolygons(QPainter& painter, const core::Polyline& polygons, const QColor& color);
     void strokeLine(QPainter& painter, const LineSeries& series) const;
-    void drawScatter(QPainter& painter, const Series& series, SeriesStats& stats);
+    void drawScatter(QPainter& painter, const ScatterSeries& series, SeriesStats& stats);
     void drawStyledScatter(QPainter& painter, const ScatterSeries& series, const MarkerStyle& style,
                            SeriesStats& stats);
     // How a series' errors are drawn in this frame.

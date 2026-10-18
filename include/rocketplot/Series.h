@@ -3,6 +3,7 @@
 #include <QColor>
 #include <QObject>
 #include <QString>
+#include <Qt>
 #include <cstddef>
 #include <memory>
 #include <optional>
@@ -24,6 +25,9 @@ namespace core
 {
 class ErrorData;
 class SeriesData;
+struct CsvSeries;
+struct NearestPoint;
+struct PickQuery;
 }  // namespace core
 
 class Axis;
@@ -48,10 +52,14 @@ class PlotWidget;
 ///
 /// Data functions throw std::invalid_argument when x and y differ in size, or errors and points in
 /// number. append() throws std::logic_error on a view, or with the wrong kind of x (x values for a
-/// UniformX series, or none for one with an x array).
+/// UniformX series, or none for one with an x array). A kind of series whose points are worked
+/// out from data of its own (bars from their edges and heights, a box from its statistics) takes
+/// them through its own functions: setData(), setDataView(), append() and clear() throw
+/// std::logic_error on it, and so do the error functions where its errors are its own too.
 class ROCKETPLOT_EXPORT Series : public QObject
 {
     Q_OBJECT
+    Q_PROPERTY(rocketplot::SeriesKind kind READ kind CONSTANT)
     Q_PROPERTY(QString name READ name WRITE setName NOTIFY changed)
     Q_PROPERTY(QString legendGroup READ legendGroup WRITE setLegendGroup NOTIFY changed)
     Q_PROPERTY(bool visible READ isVisible WRITE setVisible NOTIFY changed)
@@ -76,6 +84,8 @@ public:
 
     /// The plot this series belongs to.
     [[nodiscard]] PlotWidget* plot() const noexcept { return m_plot; }
+    /// Which kind of series this is: which of the Series classes, and so what it draws.
+    [[nodiscard]] SeriesKind kind() const noexcept { return m_kind; }
 
     /// The name in the legend. Math between $ signs and Qt rich text work too: "$v_z$". A series
     /// with an empty name has no legend entry (unless its legend group has one).
@@ -328,12 +338,21 @@ Q_SIGNALS:
     void dataChanged();
 
 protected:
-    explicit Series(PlotWidget* plot, Marker marker, ErrorStyle errorStyle);
+    Series(PlotWidget* plot, SeriesKind kind, Marker marker, ErrorStyle errorStyle);
 
     // The settings a saved state holds (PlotWidget::saveState()), and taking them back. A kind of
     // series with settings of its own adds them.
     virtual void saveState(QJsonObject& state) const;
     virtual void restoreState(const QJsonObject& state);
+
+    // For a kind whose points are worked out from data of its own: from now on the public data
+    // functions throw (and the error functions, with @p errorsToo), and replacePoints() is how its
+    // points change.
+    void lockData(bool errorsToo);
+    void replacePoints(std::vector<double>&& x, std::vector<double>&& y);
+    // The points and their errors, as stored.
+    [[nodiscard]] const core::SeriesData& data() const noexcept { return *m_data; }
+    [[nodiscard]] const core::ErrorData&  errors() const noexcept { return *m_errors; }
 
 private:
     friend class PlotRenderer;
@@ -345,16 +364,30 @@ private:
     void applyYErrors(std::span<const double> minus, std::span<const double> plus);
     void dataWasChanged();
     // The points were replaced (not added to): what belonged to the old ones goes.
-    void                                  dataWasReplaced();
-    virtual void                          pointsReplaced();
-    [[nodiscard]] const core::SeriesData& data() const noexcept { return *m_data; }
-    [[nodiscard]] const core::ErrorData&  errors() const noexcept { return *m_errors; }
-    // What autoscale fits: the points with their error bars.
-    [[nodiscard]] Range fitBoundsX(bool positiveOnly) const;
-    [[nodiscard]] Range fitBoundsY(bool positiveOnly) const;
-    [[nodiscard]] Range fitBoundsYWithin(Range xRange, bool positiveOnly) const;
+    void         dataWasReplaced();
+    virtual void pointsReplaced();
+    void         checkDataUnlocked() const;
+    void         checkErrorsUnlocked() const;
+
+    // What a kind of series means by its data, so that the plot and the legend needn't know the
+    // kinds. What autoscale fits: the points with their error bars.
+    [[nodiscard]] virtual Range fitBoundsX(bool positiveOnly) const;
+    [[nodiscard]] virtual Range fitBoundsY(bool positiveOnly) const;
+    [[nodiscard]] virtual Range fitBoundsYWithin(Range xRange, bool positiveOnly) const;
+    // The directions in which the series stands on 0 (bars from a baseline): autoscale keeps 0
+    // at the end of the range there, with no margin beyond it.
+    [[nodiscard]] virtual Qt::Orientations zeroBaselines() const;
+    // The point a crosshair asked by @p query lands on, into @p found; whether there is one.
+    [[nodiscard]] virtual bool pick(const core::PickQuery& query, core::NearestPoint& found) const;
+    // The point nearestIndex() gives.
+    [[nodiscard]] virtual std::optional<std::size_t> indexNear(double x) const;
+    // Columns of its own in a CSV table, after its y and errors.
+    virtual void addCsvColumns(core::CsvSeries& columns) const;
 
     PlotWidget*                       m_plot;
+    SeriesKind                        m_kind;
+    bool                              m_dataLocked   = false;
+    bool                              m_errorsLocked = false;
     std::unique_ptr<core::SeriesData> m_data;
     std::unique_ptr<core::ErrorData>  m_errors;
     QString                           m_name;

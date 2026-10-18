@@ -3,6 +3,8 @@
 #include <QColor>
 #include <QImage>
 #include <QList>
+#include <QMetaObject>
+#include <QMetaProperty>
 #include <QPen>
 #include <QPoint>
 #include <QPointF>
@@ -48,6 +50,22 @@ static_assert(rocketplot::NumericRange<QList<double>>);
 static_assert(
     !rocketplot::NumericRange<std::remove_cvref_t<decltype("hello")>>);  // a name, not data
 static_assert(!rocketplot::NumericRange<std::vector<bool>>);
+
+TEST(Series, KnowsItsKind)
+{
+    PlotWidget                      plot;
+    const rocketplot::Series* const line = plot.addLine(std::vector<double>{0, 1});
+    const rocketplot::Series* const scatter =
+        plot.addScatter(std::vector<double>{0, 1}, std::vector<double>{0, 1});
+    EXPECT_EQ(line->kind(), rocketplot::SeriesKind::LINE);
+    EXPECT_EQ(scatter->kind(), rocketplot::SeriesKind::SCATTER);
+    // A property for the inspector, which never changes.
+    EXPECT_EQ(line->property("kind").value<rocketplot::SeriesKind>(), rocketplot::SeriesKind::LINE);
+    const int index = line->metaObject()->indexOfProperty("kind");
+    ASSERT_GE(index, 0);
+    EXPECT_TRUE(line->metaObject()->property(index).isConstant());
+    EXPECT_FALSE(line->metaObject()->property(index).isWritable());
+}
 
 TEST(Series, CopiesAnyNumericRange)
 {

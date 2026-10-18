@@ -75,9 +75,12 @@ core::PixelBox expanded(const QRectF& rect, double margin)
 
 QString modeName(const SeriesStats& stats)
 {
-    if (stats.scatter)
+    switch (stats.kind)
     {
-        return QStringLiteral("markers");
+        case SeriesKind::LINE:
+            break;
+        case SeriesKind::SCATTER:
+            return QStringLiteral("markers");
     }
     QString mode;
     switch (stats.mode)
@@ -267,20 +270,26 @@ void PlotRenderer::drawSeries(QPainter& painter, RenderStats& stats)
         }
     }
     const auto draw = [&](const Series& series) {
-        SeriesStats seriesStats{.name = series.name(), .totalPoints = series.size()};
-        const auto* line    = qobject_cast<const LineSeries*>(&series);
-        seriesStats.scatter = line == nullptr;
+        SeriesStats seriesStats{
+            .name = series.name(), .kind = series.kind(), .totalPoints = series.size()};
         if (series.isVisible())
         {
             painter.setOpacity(
                 !highlighted.isEmpty() && !highlighted.contains(&series) ? kFadedOpacity : 1.0);
-            if (line != nullptr)
+            switch (series.kind())
             {
-                drawLine(painter, *line, seriesStats);
-            }
-            else
-            {
-                drawScatter(painter, series, seriesStats);
+                case SeriesKind::LINE:
+                    if (const auto* line = qobject_cast<const LineSeries*>(&series))
+                    {
+                        drawLine(painter, *line, seriesStats);
+                    }
+                    break;
+                case SeriesKind::SCATTER:
+                    if (const auto* scatter = qobject_cast<const ScatterSeries*>(&series))
+                    {
+                        drawScatter(painter, *scatter, seriesStats);
+                    }
+                    break;
             }
         }
         stats.series.push_back(seriesStats);
@@ -468,7 +477,7 @@ void PlotRenderer::strokeLine(QPainter& painter, const LineSeries& series) const
     }
 }
 
-void PlotRenderer::drawScatter(QPainter& painter, const Series& series, SeriesStats& stats)
+void PlotRenderer::drawScatter(QPainter& painter, const ScatterSeries& series, SeriesStats& stats)
 {
     const ErrorPlan errors = errorPlan(series);
     if (errors.band)
@@ -480,11 +489,10 @@ void PlotRenderer::drawScatter(QPainter& painter, const Series& series, SeriesSt
         drawErrorBars(painter, series, errors.barsWithY, stats);
     }
 
-    const MarkerStyle style   = markerStyle(series, *m_theme);
-    const auto*       scatter = qobject_cast<const ScatterSeries*>(&series);
-    if (scatter != nullptr && (scatter->hasSizes() || scatter->hasColors()))
+    const MarkerStyle style = markerStyle(series, *m_theme);
+    if (series.hasSizes() || series.hasColors())
     {
-        drawStyledScatter(painter, *scatter, style, stats);
+        drawStyledScatter(painter, series, style, stats);
         return;
     }
     // Markers less than a quarter of their size apart look the same as one: draw one per such cell.

@@ -195,6 +195,14 @@ void writeHeader(const CsvSeries& series, Output& out)
         out.name(series.name + " (low)");
         out.name(series.name + " (high)");
     }
+    for (const CsvColumn& column : series.columns)
+    {
+        out.name(series.name + " " + column.suffix);
+    }
+    if (!series.labels.empty())
+    {
+        out.name(series.name + " (part)");
+    }
 }
 
 // The ends of an error bar; empty cells for a point added after the errors were set, or for no
@@ -231,6 +239,28 @@ void writeCells(const CsvSeries& series, const Cursor& cursor, Output& out)
     if (series.errors != nullptr && series.errors->hasY())
     {
         writeEnds(series.errors->yLow(), series.errors->yHigh(), index, out);
+    }
+    for (const CsvColumn& column : series.columns)
+    {
+        if (index < column.values.size())
+        {
+            out.number(column.values[index]);
+        }
+        else
+        {
+            out.empty();
+        }
+    }
+    if (!series.labels.empty())
+    {
+        if (index < series.labels.size())
+        {
+            out.name(series.labels[index]);
+        }
+        else
+        {
+            out.empty();
+        }
     }
 }
 

@@ -84,8 +84,9 @@ private:
     friend class PlotWidget;
     explicit ScatterSeries(PlotWidget* plot);
 
-    void                                  applyColors(std::vector<QRgb>&& colors);
-    void                                  pointsReplaced() override;
+    void               applyColors(std::vector<QRgb>&& colors);
+    void               pointsReplaced() override;
+    [[nodiscard]] bool pick(const core::PickQuery& query, core::NearestPoint& found) const override;
     [[nodiscard]] std::span<const double> sizes() const noexcept { return m_sizes; }
     [[nodiscard]] std::span<const QRgb>   colors() const noexcept { return m_colors; }
 

@@ -21,6 +21,19 @@ struct NearestPoint
     double      distance = 0.0;
 };
 
+/// What a crosshair looks for in a series: where the pointer is, through which mappings, inside
+/// which box, and whether it snaps (to a point within @p reach pixels) or traces (the point at the
+/// pointer's x).
+struct PickQuery
+{
+    const AxisMapping* x = nullptr;
+    const AxisMapping* y = nullptr;
+    PixelBox           box;
+    PixelPoint         position;
+    double             reach   = 0.0;
+    bool               tracing = false;
+};
+
 /// The point of @p data drawn nearest @p position, seen through the @p x and @p y mappings: what a
 /// crosshair that snaps to the data lands on. Only points drawn inside @p box and no more than
 /// @p reach pixels from @p position count (an infinite reach: any in the box); nothing if there is

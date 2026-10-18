@@ -139,6 +139,25 @@ TEST(CsvWriter, ErrorsAreWrittenAsTheEndsOfTheBars)
               "3,30,,,,\n");
 }
 
+TEST(CsvWriter, ExtraColumnsAndLabels)
+{
+    const SeriesData               counts = points({0.5, 1.5}, {4, 7});
+    const std::vector<double>      starts{0.0, 1.0};
+    const std::vector<double>      ends{1.0};  // one short: an empty cell
+    const std::vector<std::string> parts{"low", "high, then"};
+    const std::vector<CsvSeries>   series{{
+        .name    = "Counts",
+        .data    = &counts,
+        .columns = {{.suffix = "(bin start)", .values = starts},
+                    {.suffix = "(bin end)", .values = ends}},
+        .labels  = parts,
+    }};
+    EXPECT_EQ(csvOf({.series = series, .xRange = kEverything}),
+              "x,Counts,Counts (bin start),Counts (bin end),Counts (part)\n"
+              "0.5,4,0,1,low\n"
+              "1.5,7,1,,\"high, then\"\n");
+}
+
 TEST(CsvWriter, NamesAreQuotedWhereTheyMust)
 {
     const SeriesData             data = points({1}, {2});

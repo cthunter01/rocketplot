@@ -59,23 +59,31 @@ QRectF tagBox(const QFontMetricsF& metrics, const QString& text)
 // line without markers), a little larger, so that it shows on top of the one already there.
 void drawPointMarker(QPainter& painter, const Theme& theme, const CrosshairPoint& point)
 {
-    const Series& series  = *point.series;
-    const auto*   scatter = qobject_cast<const ScatterSeries*>(&series);
-    const bool    marked  = series.marker() != Marker::NONE;
-    double        size    = marked ? series.markerSize() : 0.0;
-    if (scatter != nullptr)
+    const Series& series = *point.series;
+    const bool    marked = series.marker() != Marker::NONE;
+    double        size   = marked ? series.markerSize() : 0.0;
+    QColor        color  = series.color();
+    switch (series.kind())
     {
-        size = scatter->pointSize(point.index);
+        case SeriesKind::LINE:
+            break;
+        case SeriesKind::SCATTER:
+            // Its own size and color, if it has them.
+            if (const auto* scatter = qobject_cast<const ScatterSeries*>(&series))
+            {
+                size  = scatter->pointSize(point.index);
+                color = scatter->pointColor(point.index);
+            }
+            break;
     }
-    MarkerPainter::draw(
-        painter, point.position,
-        {
-            .shape     = marked ? series.marker() : Marker::CIRCLE,
-            .size      = std::max(size, theme.markerSize) + kPointGrowth,
-            .color     = scatter != nullptr ? scatter->pointColor(point.index) : series.color(),
-            .ring      = theme.background,
-            .ringWidth = theme.markerRingWidth,
-        });
+    MarkerPainter::draw(painter, point.position,
+                        {
+                            .shape     = marked ? series.marker() : Marker::CIRCLE,
+                            .size      = std::max(size, theme.markerSize) + kPointGrowth,
+                            .color     = color,
+                            .ring      = theme.background,
+                            .ringWidth = theme.markerRingWidth,
+                        });
 }
 
 }  // namespace

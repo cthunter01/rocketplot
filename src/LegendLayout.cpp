@@ -165,11 +165,18 @@ void drawErrorSwatch(QPainter& painter, const Series& series, const Theme& theme
 void drawSwatch(QPainter& painter, const Series& series, const Theme& theme, QPointF center)
 {
     drawErrorSwatch(painter, series, theme, center);
-    if (const auto* line = qobject_cast<const LineSeries*>(&series))
+    switch (series.kind())
     {
-        painter.setPen(linePen(*line, std::min(line->lineWidth(), kMaxSwatchLine)));
-        painter.drawLine(center - QPointF(kSwatch / 2.0, 0.0),
-                         center + QPointF(kSwatch / 2.0, 0.0));
+        case SeriesKind::LINE:
+            if (const auto* line = qobject_cast<const LineSeries*>(&series))
+            {
+                painter.setPen(linePen(*line, std::min(line->lineWidth(), kMaxSwatchLine)));
+                painter.drawLine(center - QPointF(kSwatch / 2.0, 0.0),
+                                 center + QPointF(kSwatch / 2.0, 0.0));
+            }
+            break;
+        case SeriesKind::SCATTER:
+            break;
     }
     MarkerPainter::draw(painter, center, markerStyle(series, theme));
 }

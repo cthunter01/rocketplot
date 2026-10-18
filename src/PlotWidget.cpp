@@ -1068,8 +1068,6 @@ const CrosshairPoint* PlotWidget::crosshairPoint() const
         .right  = area.right() + kEdgeTolerance,
         .bottom = area.bottom() + kEdgeTolerance,
     };
-    const core::PixelPoint            pointer{.x = hover->x(), .y = hover->y()};
-    const bool                        tracing = impl.crosshairMode == CrosshairMode::TRACE;
     std::optional<core::NearestPoint> nearest;
     Series*                           nearestSeries = nullptr;
     for (Series* series : std::as_const(impl.series))
@@ -1078,16 +1076,17 @@ const CrosshairPoint* PlotWidget::crosshairPoint() const
         {
             continue;
         }
-        const auto*                   scatter = qobject_cast<const ScatterSeries*>(series);
-        const std::span<const double> sizes =
-            scatter != nullptr ? scatter->sizes() : std::span<const double>();
-        const core::AxisMapping&                x = layout.x.mapping;
-        const core::AxisMapping&                y = layout.yFor(*series).mapping;
-        const std::optional<core::NearestPoint> found =
-            tracing ? core::tracedPoint(series->data(), x, y, box, pointer, sizes)
-                    : core::nearestPoint(series->data(), x, y, box, pointer, kSnapReach, sizes);
+        const core::PickQuery query{
+            .x        = &layout.x.mapping,
+            .y        = &layout.yFor(*series).mapping,
+            .box      = box,
+            .position = {.x = hover->x(), .y = hover->y()},
+            .reach    = kSnapReach,
+            .tracing  = impl.crosshairMode == CrosshairMode::TRACE,
+        };
+        core::NearestPoint found;
         // Of series equally near, the one drawn on top: the later.
-        if (found && (!nearest || found->distance <= nearest->distance))
+        if (series->pick(query, found) && (!nearest || found.distance <= nearest->distance))
         {
             nearest       = found;
             nearestSeries = series;
@@ -1491,32 +1490,48 @@ void PlotWidget::addStyleActions(QMenu* menu, const LegendEntry& entry)
         menu->addAction(tr("Theme color"), this,
                         forEachOf(targets, [](Series& current) { current.resetColor(); }));
     }
-    if (const auto* line = qobject_cast<const LineSeries*>(&sample))
+    switch (sample.kind())
     {
-        QMenu*        widths = menu->addMenu(tr("Line width"));
-        const QLocale locale;
-        for (const double width : {1.0, 1.5, 2.0, 3.0, 4.0})
-        {
-            QAction* action = widths->addAction(tr("%1 px").arg(locale.toString(width)));
-            action->setCheckable(true);
-            action->setChecked(line->lineWidth() == width);
-            connect(action, &QAction::triggered, this, forEachOf(targets, [width](Series& current) {
-                        if (auto* currentLine = qobject_cast<LineSeries*>(&current))
-                        {
-                            currentLine->setLineWidth(width);
-                        }
-                    }));
-        }
+        case SeriesKind::LINE:
+            addLineWidthMenu(menu, entry);
+            break;
+        case SeriesKind::SCATTER:
+            break;
     }
     addMarkerMenu(menu, entry);
 }
 
-void PlotWidget::addMarkerMenu(QMenu* menu, const LegendEntry& entry)
+void PlotWidget::addLineWidthMenu(QMenu* menu, const LegendEntry& entry)
 {
     const QList<QPointer<Series>> targets = pointersTo(entry.series);
-    const Series&                 sample  = *entry.sample;
-    QMenu*                        markers = menu->addMenu(tr("Marker"));
-    const auto                    shapes  = std::to_array<std::pair<Marker, QString>>({
+    const auto*                   line    = qobject_cast<const LineSeries*>(entry.sample);
+    if (line == nullptr)
+    {
+        return;
+    }
+    QMenu*        widths = menu->addMenu(tr("Line width"));
+    const QLocale locale;
+    for (const double width : {1.0, 1.5, 2.0, 3.0, 4.0})
+    {
+        QAction* action = widths->addAction(tr("%1 px").arg(locale.toString(width)));
+        action->setCheckable(true);
+        action->setChecked(line->lineWidth() == width);
+        // A group may hold series of other kinds, which have no line width.
+        connect(action, &QAction::triggered, this, forEachOf(targets, [width](Series& current) {
+                    if (auto* currentLine = qobject_cast<LineSeries*>(&current))
+                    {
+                        currentLine->setLineWidth(width);
+                    }
+                }));
+    }
+}
+
+void PlotWidget::addMarkerMenu(QMenu* menu, const LegendEntry& entry)
+{
+    const QList<QPointer<Series>> targets   = pointersTo(entry.series);
+    const Series&                 sample    = *entry.sample;
+    QMenu*                        markers   = menu->addMenu(tr("Marker"));
+    const auto                    shapes    = std::to_array<std::pair<Marker, QString>>({
         {Marker::NONE, tr("None")},
         {Marker::CIRCLE, tr("Circle")},
         {Marker::SQUARE, tr("Square")},
@@ -1525,12 +1540,20 @@ void PlotWidget::addMarkerMenu(QMenu* menu, const LegendEntry& entry)
         {Marker::CROSS, tr("Cross")},
         {Marker::PLUS, tr("Plus")},
     });
-    const bool                    scatter = qobject_cast<const LineSeries*>(&sample) == nullptr;
+    bool                          noneShows = true;  // whether a series without markers draws
+    switch (sample.kind())
+    {
+        case SeriesKind::LINE:
+            break;
+        case SeriesKind::SCATTER:
+            noneShows = false;
+            break;
+    }
     for (const auto& [shape, name] : shapes)
     {
-        if (shape == Marker::NONE && scatter)
+        if (shape == Marker::NONE && !noneShows)
         {
-            continue;  // a scatter series without markers draws nothing
+            continue;
         }
         QAction* action = markers->addAction(markerIcon(sample, shape), name);
         action->setCheckable(true);
@@ -1685,7 +1708,10 @@ std::optional<Range> PlotWidget::fitX() const
         return core::followRange(bounds, axis.followWindow(), axis.autoscaleMargin());
     }
     return core::autoscaleRange(bounds, axis.autoscaleMargin(), scale,
-                                {.includeWithin = axis.autoscaleIncludesZero()});
+                                {
+                                    .includeWithin = axis.autoscaleIncludesZero(),
+                                    .baseline      = standsOnZero(Qt::Horizontal, nullptr),
+                                });
 }
 
 std::optional<Range> PlotWidget::fitY(const Axis& axis) const
@@ -1705,7 +1731,18 @@ std::optional<Range> PlotWidget::fitY(const Axis& axis) const
         return std::nullopt;
     }
     return core::autoscaleRange(bounds, axis.autoscaleMargin(), scale,
-                                {.includeWithin = axis.autoscaleIncludesZero()});
+                                {
+                                    .includeWithin = axis.autoscaleIncludesZero(),
+                                    .baseline      = standsOnZero(Qt::Vertical, &axis),
+                                });
+}
+
+bool PlotWidget::standsOnZero(Qt::Orientation orientation, const Axis* yAxis) const
+{
+    return std::ranges::any_of(m_impl->series, [&](const Series* series) {
+        return series->isVisible() && series->zeroBaselines().testFlag(orientation) &&
+               (yAxis == nullptr || series->yAxis() == yAxis);
+    });
 }
 
 void PlotWidget::refitY()
@@ -2138,11 +2175,12 @@ void PlotWidget::writeCsv(QChar separator, const std::function<void(std::string_
         }
         const QString name =
             series->name().isEmpty() ? tr("Series %1").arg(number) : plainText(series->name());
-        table.push_back({
+        core::CsvSeries& columns = table.emplace_back(core::CsvSeries{
             .name   = name.toStdString(),
             .data   = &series->data(),
             .errors = &series->errors(),
         });
+        series->addCsvColumns(columns);
     }
     const QString label = plainText(m_impl->xAxis->label());
     core::writeCsv(

@@ -11,6 +11,14 @@ namespace rocketplot
 {
 Q_NAMESPACE_EXPORT(ROCKETPLOT_EXPORT)
 
+/// What a series draws (Series::kind()): which of the Series classes it is.
+enum class SeriesKind : std::uint8_t
+{
+    LINE,     ///< LineSeries
+    SCATTER,  ///< ScatterSeries
+};
+Q_ENUM_NS(SeriesKind)
+
 /// Shape drawn at each data point.
 enum class Marker : std::uint8_t
 {

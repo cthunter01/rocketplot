@@ -6,10 +6,12 @@
 #include <cmath>
 #include <cstddef>
 #include <format>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 #include <vector>
 
+#include "core/NearestPoint.h"
 #include "rocketplot/Series.h"
 #include "rocketplot/enums.h"
 
@@ -32,7 +34,10 @@ void requireOnePerPoint(const char* what, std::size_t count, std::size_t points)
 
 }  // namespace
 
-ScatterSeries::ScatterSeries(PlotWidget* plot) : Series(plot, Marker::CIRCLE, ErrorStyle::BARS) { }
+ScatterSeries::ScatterSeries(PlotWidget* plot)
+  : Series(plot, SeriesKind::SCATTER, Marker::CIRCLE, ErrorStyle::BARS)
+{
+}
 
 ScatterSeries::~ScatterSeries() = default;
 
@@ -85,6 +90,21 @@ void ScatterSeries::clearColors()
 QColor ScatterSeries::pointColor(std::size_t index) const
 {
     return index < m_colors.size() ? QColor::fromRgba(m_colors[index]) : color();
+}
+
+bool ScatterSeries::pick(const core::PickQuery& query, core::NearestPoint& found) const
+{
+    // A point with its own size of 0 is hidden: it can't be landed on.
+    const std::optional<core::NearestPoint> point =
+        query.tracing
+            ? core::tracedPoint(data(), *query.x, *query.y, query.box, query.position, m_sizes)
+            : core::nearestPoint(data(), *query.x, *query.y, query.box, query.position, query.reach,
+                                 m_sizes);
+    if (point)
+    {
+        found = *point;
+    }
+    return point.has_value();
 }
 
 void ScatterSeries::pointsReplaced()

@@ -11,14 +11,17 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
 #include "Logging.h"
 #include "PlotLayout.h"
 #include "PlotState.h"
+#include "core/CsvWriter.h"
 #include "core/ErrorData.h"
 #include "core/Interpolate.h"
+#include "core/NearestPoint.h"
 #include "core/SeriesData.h"
 #include "rocketplot/Axis.h"
 #include "rocketplot/PlotWidget.h"
@@ -29,9 +32,10 @@
 namespace rocketplot
 {
 
-Series::Series(PlotWidget* plot, Marker marker, ErrorStyle errorStyle)
+Series::Series(PlotWidget* plot, SeriesKind kind, Marker marker, ErrorStyle errorStyle)
   : QObject(plot),
     m_plot(plot),
+    m_kind(kind),
     m_data(std::make_unique<core::SeriesData>()),
     m_errors(std::make_unique<core::ErrorData>()),
     m_marker(marker),
@@ -242,6 +246,11 @@ bool Series::isSortedByX() const noexcept
 
 std::optional<std::size_t> Series::nearestIndex(double x) const
 {
+    return indexNear(x);
+}
+
+std::optional<std::size_t> Series::indexNear(double x) const
+{
     return m_data->nearestIndex(x);
 }
 
@@ -262,24 +271,28 @@ bool Series::isView() const noexcept
 
 void Series::setData(std::vector<double>&& x, std::vector<double>&& y)
 {
+    checkDataUnlocked();
     m_data->setOwned(std::move(x), std::move(y));
     dataWasReplaced();
 }
 
 void Series::setData(UniformX x, std::vector<double>&& y)
 {
+    checkDataUnlocked();
     m_data->setOwned(x, std::move(y));
     dataWasReplaced();
 }
 
 void Series::setDataView(std::span<const double> x, std::span<const double> y)
 {
+    checkDataUnlocked();
     m_data->setView(x, y);
     dataWasReplaced();
 }
 
 void Series::setDataView(UniformX x, std::span<const double> y)
 {
+    checkDataUnlocked();
     m_data->setView(x, y);
     dataWasReplaced();
 }
@@ -302,36 +315,42 @@ void Series::append(double y)
 
 void Series::clear()
 {
+    checkDataUnlocked();
     m_data->clear();
     dataWasReplaced();
 }
 
 void Series::appendPoints(std::span<const double> x, std::span<const double> y)
 {
+    checkDataUnlocked();
     m_data->append(x, y);
     dataWasChanged();
 }
 
 void Series::appendSamples(std::span<const double> y)
 {
+    checkDataUnlocked();
     m_data->append(y);
     dataWasChanged();
 }
 
 void Series::applyXErrors(std::span<const double> minus, std::span<const double> plus)
 {
+    checkErrorsUnlocked();
     m_errors->setX(*m_data, minus, plus);
     Q_EMIT dataChanged();
 }
 
 void Series::applyYErrors(std::span<const double> minus, std::span<const double> plus)
 {
+    checkErrorsUnlocked();
     m_errors->setY(*m_data, minus, plus);
     Q_EMIT dataChanged();
 }
 
 void Series::clearErrors()
 {
+    checkErrorsUnlocked();
     if (m_errors->empty())
     {
         return;
@@ -456,6 +475,58 @@ Range Series::fitBoundsYWithin(Range xRange, bool positiveOnly) const
     return m_data->yBoundsWithin(xRange, positiveOnly)
         .united(m_errors->yBoundsWithin(*m_data, xRange, positiveOnly));
 }
+
+void Series::lockData(bool errorsToo)
+{
+    m_dataLocked   = true;
+    m_errorsLocked = errorsToo;
+}
+
+void Series::replacePoints(std::vector<double>&& x, std::vector<double>&& y)
+{
+    m_data->setOwned(std::move(x), std::move(y));
+    dataWasReplaced();
+}
+
+void Series::checkDataUnlocked() const
+{
+    if (m_dataLocked)
+    {
+        throw std::logic_error(
+            "rocketplot::Series: this kind of series takes its points through "
+            "functions of its own");
+    }
+}
+
+void Series::checkErrorsUnlocked() const
+{
+    if (m_errorsLocked)
+    {
+        throw std::logic_error(
+            "rocketplot::Series: this kind of series takes its errors through "
+            "functions of its own");
+    }
+}
+
+Qt::Orientations Series::zeroBaselines() const
+{
+    return {};
+}
+
+bool Series::pick(const core::PickQuery& query, core::NearestPoint& found) const
+{
+    const std::optional<core::NearestPoint> point =
+        query.tracing ? core::tracedPoint(*m_data, *query.x, *query.y, query.box, query.position)
+                      : core::nearestPoint(*m_data, *query.x, *query.y, query.box, query.position,
+                                           query.reach);
+    if (point)
+    {
+        found = *point;
+    }
+    return point.has_value();
+}
+
+void Series::addCsvColumns(core::CsvSeries& /*columns*/) const { }
 
 void Series::dataWasReplaced()
 {
