@@ -18,7 +18,7 @@ struct ROCKETPLOT_EXPORT Theme
 {
     QColor background;        ///< Behind everything
     QColor text;              ///< Title and legend text
-    QColor secondaryText;     ///< Axis labels and tick labels
+    QColor secondaryText;     ///< The subtitle, axis labels and tick labels
     QColor axisLine;          ///< Axis lines and ticks
     QColor gridLine;          ///< Grid lines at the major ticks
     QColor minorGridLine;     ///< Grid lines at the minor ticks (when shown)
@@ -50,6 +50,7 @@ struct ROCKETPLOT_EXPORT Theme
     double annotationFontScale = 0.9;  ///< Annotation text and labels
     double labelFontScale      = 1.0;
     double titleFontScale      = 1.2;
+    double subtitleFontScale   = 1.0;  ///< PlotWidget::subtitle()
 
     /// The color for the series that was given color index @p index.
     [[nodiscard]] QColor seriesColor(qsizetype index) const;

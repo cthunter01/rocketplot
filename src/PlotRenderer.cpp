@@ -705,6 +705,11 @@ void PlotRenderer::drawLabels(QPainter& painter) const
         m_text->draw(painter, m_plot->title(), m_layout->titleFont, m_theme->text, m_layout->title,
                      Qt::AlignCenter);
     }
+    if (!m_layout->subtitle.isNull())
+    {
+        m_text->draw(painter, m_plot->subtitle(), m_layout->subtitleFont, m_theme->secondaryText,
+                     m_layout->subtitle, Qt::AlignCenter);
+    }
 }
 
 void drawDebugOverlay(QPainter& painter, const PlotLayout& layout, const RenderStats& stats,
@@ -725,6 +730,7 @@ void drawDebugOverlay(QPainter& painter, const PlotLayout& layout, const RenderS
     const QColor orange(255, 150, 0, 200);
     outline(layout.plot, magenta);
     outline(layout.title, orange);
+    outline(layout.subtitle, orange);
     outline(legend, orange);
     for (const AxisLayout* axis : {&layout.x, &layout.y, &layout.y2})
     {

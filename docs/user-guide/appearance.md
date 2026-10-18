@@ -55,7 +55,7 @@ The fields:
 | Field | What it colors or sizes |
 | --- | --- |
 | `background` | Behind everything |
-| `text`, `secondaryText` | Title and legend text; axis labels and tick labels |
+| `text`, `secondaryText` | Title and legend text; the subtitle, axis labels and tick labels |
 | `axisLine`, `gridLine`, `minorGridLine` | Axis lines and ticks; the grid at major ticks; at minor ticks |
 | `legendBackground`, `legendBorder` | The legend's box |
 | `crosshair`, `tagBackground`, `tagText` | The crosshair and its value tags on the axes |
@@ -66,7 +66,7 @@ The fields:
 | `errorBarWidth`, `errorCapSize`, `bandOpacity` | Defaults for errors: 1.5 and 6 pixels, 0.15 |
 | `annotationLineWidth`, `spanOpacity` | Defaults for annotations: 1 pixel, 0.12 |
 | `tickLength`, `minorTickLength` | 5 and 3 pixels |
-| `tickFontScale`, `labelFontScale`, `titleFontScale`, `annotationFontScale` | Font sizes as factors of the widget's font: 0.9, 1.0, 1.2, 0.9 |
+| `tickFontScale`, `labelFontScale`, `titleFontScale`, `subtitleFontScale`, `annotationFontScale` | Font sizes as factors of the widget's font: 0.9, 1.0, 1.2, 1.0, 0.9 |
 
 Sizes are in device-independent pixels.
 

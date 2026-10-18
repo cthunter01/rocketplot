@@ -34,7 +34,8 @@ namespace
 {
 
 constexpr double kOuterPadding  = 10.0;
-constexpr double kTitleGap      = 10.0;
+constexpr double kTitleGap      = 10.0;  // under the title (and subtitle)
+constexpr double kSubtitleGap   = 2.0;   // between the title and the subtitle
 constexpr double kAxisLabelGap  = 6.0;
 constexpr double kAnnotationGap = 4.0;
 constexpr double kMinPlotSize   = 16.0;
@@ -176,6 +177,7 @@ void setFonts(PlotLayout& layout, const QFont& font, const Theme& theme)
     layout.labelFont = scaledFont(font, theme.labelFontScale);
     layout.titleFont = scaledFont(font, theme.titleFontScale);
     layout.titleFont.setWeight(QFont::DemiBold);
+    layout.subtitleFont   = scaledFont(font, theme.subtitleFontScale);
     layout.legendFont     = layout.labelFont;
     layout.annotationFont = scaledFont(font, theme.annotationFontScale);
 }
@@ -198,8 +200,8 @@ bool needsAnnotation(const Axis& axis, bool shown, double length, double spacing
     return !probe.annotation.isEmpty();
 }
 
-// The vertical stack: title, the y axes' annotation row, the plot, the x axis, the x label and
-// annotation row.
+// The vertical stack: title, subtitle, the y axes' annotation row, the plot, the x axis, the x
+// label and annotation row.
 struct Vertical
 {
     double plotTop       = 0.0;
@@ -229,7 +231,18 @@ Vertical layoutVertically(const PlotWidget& plot, PlotLayout& layout, TextPainte
     {
         const double height = text.size(plot.title(), layout.titleFont).height();
         layout.title        = QRectF(bounds.left(), top, bounds.width(), height);
-        top += height + kTitleGap;
+        top += height;
+    }
+    if (!plot.subtitle().isEmpty())
+    {
+        top += layout.title.isNull() ? 0.0 : kSubtitleGap;
+        const double height = text.size(plot.subtitle(), layout.subtitleFont).height();
+        layout.subtitle     = QRectF(bounds.left(), top, bounds.width(), height);
+        top += height;
+    }
+    if (!layout.title.isNull() || !layout.subtitle.isNull())
+    {
+        top += kTitleGap;
     }
     vertical.annotationTop = top;
     // Without annotations, room for the top y label, which sticks out above the plot.
@@ -385,11 +398,14 @@ void placeAxes(const PlotWidget& plot, PlotLayout& layout, const Vertical& verti
     layout.y2.annotationRect = QRectF(area.center().x(), vertical.annotationTop,
                                       contentRight - area.center().x(), tickHeight);
 
-    // The title is centered over the plot area, not the whole widget.
-    if (!layout.title.isNull())
+    // The title and subtitle are centered over the plot area, not the whole widget.
+    for (QRectF* heading : {&layout.title, &layout.subtitle})
     {
-        layout.title.setLeft(area.left());
-        layout.title.setRight(area.right());
+        if (!heading->isNull())
+        {
+            heading->setLeft(area.left());
+            heading->setRight(area.right());
+        }
     }
 }
 

@@ -52,6 +52,7 @@ struct PlotLayout
     QRectF bounds;  ///< The whole target
     QRectF plot;    ///< Inside the axes: where data is drawn
     QRectF title;
+    QRectF subtitle;
 
     AxisLayout x;
     AxisLayout y;
@@ -60,6 +61,7 @@ struct PlotLayout
     QFont tickFont;
     QFont labelFont;
     QFont titleFont;
+    QFont subtitleFont;
     QFont legendFont;
     QFont annotationFont;
 

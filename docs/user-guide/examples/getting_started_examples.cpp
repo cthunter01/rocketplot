@@ -51,6 +51,7 @@ void partsOfAPlot(PlotWidget* plot)
 
     // The axes and the legend are always there.
     plot->setTitle("Ascent profiles");
+    plot->setSubtitle("Two trajectories to the same orbit");
     plot->xAxis()->setLabel("Time (s)");
     plot->yAxis()->setLabel("Altitude (km)");
     plot->legend()->setAnchor(rocketplot::LegendAnchor::TOP_LEFT);

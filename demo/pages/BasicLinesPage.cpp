@@ -18,6 +18,7 @@ QWidget* create(QWidget* parent)
     // [snippet]
     auto* plot = new rocketplot::PlotWidget(parent);
     plot->setTitle("Engine bay temperatures");
+    plot->setSubtitle("Static fire 14, sensors at 10 Hz");
     plot->xAxis()->setLabel("Time (s)");
     plot->yAxis()->setLabel("Temperature (°C)");
 

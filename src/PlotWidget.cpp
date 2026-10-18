@@ -180,6 +180,7 @@ struct PlotWidget::Private
     QList<Series*>                         series;
     QList<Annotation*>                     annotations;
     QString                                title;
+    QString                                subtitle;
     InputBindings                          bindings = InputBindings::defaults();
     std::optional<double>                  linkedX;  // a linked plot's crosshair
     std::optional<QPointF>                 hover;    // the pointer over the plot area
@@ -639,6 +640,22 @@ void PlotWidget::setTitle(const QString& title)
     m_impl->title = title;
     invalidate();
     Q_EMIT titleChanged();
+}
+
+QString PlotWidget::subtitle() const
+{
+    return m_impl->subtitle;
+}
+
+void PlotWidget::setSubtitle(const QString& subtitle)
+{
+    if (subtitle == m_impl->subtitle)
+    {
+        return;
+    }
+    m_impl->subtitle = subtitle;
+    invalidate();
+    Q_EMIT subtitleChanged();
 }
 
 QString PlotWidget::mathFontFamily() const

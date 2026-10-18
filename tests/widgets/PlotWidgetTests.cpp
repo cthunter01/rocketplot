@@ -2,12 +2,14 @@
 
 #include <QApplication>
 #include <QColor>
+#include <QFont>
 #include <QImage>
 #include <QMetaObject>
 #include <QMetaProperty>
 #include <QPalette>
 #include <QPoint>
 #include <QPointF>
+#include <QRect>
 #include <QRectF>
 #include <QSignalSpy>
 #include <QTest>
@@ -17,6 +19,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <utility>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -381,6 +384,84 @@ TEST_F(PlotWidgetTest, RichTextLabels)
     m_plot.series().front()->setName(QStringLiteral("<b>first</b>"));
     m_plot.legend()->setVisible(true);
     EXPECT_FALSE(m_plot.grab().isNull());
+}
+
+// The smallest rectangle around the pixels that differ between two images; empty if none do.
+QRect differenceOf(const QImage& a, const QImage& b)
+{
+    QRect ink;
+    for (int y = 0; y < a.height(); ++y)
+    {
+        for (int x = 0; x < a.width(); ++x)
+        {
+            if (a.pixel(x, y) != b.pixel(x, y))
+            {
+                ink |= QRect(x, y, 1, 1);
+            }
+        }
+    }
+    return ink;
+}
+
+TEST_F(PlotWidgetTest, ASubtitleGoesUnderTheTitle)
+{
+    QSignalSpy changed(&m_plot, &PlotWidget::subtitleChanged);
+    QFont      font = m_plot.font();
+    font.setPixelSize(30);  // large glyphs, with pixels of the text's own color
+    m_plot.setFont(font);
+    m_plot.setTitle("Ascent");
+    const double titledTop = m_plot.plotArea().top();
+    m_plot.setSubtitle("Flight 7");
+    EXPECT_EQ(m_plot.subtitle(), "Flight 7");
+    EXPECT_EQ(changed.count(), 1);
+    m_plot.setSubtitle("Flight 7");
+    EXPECT_EQ(changed.count(), 1);
+    EXPECT_GT(m_plot.plotArea().top(), titledTop + 20.0);  // the plot area makes room for it
+
+    // Where each is drawn: what changes with the text, the layout staying the same.
+    const auto inkOf = [this](void (PlotWidget::*set)(const QString&)) {
+        (m_plot.*set)("Flight 7");
+        const QImage one = m_plot.grab().toImage();
+        (m_plot.*set)("Flight 8");
+        const QImage other = m_plot.grab().toImage();
+        (m_plot.*set)("Flight 7");
+        return std::pair(differenceOf(one, other), other);
+    };
+    const auto [titleInk, titled]       = inkOf(&PlotWidget::setTitle);
+    const auto [subtitleInk, subtitled] = inkOf(&PlotWidget::setSubtitle);
+    ASSERT_FALSE(titleInk.isEmpty());
+    ASSERT_FALSE(subtitleInk.isEmpty());
+    EXPECT_GT(subtitleInk.top(), titleInk.bottom());
+    EXPECT_LT(subtitleInk.bottom(), m_plot.plotArea().top());
+
+    // In the secondary text color, where the title is in the text color.
+    const auto has = [](const QImage& image, const QRect& area, const QColor& color) {
+        for (int y = area.top(); y <= area.bottom(); ++y)
+        {
+            for (int x = area.left(); x <= area.right(); ++x)
+            {
+                if (image.pixelColor(x, y) == color)
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+    EXPECT_TRUE(has(subtitled, subtitleInk, m_plot.theme().secondaryText));
+    EXPECT_FALSE(has(subtitled, subtitleInk, m_plot.theme().text));
+    EXPECT_TRUE(has(titled, titleInk, m_plot.theme().text));
+}
+
+TEST_F(PlotWidgetTest, ASubtitleWithoutATitleIsWhereTheTitleWouldBe)
+{
+    const double plain = m_plot.plotArea().top();
+    m_plot.setSubtitle("Flight 7");
+    const double subtitled = m_plot.plotArea().top();
+    EXPECT_GT(subtitled, plain + 8.0);
+    m_plot.setSubtitle({});
+    m_plot.setTitle("Flight 7");
+    EXPECT_GT(m_plot.plotArea().top(), subtitled);  // the title's font is larger
 }
 
 TEST_F(PlotWidgetTest, ResetViewTurnsAutoscaleOnEverywhere)

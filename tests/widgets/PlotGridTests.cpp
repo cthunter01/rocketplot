@@ -265,6 +265,17 @@ TEST(PlotGrid, PlotAreasLineUpInRowsAndColumns)
     EXPECT_GT(area(0, 0).top(), area(1, 0).top());  // the title is in the top row
 }
 
+TEST(PlotGrid, PlotAreasLineUpWithASubtitleInARow)
+{
+    PlotGrid grid(1, 2);
+    grid.resize(800, 400);
+    grid.plot(0, 0)->setTitle("Altitude");
+    grid.plot(0, 1)->setTitle("Velocity");
+    grid.plot(0, 1)->setSubtitle("vertical, up");
+    static_cast<void>(grid.grab());
+    EXPECT_DOUBLE_EQ(grid.plot(0, 0)->plotArea().top(), grid.plot(0, 1)->plotArea().top());
+}
+
 TEST(PlotGrid, TheTitleGoesAboveThePlots)
 {
     PlotGrid grid(2, 1);

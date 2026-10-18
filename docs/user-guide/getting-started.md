@@ -179,7 +179,7 @@ The axes fit the data by themselves, with a little room around it. That is *auto
 `PlotWidget` is an ordinary `QWidget`: put it in a layout, a splitter, a dock or a tab like any other. Everything
 else hangs off it.
 
-![A plot of two lines with a title, axis labels and a legend](images/plot-parts.png)
+![A plot of two lines with a title, a subtitle, axis labels and a legend](images/plot-parts.png)
 
 <!-- example: plot-parts -->
 ```cpp
@@ -190,6 +190,7 @@ plot->addLine(time, lofted, "Lofted")->setLineStyle(Qt::DashLine);
 
 // The axes and the legend are always there.
 plot->setTitle("Ascent profiles");
+plot->setSubtitle("Two trajectories to the same orbit");
 plot->xAxis()->setLabel("Time (s)");
 plot->yAxis()->setLabel("Altitude (km)");
 plot->legend()->setAnchor(rocketplot::LegendAnchor::TOP_LEFT);
@@ -201,7 +202,7 @@ plot->legend()->setAnchor(rocketplot::LegendAnchor::TOP_LEFT);
 | Axes | The x axis, the y axis on the left, and a second y axis on the right | `xAxis()`, `yAxis()`, `yAxis2()` |
 | Legend | One entry per named series | `legend()` |
 | Annotations | Lines, spans, text and event markers at data coordinates | `addHorizontalLine()`, `addVerticalSpan()`, `addText()`, `addEvent()`, ... |
-| Title | A line of text above the plot | `setTitle()` |
+| Title, subtitle | A line of text above the plot, and a smaller one under it | `setTitle()`, `setSubtitle()` |
 
 A series with a name gets an entry in the legend; one without a name has none. The legend shows up once there are
 two entries: a single series is better named by the title.

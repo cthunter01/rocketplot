@@ -98,6 +98,7 @@ class ROCKETPLOT_EXPORT PlotWidget : public QWidget
 {
     Q_OBJECT
     Q_PROPERTY(QString title READ title WRITE setTitle NOTIFY titleChanged)
+    Q_PROPERTY(QString subtitle READ subtitle WRITE setSubtitle NOTIFY subtitleChanged)
     Q_PROPERTY(QString mathFontFamily READ mathFontFamily WRITE setMathFontFamily RESET
                    resetMathFontFamily NOTIFY mathFontFamilyChanged)
     Q_PROPERTY(
@@ -218,6 +219,11 @@ public:
 
     [[nodiscard]] QString title() const;
     void                  setTitle(const QString& title);
+    /// A line under the title, in the theme's secondary text color at regular weight: what the
+    /// plot is of, its conditions, a date. Empty (the default) for none; a subtitle without a
+    /// title is shown where the title would be.
+    [[nodiscard]] QString subtitle() const;
+    void                  setSubtitle(const QString& subtitle);
 
     /// The font of math between $ signs in the title, labels, legend names and annotations
     /// ("Speed $v_z$"): the family of an installed OpenType math font (one with a MATH table:
@@ -369,6 +375,7 @@ public:
 
 Q_SIGNALS:
     void titleChanged();
+    void subtitleChanged();
     void mathFontFamilyChanged();
     void themeChanged();
     void debugOverlayChanged();
