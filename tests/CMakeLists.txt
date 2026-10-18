@@ -7,6 +7,7 @@ add_executable(rocketplot_core_tests
     core/AxisMappingTests.cpp
     core/AxisTicksTests.cpp
     core/BarsTests.cpp
+    core/BoxSummaryTests.cpp
     core/CsvWriterTests.cpp
     core/DecimatorTests.cpp
     core/ErrorDataTests.cpp
@@ -51,6 +52,7 @@ add_executable(rocketplot_tests
     widgets/AnnotationTests.cpp
     widgets/AxisTests.cpp
     widgets/BarSeriesTests.cpp
+    widgets/BoxSeriesTests.cpp
     widgets/EventMarkerTests.cpp
     widgets/HistogramSeriesTests.cpp
     widgets/IconAnnotationTests.cpp

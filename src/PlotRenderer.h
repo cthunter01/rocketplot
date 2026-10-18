@@ -25,6 +25,7 @@ namespace rocketplot
 
 struct AnnotationHit;
 class BarSeries;
+class BoxSeries;
 class LineSeries;
 class MarkerPainter;
 struct MarkerStyle;
@@ -92,6 +93,7 @@ private:
     void drawStyledScatter(QPainter& painter, const ScatterSeries& series, const MarkerStyle& style,
                            SeriesStats& stats);
     void drawBars(QPainter& painter, const BarSeries& series, SeriesStats& stats);
+    void drawBox(QPainter& painter, const BoxSeries& series, SeriesStats& stats);
     // How a series' errors are drawn in this frame.
     struct ErrorPlan
     {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -14,9 +15,10 @@ namespace rocketplot::core
 /// What an axis's values are.
 enum class TickKind : std::uint8_t
 {
-    LINEAR,  ///< Numbers on a linear scale
-    LOG,     ///< Numbers on a log10 scale
-    TIME,    ///< Seconds since the Unix epoch, UTC
+    LINEAR,    ///< Numbers on a linear scale
+    LOG,       ///< Numbers on a log10 scale
+    TIME,      ///< Seconds since the Unix epoch, UTC
+    CATEGORY,  ///< Names: the one of index i at the value i
 };
 
 struct TickRequest
@@ -31,6 +33,8 @@ struct TickRequest
     UtcOffset utcOffset{};  ///< For TIME: the time zone (empty: UTC)
     // NOLINTNEXTLINE(readability-redundant-member-init): lets designated initializers leave it out
     std::string zoneName{};  ///< For TIME: appended to the context ("2026-03-28 UTC")
+    // NOLINTNEXTLINE(readability-redundant-member-init): lets designated initializers leave it out
+    std::span<const std::string> categories{};  ///< For CATEGORY: the names
 };
 
 /// One axis's ticks with their labels, and the text shown once by the axis for what the labels
@@ -44,12 +48,15 @@ struct AxisTicks
 };
 
 /// Ticks and labels for any kind of axis. Log axes narrower than two powers of ten get linear
-/// ticks.
+/// ticks. A category axis has a tick at each category in the range, labelled with its name; where
+/// they would be closer than the spacing asked for, every n-th (from the first category).
 [[nodiscard]] AxisTicks makeTicks(const TickRequest& request);
 
 /// A single value of any kind of axis written out in full, to @p resolution (in data units, e.g.
-/// what one pixel spans there): formatValue() for numbers, formatTime() for times.
+/// what one pixel spans there): formatValue() for numbers, formatTime() for times, and the name of
+/// the nearest category on a category axis (the number, where there is none).
 [[nodiscard]] std::string formatReadout(double value, double resolution, TickKind kind,
-                                        NumberStyle style, const UtcOffset& utcOffset = {});
+                                        NumberStyle style, const UtcOffset& utcOffset = {},
+                                        std::span<const std::string> categories = {});
 
 }  // namespace rocketplot::core

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+
 #include "core/AxisMapping.h"
 #include "rocketplot/Range.h"
 
@@ -38,6 +40,11 @@ struct AlignedZeros
 /// (as shares of their spans). [0, x] and [-y, 0] are widened to [-x, x] and [-y, y]. Ranges that
 /// don't both hold 0, or that are too small to tell, are returned as they are.
 [[nodiscard]] AlignedZeros alignZeros(Range first, Range second);
+
+/// The range a category axis of @p count categories shows: each category (at 0, 1, ...) with half
+/// a unit either side, joined with @p bounds of the data on it. No margin and no zero rule: the
+/// categories are what is shown. With no categories, as if there were one: [-0.5, 0.5].
+[[nodiscard]] Range categoryRange(Range bounds, std::size_t count);
 
 /// The range of an axis following the newest data: the last @p window of @p bounds, with a
 /// margin's share of the window left free after the newest value. While the data spans less than

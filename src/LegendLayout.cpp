@@ -32,6 +32,7 @@
 #include "rocketplot/Annotation.h"
 #include "rocketplot/Axis.h"
 #include "rocketplot/BarSeries.h"
+#include "rocketplot/BoxSeries.h"
 #include "rocketplot/EventMarker.h"
 #include "rocketplot/IconAnnotation.h"
 #include "rocketplot/Legend.h"
@@ -178,6 +179,29 @@ void drawBarSwatch(QPainter& painter, const BarSeries& bars, QPointF center)
     }
 }
 
+// A small box with its whiskers and median, upright.
+void drawBoxSwatch(QPainter& painter, const BoxSeries& box, QPointF center)
+{
+    QColor fill = box.color();
+    fill.setAlphaF(static_cast<float>(static_cast<double>(fill.alphaF()) * box.fillOpacity()));
+    const QRectF body(center - QPointF(kSwatchBar / 3.0, kSwatchBar / 4.0),
+                      QSizeF(2.0 * kSwatchBar / 3.0, kSwatchBar / 2.0));
+    painter.fillRect(body, fill);
+    QPen pen(box.color(), std::min(box.lineWidth(), kMaxSwatchLine / 2.0));
+    painter.setPen(pen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRect(body);
+    const double reach = kSwatchBar / 2.0;
+    painter.drawLine(QPointF(center.x(), body.top()), QPointF(center.x(), center.y() - reach));
+    painter.drawLine(QPointF(center.x(), body.bottom()), QPointF(center.x(), center.y() + reach));
+    if (box.isMedianVisible())
+    {
+        pen.setColor(box.medianColor());
+        painter.setPen(pen);
+        painter.drawLine(QPointF(body.left(), center.y()), QPointF(body.right(), center.y()));
+    }
+}
+
 // A line (for line series) with the series' marker across the middle, over its errors; a patch
 // of bars, under them.
 void drawSwatch(QPainter& painter, const Series& series, const Theme& theme, QPointF center)
@@ -204,6 +228,12 @@ void drawSwatch(QPainter& painter, const Series& series, const Theme& theme, QPo
                 drawBarSwatch(painter, *bars, center);
             }
             drawErrorSwatch(painter, series, theme, center);
+            break;
+        case SeriesKind::BOX:
+            if (const auto* box = qobject_cast<const BoxSeries*>(&series))
+            {
+                drawBoxSwatch(painter, *box, center);
+            }
             break;
     }
 }

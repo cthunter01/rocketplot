@@ -172,6 +172,32 @@ const QDateTime back = rocketplot::fromPlotTime(x);      // and back, in UTC
 A `double` holds Unix times of today to about a microsecond. For data sampled faster than that over a short time,
 plot seconds since the start on a linear axis instead.
 
+## Categories
+
+A category axis shows names: the one of index i stands at the value i, so a box or a bar at 2 is over the third.
+
+<!-- example: axes-categories -->
+```cpp
+rocketplot::Axis* x = plot->xAxis();
+x->setScaleType(rocketplot::ScaleType::CATEGORY);
+x->setCategories({"Nominal", "Gusty", "Engine-out"});  // at 0, 1 and 2
+// A bar 0.8 wide over each; the NaN heights leave the gaps between them empty.
+plot->addBars(std::vector{-0.4, 0.4, 0.6, 1.4, 1.6, 2.4},
+              std::vector{12.0, std::numeric_limits<double>::quiet_NaN(), 30.0,
+                          std::numeric_limits<double>::quiet_NaN(), 85.0},
+              "Median miss (m)");
+```
+
+- There is a tick at each category (every n-th where the names would crowd, from the first), and no minor
+  ticks. The crosshair's tag shows the name.
+- Autoscale shows every category with half a unit either side, and any data beyond them. The margin and the
+  zero rule don't apply.
+- Pan and zoom work as on a linear axis. The categories are not part of a saved state: like the axis label, they
+  come from your code.
+
+[Box plots](series.md#box-plots) stand over categories, as do bars: a bar from i - 0.4 to i + 0.4 with a NaN
+height in each gap between them, as above.
+
 ## A second y axis
 
 Two series measured in different units can share a plot: one on the left axis, one on the right.

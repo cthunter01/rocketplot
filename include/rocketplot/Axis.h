@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QTimeZone>
 #include <Qt>
 #include <optional>
@@ -31,6 +32,7 @@ class ROCKETPLOT_EXPORT Axis : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QString label READ label WRITE setLabel NOTIFY changed)
+    Q_PROPERTY(QStringList categories READ categories WRITE setCategories NOTIFY changed)
     Q_PROPERTY(double min READ min WRITE setMin NOTIFY changed)
     Q_PROPERTY(double max READ max WRITE setMax NOTIFY changed)
     Q_PROPERTY(rocketplot::ScaleType scaleType READ scaleType WRITE setScaleType NOTIFY changed)
@@ -63,6 +65,14 @@ public:
     /// rich text work too: "$v_z$ (m/s²)", "v<sub>z</sub> (m/s²)".
     [[nodiscard]] QString label() const { return m_label; }
     void                  setLabel(const QString& label);
+
+    /// The names a CATEGORY axis shows (with setScaleType()): the one of index i at the value i,
+    /// so a box or a bar at 2 stands over the third. The axis has a tick at each, every n-th
+    /// where they would crowd, no minor ones, and its crosshair tag shows the name. Autoscale
+    /// shows them all, with half a unit either side, and any data beyond them; the margin and
+    /// the zero rule don't apply. Like the label, they are not part of a saved state.
+    [[nodiscard]] QStringList categories() const { return m_categories; }
+    void                      setCategories(const QStringList& categories);
 
     // Range
     // ----------------------------------------------------------------------------------------
@@ -167,6 +177,7 @@ private:
     Qt::Orientation     m_orientation;
     bool                m_secondary;
     QString             m_label;
+    QStringList         m_categories;
     Range               m_range{.min = 0.0, .max = 1.0};
     ScaleType           m_scaleType             = ScaleType::LINEAR;
     NumberFormat        m_numberFormat          = NumberFormat::AUTO;

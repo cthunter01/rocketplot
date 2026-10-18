@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 
 #include "core/AxisMapping.h"
@@ -107,6 +108,14 @@ Range autoscaleRange(Range bounds, double margin, Scale scale, ZeroRule zero)
     }
     const Range padded = bounds.padded(usableMargin(margin));
     return isUsableRange(padded) ? padded : bounds;
+}
+
+Range categoryRange(Range bounds, std::size_t count)
+{
+    // With none, as if there were one.
+    const Range categories{.min = -0.5,
+                           .max = static_cast<double>(std::max<std::size_t>(count, 1)) - 0.5};
+    return categories.united(bounds);
 }
 
 Range followRange(Range bounds, double window, double margin)

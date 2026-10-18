@@ -51,6 +51,8 @@ class Legend;
 class PlotGrid;
 class PlotLink;
 class BarSeries;
+class BoxSeries;
+struct BoxStatistics;
 class HistogramSeries;
 class LineSeries;
 class RectAnnotation;
@@ -214,6 +216,14 @@ public:
         std::vector<double>&& values, const QString& name = {}, int bins = 0,
         Range                  binRange      = Range::empty(),
         HistogramNormalization normalization = HistogramNormalization::COUNT);
+
+    // Boxes
+    // ------------------------------------------------------------------------------------------
+
+    /// A box and whiskers showing @p statistics, standing at @p position (an x; a y once lying
+    /// down: BoxSeries::setOrientation()); on a CATEGORY axis, the index of its category. Throws
+    /// std::invalid_argument when the statistics are not finite and in order; see BoxSeries.
+    BoxSeries* addBox(const BoxStatistics& statistics, double position, const QString& name = {});
 
     // Series
     // ---------------------------------------------------------------------------------------------------

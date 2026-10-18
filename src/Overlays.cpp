@@ -69,6 +69,7 @@ void drawPointMarker(QPainter& painter, const Theme& theme, const CrosshairPoint
     {
         case SeriesKind::LINE:
         case SeriesKind::BARS:
+        case SeriesKind::BOX:
             break;
         case SeriesKind::SCATTER:
             // Its own size and color, if it has them.
@@ -98,6 +99,7 @@ QString pointXLabel(const Axis& axis, const PlotLayout& layout, const CrosshairP
     {
         case SeriesKind::LINE:
         case SeriesKind::SCATTER:
+        case SeriesKind::BOX:
             break;
         case SeriesKind::BARS:
             if (const auto* bars = qobject_cast<const BarSeries*>(&series))

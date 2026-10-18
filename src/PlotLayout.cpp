@@ -12,7 +12,9 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "FlagLayout.h"
 #include "LegendLayout.h"
@@ -45,9 +47,10 @@ constexpr double kAnnotationGap = 4.0;
 constexpr double kMinPlotSize   = 16.0;
 constexpr double kMinorSpacing  = 4.0;
 // Space between neighboring x tick labels, and the height y tick labels need per tick (in label
-// heights).
-constexpr double kXLabelSpacing = 16.0;
-constexpr double kYLabelSpacing = 2.2;
+// heights): numbers well apart, names (of categories) in rows.
+constexpr double kXLabelSpacing         = 16.0;
+constexpr double kYLabelSpacing         = 2.2;
+constexpr double kYCategoryLabelSpacing = 1.2;
 // Rounds of x tick layout: labels may turn out wider than guessed, or overflow the right edge.
 constexpr int kXLayoutAttempts = 4;
 // Rough share of the target the plot area gets, for the first guess at which axes need an
@@ -108,6 +111,8 @@ core::TickKind kindOf(const Axis& axis)
             return core::TickKind::LOG;
         case ScaleType::DATE_TIME:
             return core::TickKind::TIME;
+        case ScaleType::CATEGORY:
+            return core::TickKind::CATEGORY;
     }
     return core::TickKind::LINEAR;
 }
@@ -147,21 +152,46 @@ QString zoneNameOf(const QTimeZone& zone, double at)
                                   : abbreviation;
 }
 
+// The names of @p axis's categories, for the core.
+std::vector<std::string> categoriesOf(const Axis& axis)
+{
+    std::vector<std::string> names;
+    if (axis.scaleType() == ScaleType::CATEGORY)
+    {
+        const QStringList categories = axis.categories();
+        names.reserve(static_cast<std::size_t>(categories.size()));
+        for (const QString& name : categories)
+        {
+            names.push_back(name.toStdString());
+        }
+    }
+    return names;
+}
+
 // @p value written in full for @p axis, to @p resolution (data units).
 QString formatAxisValue(const Axis& axis, double value, double resolution)
 {
-    const bool time = axis.scaleType() == ScaleType::DATE_TIME;
+    const bool                     time       = axis.scaleType() == ScaleType::DATE_TIME;
+    const std::vector<std::string> categories = categoriesOf(axis);
     return QString::fromStdString(
         core::formatReadout(value, resolution, kindOf(axis), styleOf(axis),
-                            time ? utcOffsetOf(axis.timeZone()) : core::UtcOffset{}));
+                            time ? utcOffsetOf(axis.timeZone()) : core::UtcOffset{}, categories));
+}
+
+// The height a y tick label of @p axis needs, from the height of a line of tick labels.
+double yLabelSpacing(const Axis& axis, double lineHeight)
+{
+    return lineHeight *
+           (axis.scaleType() == ScaleType::CATEGORY ? kYCategoryLabelSpacing : kYLabelSpacing);
 }
 
 // Fills ticks, labels and annotation for @p axis showing @p range over @p lengthPx.
 void fillTicks(AxisLayout& layout, const Axis& axis, Range range, double lengthPx,
                double minSpacingPx)
 {
-    const bool              time = axis.scaleType() == ScaleType::DATE_TIME;
-    const core::TickRequest request{
+    const bool                     time       = axis.scaleType() == ScaleType::DATE_TIME;
+    const std::vector<std::string> categories = categoriesOf(axis);
+    const core::TickRequest        request{
         .range             = range,
         .kind              = kindOf(axis),
         .style             = styleOf(axis),
@@ -169,7 +199,8 @@ void fillTicks(AxisLayout& layout, const Axis& axis, Range range, double lengthP
         .minSpacingPx      = minSpacingPx,
         .minMinorSpacingPx = kMinorSpacing,
         .utcOffset         = time ? utcOffsetOf(axis.timeZone()) : core::UtcOffset{},
-        .zoneName = time ? zoneNameOf(axis.timeZone(), range.min).toStdString() : std::string(),
+        .zoneName   = time ? zoneNameOf(axis.timeZone(), range.min).toStdString() : std::string(),
+        .categories = categories,
     };
     core::AxisTicks ticks = core::makeTicks(request);
     layout.major          = std::move(ticks.major);
@@ -251,9 +282,9 @@ Vertical layoutVertically(const PlotWidget& plot, PlotLayout& layout, TextPainte
                         bounds.width() * kProbeShare, kProbeSpacing);
     const bool yAnnotations =
         needsAnnotation(*plot.yAxis(), ranges.y, layout.y.shown && layout.y.labeled, probeHeight,
-                        tickHeight * kYLabelSpacing) ||
+                        yLabelSpacing(*plot.yAxis(), tickHeight)) ||
         needsAnnotation(*plot.yAxis2(), ranges.y2, layout.y2.shown && layout.y2.labeled,
-                        probeHeight, tickHeight * kYLabelSpacing);
+                        probeHeight, yLabelSpacing(*plot.yAxis2(), tickHeight));
 
     Vertical vertical;
     double   top = bounds.top() + kOuterPadding;
@@ -329,7 +360,8 @@ double layoutLeftAxis(const PlotWidget& plot, PlotLayout& layout, TextPainter& t
         return left;
     }
     const QFontMetricsF metrics(layout.tickFont);
-    fillTicks(layout.y, *plot.yAxis(), range, plotHeight, metrics.height() * kYLabelSpacing);
+    fillTicks(layout.y, *plot.yAxis(), range, plotHeight,
+              yLabelSpacing(*plot.yAxis(), metrics.height()));
     const QSizeF title = text.size(plot.yAxis()->label(), layout.labelFont);
     if (!title.isEmpty())
     {
@@ -350,7 +382,8 @@ double layoutRightAxis(const PlotWidget& plot, PlotLayout& layout, TextPainter& 
         return right;
     }
     const QFontMetricsF metrics(layout.tickFont);
-    fillTicks(layout.y2, *plot.yAxis2(), range, plotHeight, metrics.height() * kYLabelSpacing);
+    fillTicks(layout.y2, *plot.yAxis2(), range, plotHeight,
+              yLabelSpacing(*plot.yAxis2(), metrics.height()));
     const QSizeF title = text.size(plot.yAxis2()->label(), layout.labelFont);
     if (!title.isEmpty())
     {

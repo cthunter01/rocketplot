@@ -88,6 +88,8 @@
 #include "rocketplot/Annotation.h"
 #include "rocketplot/Axis.h"
 #include "rocketplot/BarSeries.h"
+#include "rocketplot/BoxSeries.h"
+#include "rocketplot/BoxStatistics.h"
 #include "rocketplot/EventMarker.h"
 #include "rocketplot/ExportOptions.h"
 #include "rocketplot/HistogramSeries.h"
@@ -495,6 +497,14 @@ BarSeries* PlotWidget::addBars(std::vector<double>&& edges, std::vector<double>&
 {
     auto series = std::unique_ptr<BarSeries>(new BarSeries(this));
     series->setBars(std::move(edges), std::move(heights));
+    return adopt(series.release(), name);
+}
+
+BoxSeries* PlotWidget::addBox(const BoxStatistics& statistics, double position, const QString& name)
+{
+    auto series = std::unique_ptr<BoxSeries>(new BoxSeries(this));
+    series->setPosition(position);
+    series->setStatistics(statistics);
     return adopt(series.release(), name);
 }
 
@@ -1523,6 +1533,7 @@ void PlotWidget::addStyleActions(QMenu* menu, const LegendEntry& entry)
             addMarkerMenu(menu, entry);
             break;
         case SeriesKind::SCATTER:
+        case SeriesKind::BOX:  // its outliers'
             addMarkerMenu(menu, entry);
             break;
         case SeriesKind::BARS:
@@ -1573,6 +1584,7 @@ void PlotWidget::addMarkerMenu(QMenu* menu, const LegendEntry& entry)
     switch (sample.kind())
     {
         case SeriesKind::LINE:
+        case SeriesKind::BOX:
             break;
         case SeriesKind::SCATTER:
         case SeriesKind::BARS:
@@ -1733,6 +1745,10 @@ std::optional<Range> PlotWidget::fitX() const
     const PlotLink* link   = m_impl->link.data();
     const Range     bounds =
         link != nullptr ? link->xDataBounds(log, !follow) : xDataBounds(log, !follow);
+    if (axis.scaleType() == ScaleType::CATEGORY)
+    {
+        return core::categoryRange(bounds, static_cast<std::size_t>(axis.categories().size()));
+    }
     if (follow)
     {
         return core::followRange(bounds, axis.followWindow(), axis.autoscaleMargin());
@@ -1755,6 +1771,10 @@ std::optional<Range> PlotWidget::fitY(const Axis& axis) const
     const bool  visible = axis.autoscaleMode() != AutoscaleMode::FIT_ALL &&
                           (&axis != m_impl->yAxis || !hasFixedAspect());
     const Range bounds  = yDataBounds(axis, scale == core::Scale::LOG, visible);
+    if (axis.scaleType() == ScaleType::CATEGORY)
+    {
+        return core::categoryRange(bounds, static_cast<std::size_t>(axis.categories().size()));
+    }
     // Fitting what's visible: with nothing in view, stay put rather than jump to a default.
     if (visible && !bounds.isValid())
     {
@@ -1793,8 +1813,8 @@ RangeOverrides PlotWidget::headroomRanges(double share) const
     // Fit, line the zeros up, then leave the headroom: the same share of both keeps them in line.
     std::optional<Range> y  = fitY(*m_impl->yAxis);
     std::optional<Range> y2 = fitY(*m_impl->yAxis2);
-    if (m_impl->zeroAligned && y && y2 && scaleOf(*m_impl->yAxis) == core::Scale::LINEAR &&
-        scaleOf(*m_impl->yAxis2) == core::Scale::LINEAR && m_impl->yAxis->isShown(true) &&
+    if (m_impl->zeroAligned && y && y2 && m_impl->yAxis->scaleType() == ScaleType::LINEAR &&
+        m_impl->yAxis2->scaleType() == ScaleType::LINEAR && m_impl->yAxis->isShown(true) &&
         m_impl->yAxis2->isShown(hasSeriesOnSecondary(*this)))
     {
         const core::AlignedZeros aligned = core::alignZeros(*y, *y2);

@@ -63,6 +63,15 @@ TEST(Autoscale, FollowShowsTheLatestWindow)
     EXPECT_EQ(followRange(Range::empty(), 10.0, 0.0), (Range{.min = 0.0, .max = 10.0}));
 }
 
+TEST(Autoscale, ACategoryAxisShowsItsCategories)
+{
+    using rocketplot::core::categoryRange;
+    EXPECT_EQ(categoryRange(Range::empty(), 3), (Range{.min = -0.5, .max = 2.5}));
+    // Joined with the data on it, as it is: no margin.
+    EXPECT_EQ(categoryRange({.min = 0.75, .max = 4.0}, 3), (Range{.min = -0.5, .max = 4.0}));
+    EXPECT_EQ(categoryRange(Range::empty(), 0), (Range{.min = -0.5, .max = 0.5}));
+}
+
 TEST(Autoscale, HeadroomLeavesTheTopShareFree)
 {
     using rocketplot::core::withHeadroom;

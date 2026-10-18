@@ -38,6 +38,8 @@
 #include "core/SeriesData.h"
 #include "rocketplot/Axis.h"
 #include "rocketplot/BarSeries.h"
+#include "rocketplot/BoxSeries.h"
+#include "rocketplot/BoxStatistics.h"
 #include "rocketplot/LineSeries.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/Range.h"
@@ -86,6 +88,8 @@ QString modeName(const SeriesStats& stats)
             return QStringLiteral("markers");
         case SeriesKind::BARS:
             return QStringLiteral("bars");
+        case SeriesKind::BOX:
+            return QStringLiteral("box");
     }
     QString mode;
     switch (stats.mode)
@@ -282,6 +286,12 @@ void PlotRenderer::drawOne(QPainter& painter, const Series& series, SeriesStats&
             if (const auto* bars = qobject_cast<const BarSeries*>(&series))
             {
                 drawBars(painter, *bars, stats);
+            }
+            break;
+        case SeriesKind::BOX:
+            if (const auto* box = qobject_cast<const BoxSeries*>(&series))
+            {
+                drawBox(painter, *box, stats);
             }
             break;
     }
@@ -610,6 +620,105 @@ void PlotRenderer::drawBars(QPainter& painter, const BarSeries& series, SeriesSt
     if (errors.bars)
     {
         drawErrorBars(painter, series, errors.barsWithY, stats);
+    }
+}
+
+void PlotRenderer::drawBox(QPainter& painter, const BoxSeries& series, SeriesStats& stats)
+{
+    if (series.isEmpty())
+    {
+        return;
+    }
+    const BoxStatistics&     box     = series.statistics();
+    const bool               upright = series.orientation() == Qt::Vertical;
+    const double             dpr     = m_layout->devicePixelRatio;
+    const core::AxisMapping& values =
+        upright ? m_layout->yFor(series).mapping : m_layout->x.mapping;
+    const core::AxisMapping& positions =
+        upright ? m_layout->x.mapping : m_layout->yFor(series).mapping;
+    const double lineWidth = series.lineWidth();
+    // Lines of a whole number of device pixels fall on pixel edges or centers, so they're crisp.
+    const bool oddWidth = std::lround(lineWidth * dpr) % 2 == 1;
+    const auto crisp    = [&](double pixel) {
+        return oddWidth ? crispPixel(pixel, dpr) : snapToDevice(pixel, dpr);
+    };
+    // A point at (value, across) in widget coordinates, whichever way the box lies.
+    const auto at = [upright](double value, double across) {
+        return upright ? QPointF(across, value) : QPointF(value, across);
+    };
+    const double middle = crisp(positions.toPixel(series.position()));
+    const double half   = std::abs(positions.toPixel(series.position() + (series.width() / 2.0)) -
+                                   positions.toPixel(series.position()));
+    const double near   = crisp(middle - half);
+    const double far    = crisp(middle + half);
+    const double q1     = crisp(values.toPixel(box.q1));
+    const double q3     = crisp(values.toPixel(box.q3));
+    painter.save();
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    QColor fill = series.color();
+    fill.setAlphaF(static_cast<float>(static_cast<double>(fill.alphaF()) * series.fillOpacity()));
+    const QRectF body = QRectF(at(q1, near), at(q3, far)).normalized();
+    painter.fillRect(body, fill);
+    QPen pen(series.color(), lineWidth, Qt::SolidLine, Qt::FlatCap, Qt::MiterJoin);
+    painter.setPen(pen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRect(body);
+    // The whiskers, with their caps.
+    const double capHalf = half * series.whiskerCapRatio();
+    for (const auto& [end, edge] :
+         {std::pair(box.lowerWhisker, q1), std::pair(box.upperWhisker, q3)})
+    {
+        const double tip = crisp(values.toPixel(end));
+        if (tip != edge)
+        {
+            painter.drawLine(at(edge, middle), at(tip, middle));
+        }
+        if (capHalf > 0.0)
+        {
+            painter.drawLine(at(tip, crisp(middle - capHalf)), at(tip, crisp(middle + capHalf)));
+        }
+    }
+    if (series.isMedianVisible())
+    {
+        pen.setColor(series.medianColor());
+        painter.setPen(pen);
+        const double median = crisp(values.toPixel(box.median));
+        painter.drawLine(at(median, near), at(median, far));
+    }
+    // The outliers, the far-outs and the mean.
+    MarkerStyle style = markerStyle(series, *m_theme);
+    const auto  marks = [&](const std::vector<double>& points, Marker shape) {
+        style.shape = shape;
+        for (const double value : points)
+        {
+            const QPointF center = at(values.toPixel(value), middle);
+            MarkerPainter::draw(painter, center, style);
+            if (m_options.occupancy != nullptr)
+            {
+                m_options.occupancy->addPoints({{.x = center.x(), .y = center.y()}}, style.size);
+            }
+        }
+    };
+    marks(box.outliers, series.marker());
+    marks(box.farOuts, series.farOutMarker());
+    if (series.isMeanVisible() && box.mean)
+    {
+        style.filled = true;
+        marks({*box.mean}, Marker::DIAMOND);
+    }
+    painter.restore();
+    stats.visiblePoints = series.size();
+    stats.drawnPoints   = series.size();
+    if (m_options.occupancy != nullptr)
+    {
+        // The box and its whiskers, as wide as the box.
+        const QRectF reach = QRectF(at(values.toPixel(box.lowerWhisker), near),
+                                    at(values.toPixel(box.upperWhisker), far))
+                                 .normalized();
+        m_options.occupancy->addBox({.left   = reach.left(),
+                                     .top    = reach.top(),
+                                     .right  = reach.right(),
+                                     .bottom = reach.bottom()});
     }
 }
 

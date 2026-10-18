@@ -17,8 +17,23 @@ enum class SeriesKind : std::uint8_t
     LINE,     ///< LineSeries
     SCATTER,  ///< ScatterSeries
     BARS,     ///< BarSeries and HistogramSeries
+    BOX,      ///< BoxSeries
 };
 Q_ENUM_NS(SeriesKind)
+
+/// What a point of a box plot stands for (BoxSeries::partAt()).
+enum class BoxPart : std::uint8_t
+{
+    LOWER_WHISKER,
+    FIRST_QUARTILE,
+    MEDIAN,
+    THIRD_QUARTILE,
+    UPPER_WHISKER,
+    MEAN,
+    OUTLIER,  ///< Beyond a whisker
+    FAR_OUT,  ///< Further still
+};
+Q_ENUM_NS(BoxPart)
 
 /// What the height of a histogram's bar is (HistogramSeries::setNormalization()).
 enum class HistogramNormalization : std::uint8_t
@@ -120,6 +135,7 @@ enum class ScaleType : std::uint8_t
     LINEAR,
     LOGARITHMIC,  ///< Each power of ten takes the same length; values <= 0 aren't shown
     DATE_TIME,    ///< Values are seconds since 1970-01-01 00:00 UTC; labels are dates and times
+    CATEGORY,     ///< Names (Axis::setCategories()), the one of index i at the value i
 };
 Q_ENUM_NS(ScaleType)
 

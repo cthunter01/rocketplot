@@ -173,6 +173,22 @@ void timeConversions(const QString& /*scratch*/)
     static_cast<void>(back);
 }
 
+void categories(const QString& /*scratch*/)
+{
+    PlotWidget  window;
+    PlotWidget* plot = &window;
+    // [axes-categories]
+    rocketplot::Axis* x = plot->xAxis();
+    x->setScaleType(rocketplot::ScaleType::CATEGORY);
+    x->setCategories({"Nominal", "Gusty", "Engine-out"});  // at 0, 1 and 2
+    // A bar 0.8 wide over each; the NaN heights leave the gaps between them empty.
+    plot->addBars(std::vector{-0.4, 0.4, 0.6, 1.4, 1.6, 2.4},
+                  std::vector{12.0, std::numeric_limits<double>::quiet_NaN(), 30.0,
+                              std::numeric_limits<double>::quiet_NaN(), 85.0},
+                  "Median miss (m)");
+    // [/axes-categories]
+}
+
 void twoAxes(PlotWidget* plot)
 {
     const Ascent              ascent = sampleAscent();
@@ -263,6 +279,7 @@ void addAxesExamples(Examples& examples)
     examples.demonstrations.push_back(
         {.name = QStringLiteral("time values"), .run = timeConversions});
     examples.demonstrations.push_back({.name = QStringLiteral("grid"), .run = grid});
+    examples.demonstrations.push_back({.name = QStringLiteral("categories"), .run = categories});
     examples.addPlot(QStringLiteral("axes-aspect"), toScale, {720, 400});
     examples.addPlot(QStringLiteral("axes-log"), logScale);
     examples.addPlot(QStringLiteral("axes-time"), dateTime);

@@ -5,6 +5,7 @@
 #include <QLatin1String>
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QTimeZone>
 #include <Qt>
 #include <cmath>
@@ -48,6 +49,17 @@ void Axis::setLabel(const QString& label)
     }
     m_label = label;
     Q_EMIT changed();
+}
+
+void Axis::setCategories(const QStringList& categories)
+{
+    if (categories == m_categories)
+    {
+        return;
+    }
+    m_categories = categories;
+    Q_EMIT changed();
+    Q_EMIT fitNeeded();
 }
 
 void Axis::setRange(Range range)

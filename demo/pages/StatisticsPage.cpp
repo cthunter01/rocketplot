@@ -7,6 +7,7 @@
 #include <QWidget>
 #include <Qt>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <vector>
@@ -14,7 +15,10 @@
 #include "DemoPage.h"
 #include "Generators.h"
 #include "rocketplot/Axis.h"
+#include "rocketplot/BoxSeries.h"
+#include "rocketplot/BoxStatistics.h"
 #include "rocketplot/HistogramSeries.h"
+#include "rocketplot/PlotGrid.h"
 #include "rocketplot/PlotWidget.h"
 #include "rocketplot/ReferenceLine.h"
 #include "rocketplot/ShadedSpan.h"
@@ -61,15 +65,20 @@ QWidget* create(QWidget* parent)
     layout->addLayout(controls);
 
     // [snippet]
-    auto* plot = new rocketplot::PlotWidget(page);
-    plot->setTitle("Apogee of 2000 simulated flights");
-    plot->xAxis()->setLabel("Apogee (m)");
+    // A histogram over a box plot of the same runs, on one apogee axis.
+    auto* grid = new rocketplot::PlotGrid(2, 1, page);
+    grid->setTitle("Apogee of 2000 simulated flights");
+    grid->setRowStretch(0, 2);
+    rocketplot::PlotWidget* plot  = grid->plot(0);
+    rocketplot::PlotWidget* boxes = grid->plot(1);
     plot->yAxis()->setLabel("Flights");
+    boxes->xAxis()->setLabel("Apogee (m)");
 
     // A Monte Carlo of the flight: each run's apogee, counted into bins. A tenth of the motors
     // burn short.
-    std::vector<double>       apogee = gaussian(1800, 3050.0, 60.0, 11);
-    const std::vector<double> weak   = gaussian(200, 2880.0, 45.0, 12);
+    const std::vector<double> nominal = gaussian(1800, 3050.0, 60.0, 11);
+    const std::vector<double> weak    = gaussian(200, 2880.0, 45.0, 12);
+    std::vector<double>       apogee  = nominal;
     apogee.insert(apogee.end(), weak.begin(), weak.end());
     auto* flights = plot->addHistogram(apogee, "Flights");
 
@@ -82,6 +91,19 @@ QWidget* create(QWidget* parent)
         ->setLabelAlignment(Qt::AlignTop | Qt::AlignLeft);
     plot->addVerticalLine(3000.0, "Nominal");
     plot->addVerticalLine(percentile(sorted, 0.5), "Median");
+
+    // Below, a box for each kind of run, lying down on a category axis.
+    boxes->yAxis()->setScaleType(rocketplot::ScaleType::CATEGORY);
+    boxes->yAxis()->setCategories({"All runs", "Full burn", "Short burn"});
+    const std::array<const std::vector<double>*, 3> runs{&apogee, &nominal, &weak};
+    for (std::size_t category = 0; category < runs.size(); ++category)
+    {
+        rocketplot::BoxSeries* box =
+            boxes->addBox(rocketplot::BoxStatistics::fromValues(*runs.at(category)),
+                          static_cast<double>(category));
+        box->setOrientation(Qt::Horizontal);
+        box->setMeanVisible(true);
+    }
     // [/snippet]
 
     QObject::connect(bins, &QComboBox::currentIndexChanged, flights,
@@ -102,7 +124,7 @@ QWidget* create(QWidget* parent)
                 break;
         }
     });
-    layout->addWidget(plot, 1);
+    layout->addWidget(grid, 1);
     return page;
 }
 
@@ -116,7 +138,9 @@ DemoPage statisticsPage()
             "A histogram counts values into equal bins: as many as the square root of the count "
             "(5 to 50) unless you choose, and heights as counts, shares of the values or a density "
             "whose area is 1. Point at a bar for its bin and height. Shaded: the middle 90% of the "
-            "runs, from their percentiles."),
+            "runs, from their percentiles. Below, a box and whiskers of each kind of run on a "
+            "category axis, sharing the apogee axis: the quartiles and the median, whiskers to 1.5 "
+            "times the box, outliers beyond them and the mean as a diamond."),
         .sourceFile = QStringLiteral("StatisticsPage.cpp"),
         .create     = create,
     };

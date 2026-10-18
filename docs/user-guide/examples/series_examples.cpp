@@ -7,12 +7,15 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <vector>
 
 #include "Examples.h"
 #include "SampleData.h"
 #include "rocketplot/Axis.h"
 #include "rocketplot/BarSeries.h"
+#include "rocketplot/BoxSeries.h"
+#include "rocketplot/BoxStatistics.h"
 #include "rocketplot/HistogramSeries.h"
 #include "rocketplot/Legend.h"
 #include "rocketplot/LineSeries.h"
@@ -238,6 +241,31 @@ void histogram(PlotWidget* plot)
     plot->yAxis()->setLabel("Landings");
 }
 
+void boxes(PlotWidget* plot)
+{
+    std::vector<double> nominal = noise(400, 40.0, 3);
+    std::vector<double> gusty   = noise(400, 70.0, 4);
+    std::vector<double> engine  = noise(400, 45.0, 5);
+    for (std::size_t i = 0; i < nominal.size(); ++i)
+    {
+        nominal[i] = std::abs(nominal[i]) + 10.0;
+        gusty[i]   = std::abs(gusty[i]) + 20.0;
+        engine[i]  = std::abs(engine[i]) + 90.0;
+    }
+    // [series-box]
+    // Miss distances of three sets of runs, a box each over its category.
+    plot->xAxis()->setScaleType(rocketplot::ScaleType::CATEGORY);
+    plot->xAxis()->setCategories({"Nominal", "Gusty", "Engine-out"});
+    plot->addBox(rocketplot::BoxStatistics::fromValues(nominal), 0, "Nominal");
+    plot->addBox(rocketplot::BoxStatistics::fromValues(gusty), 1, "Gusty");
+    rocketplot::BoxSeries* worst =
+        plot->addBox(rocketplot::BoxStatistics::fromValues(engine), 2, "Engine-out");
+    worst->setMeanVisible(true);  // the mean as a diamond
+    // [/series-box]
+    plot->yAxis()->setLabel("Miss distance (m)");
+    plot->yAxis()->setAutoscaleIncludesZero(std::numeric_limits<double>::infinity());
+}
+
 void histogramSettings(const QString& /*scratch*/)
 {
     PlotWidget                   window;
@@ -263,6 +291,7 @@ void addSeriesExamples(Examples& examples)
     examples.addPlot(QStringLiteral("series-errors"), errors);
     examples.addPlot(QStringLiteral("series-bars"), bars, {720, 320});
     examples.addPlot(QStringLiteral("series-histogram"), histogram, {720, 320});
+    examples.addPlot(QStringLiteral("series-box"), boxes, {720, 360});
     examples.demonstrations.push_back(
         {.name = QStringLiteral("histogram settings"), .run = histogramSettings});
     examples.demonstrations.push_back({.name = QStringLiteral("styling a series"), .run = styling});

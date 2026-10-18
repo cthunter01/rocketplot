@@ -2,8 +2,8 @@
 
 [User Guide](index.md) · previous: [Data](data.md) · next: [Axes](axes.md)
 
-A `LineSeries` connects its points, a `ScatterSeries` draws a marker at each, and a `BarSeries` stands a bar on
-each bin (a `HistogramSeries` counts its bars from values). Each is a `Series`, which is where the data, the
+A `LineSeries` connects its points, a `ScatterSeries` draws a marker at each, a `BarSeries` stands a bar on
+each bin (a `HistogramSeries` counts its bars from values), and a `BoxSeries` is a box and whiskers. Each is a `Series`, which is where the data, the
 name, the color and the errors live, and `kind()` says which it is. This chapter is about how they look.
 
 ## Lines
@@ -191,6 +191,39 @@ A value at an edge goes into the bin above it, the largest value into the last b
 range aren't counted. `PROBABILITY` makes the heights shares that add up to 1, `DENSITY` shares per unit of x,
 whose areas add up to 1 (to compare with a probability density). Each change counts the bars again, so a
 histogram has no `setBars()`.
+
+## Box plots
+
+A box and whiskers shows a set of values at a glance: the box from the first quartile to the third with the
+median across it, whiskers out to the furthest values that aren't outliers, and the outliers beyond them.
+
+![Three boxes of miss distances on a category axis, the last with its mean](images/series-box.png)
+
+<!-- example: series-box -->
+```cpp
+// Miss distances of three sets of runs, a box each over its category.
+plot->xAxis()->setScaleType(rocketplot::ScaleType::CATEGORY);
+plot->xAxis()->setCategories({"Nominal", "Gusty", "Engine-out"});
+plot->addBox(rocketplot::BoxStatistics::fromValues(nominal), 0, "Nominal");
+plot->addBox(rocketplot::BoxStatistics::fromValues(gusty), 1, "Gusty");
+rocketplot::BoxSeries* worst =
+    plot->addBox(rocketplot::BoxStatistics::fromValues(engine), 2, "Engine-out");
+worst->setMeanVisible(true);  // the mean as a diamond
+```
+
+- `BoxStatistics::fromValues()` works the box out from the values: the quartiles and the median as R's and
+  NumPy's default quantiles have them, whiskers out to the furthest values within 1.5 times the box's height
+  of it, values beyond those up to 2 times it outliers, the rest far-outs, and the mean. Those are JFreeChart's
+  fences; for Tukey's outer fences pass `fromValues(values, 1.5, 3.0)`. With a rule of your own, fill a
+  `BoxStatistics` in yourself: the five numbers must be finite and in order.
+- The box stands at a position: an x, or a y with `setOrientation(Qt::Horizontal)`. On a
+  [category axis](axes.md#categories) that is the index of its category. `width` is the box's width in
+  the units of that axis (0.5 by default).
+- Outliers are drawn with `marker()`, a hollow circle by default, far-outs with `farOutMarker()` (a cross). The
+  median has a color of its own if you set `medianColor`; `meanVisible` adds the mean as a diamond;
+  `whiskerCapRatio`, `fillOpacity` and `lineWidth` do what they say.
+- Its points are the statistics: the crosshair snaps to them (`partAt()` says which part it is on), the legend
+  reads the median over the box, and the CSV export writes them with a column naming each part.
 
 ## Color
 
